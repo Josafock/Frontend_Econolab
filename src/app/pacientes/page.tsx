@@ -3,118 +3,61 @@
 import AddPatientModal from '@/components/pacientes/AddPatientModal';
 import { Search, Plus, Filter, Edit, Trash2, Eye, Phone, Mail, MapPin, User } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from 'react-toastify';
+
+export interface Paciente {
+  id: number;
+  nombre: string;
+  apellidoPaterno: string;
+  apellidoMaterno: string;
+  fechaNacimiento: string;
+  genero: 'Femenino' | 'Masculino' | 'Otro' | 'Prefiero no decir';
+  telefono: string;
+  email: string;
+  colonia: string; // Faltaba en el modal, lo agregaremos allí
+  ciudad: string;
+  fechaRegistro: string;
+}
+
+// Datos de ejemplo iniciales (Ahora son el estado inicial)
+const initialPacientes: Paciente[] = [
+  { id: 1, nombre: 'MARIA', apellidoPaterno: 'HERNANDEZ', apellidoMaterno: 'HERNANDEZ', fechaNacimiento: '1985-03-15', genero: 'Femenino', telefono: '7712345678', email: 'maria.hernandez@email.com', colonia: 'Centro', ciudad: 'Pachuca', fechaRegistro: '2023-01-15' },
+  { id: 2, nombre: 'JUAN CARLOS', apellidoPaterno: 'GARCIA', apellidoMaterno: 'LOPEZ', fechaNacimiento: '1990-07-22', genero: 'Masculino', telefono: '7719876543', email: 'juan.garcia@email.com', colonia: 'San Javier', ciudad: 'Pachuca', fechaRegistro: '2023-02-10' },
+  { id: 3, nombre: 'ANA KAREN', apellidoPaterno: 'MARTINEZ', apellidoMaterno: 'RODRIGUEZ', fechaNacimiento: '1988-11-30', genero: 'Femenino', telefono: '7715551234', email: 'ana.martinez@email.com', colonia: 'Platina', ciudad: 'Pachuca', fechaRegistro: '2023-03-05' },
+  { id: 4, nombre: 'PEDRO', apellidoPaterno: 'RAMIREZ', apellidoMaterno: 'SANCHEZ', fechaNacimiento: '1975-12-10', genero: 'Masculino', telefono: '7714447890', email: 'pedro.ramirez@email.com', colonia: 'Venta Prieta', ciudad: 'Pachuca', fechaRegistro: '2023-01-28' },
+  { id: 5, nombre: 'SOFIA', apellidoPaterno: 'DIAZ', apellidoMaterno: 'CASTILLO', fechaNacimiento: '1995-05-18', genero: 'Femenino', telefono: '7713334567', email: 'sofia.diaz@email.com', colonia: 'Camelia', ciudad: 'Pachuca', fechaRegistro: '2023-04-12' },
+  { id: 6, nombre: 'LUIS MIGUEL', apellidoPaterno: 'TORRES', apellidoMaterno: 'FLORES', fechaNacimiento: '1982-09-03', genero: 'Masculino', telefono: '7712223456', email: 'luis.torres@email.com', colonia: 'San Cayetano', ciudad: 'Pachuca', fechaRegistro: '2023-02-22' },
+  { id: 7, nombre: 'CAROLINA', apellidoPaterno: 'VARGAS', apellidoMaterno: 'MORALES', fechaNacimiento: '1992-02-14', genero: 'Femenino', telefono: '7716667891', email: 'carolina.vargas@email.com', colonia: 'Palmillas', ciudad: 'Pachuca', fechaRegistro: '2023-03-18' },
+  { id: 8, nombre: 'ROBERTO', apellidoPaterno: 'CASTRO', apellidoMaterno: 'MENDOZA', fechaNacimiento: '1980-06-25', genero: 'Masculino', telefono: '7717772345', email: 'roberto.castro@email.com', colonia: 'Santa Julia', ciudad: 'Pachuca', fechaRegistro: '2023-01-08' }
+];
+
+// Define el tipo de dato que el modal enviará (omitimos 'id' y 'fechaRegistro' que se generan aquí)
+type NewPatientData = Omit<Paciente, 'id' | 'fechaRegistro'>;
 
 export default function PacientesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [openAddModal, setOpenAddModal] = useState(false);
-  
-  // Datos de ejemplo para pacientes
-  const pacientes = [
-    {
-      id: 1,
-      nombre: 'MARIA',
-      apellidoPaterno: 'HERNANDEZ',
-      apellidoMaterno: 'HERNANDEZ',
-      fechaNacimiento: '1985-03-15',
-      genero: 'Femenino',
-      telefono: '7712345678',
-      email: 'maria.hernandez@email.com',
-      colonia: 'Centro',
-      ciudad: 'Pachuca',
-      fechaRegistro: '2023-01-15'
-    },
-    {
-      id: 2,
-      nombre: 'JUAN CARLOS',
-      apellidoPaterno: 'GARCIA',
-      apellidoMaterno: 'LOPEZ',
-      fechaNacimiento: '1990-07-22',
-      genero: 'Masculino',
-      telefono: '7719876543',
-      email: 'juan.garcia@email.com',
-      colonia: 'San Javier',
-      ciudad: 'Pachuca',
-      fechaRegistro: '2023-02-10'
-    },
-    {
-      id: 3,
-      nombre: 'ANA KAREN',
-      apellidoPaterno: 'MARTINEZ',
-      apellidoMaterno: 'RODRIGUEZ',
-      fechaNacimiento: '1988-11-30',
-      genero: 'Femenino',
-      telefono: '7715551234',
-      email: 'ana.martinez@email.com',
-      colonia: 'Platina',
-      ciudad: 'Pachuca',
-      fechaRegistro: '2023-03-05'
-    },
-    {
-      id: 4,
-      nombre: 'PEDRO',
-      apellidoPaterno: 'RAMIREZ',
-      apellidoMaterno: 'SANCHEZ',
-      fechaNacimiento: '1975-12-10',
-      genero: 'Masculino',
-      telefono: '7714447890',
-      email: 'pedro.ramirez@email.com',
-      colonia: 'Venta Prieta',
-      ciudad: 'Pachuca',
-      fechaRegistro: '2023-01-28'
-    },
-    {
-      id: 5,
-      nombre: 'SOFIA',
-      apellidoPaterno: 'DIAZ',
-      apellidoMaterno: 'CASTILLO',
-      fechaNacimiento: '1995-05-18',
-      genero: 'Femenino',
-      telefono: '7713334567',
-      email: 'sofia.diaz@email.com',
-      colonia: 'Camelia',
-      ciudad: 'Pachuca',
-      fechaRegistro: '2023-04-12'
-    },
-    {
-      id: 6,
-      nombre: 'LUIS MIGUEL',
-      apellidoPaterno: 'TORRES',
-      apellidoMaterno: 'FLORES',
-      fechaNacimiento: '1982-09-03',
-      genero: 'Masculino',
-      telefono: '7712223456',
-      email: 'luis.torres@email.com',
-      colonia: 'San Cayetano',
-      ciudad: 'Pachuca',
-      fechaRegistro: '2023-02-22'
-    },
-    {
-      id: 7,
-      nombre: 'CAROLINA',
-      apellidoPaterno: 'VARGAS',
-      apellidoMaterno: 'MORALES',
-      fechaNacimiento: '1992-02-14',
-      genero: 'Femenino',
-      telefono: '7716667891',
-      email: 'carolina.vargas@email.com',
-      colonia: 'Palmillas',
-      ciudad: 'Pachuca',
-      fechaRegistro: '2023-03-18'
-    },
-    {
-      id: 8,
-      nombre: 'ROBERTO',
-      apellidoPaterno: 'CASTRO',
-      apellidoMaterno: 'MENDOZA',
-      fechaNacimiento: '1980-06-25',
-      genero: 'Masculino',
-      telefono: '7717772345',
-      email: 'roberto.castro@email.com',
-      colonia: 'Santa Julia',
-      ciudad: 'Pachuca',
-      fechaRegistro: '2023-01-08'
-    }
-  ];
+  const [pacientes, setPacientes] = useState<Paciente[]>(initialPacientes);
+
+  const addPatient = (newPatient: NewPatientData) => {
+    // Lógica para generar ID y fecha de registro
+    const newId = Math.max(...pacientes.map(p => p.id)) + 1; // Genera el siguiente ID
+    const now = new Date().toISOString().substring(0, 10); // Formato YYYY-MM-DD
+    
+    const fullNewPatient: Paciente = {
+      ...newPatient,
+      id: newId,
+      fechaRegistro: now,
+      // Asegurar que el género esté capitalizado si se almacena así
+      genero: newPatient.genero.charAt(0).toUpperCase() + newPatient.genero.slice(1) as Paciente['genero'],
+    };
+    
+    // Agrega el nuevo paciente al array (al inicio para que sea visible)
+    setPacientes(prevPacientes => [fullNewPatient, ...prevPacientes]);
+    setOpenAddModal(false); // Cierra el modal al agregar
+    
+    toast.success(`Paciente ${newPatient.nombre} ${newPatient.apellidoPaterno} registrado con éxito.`);
+  };
 
   const calcularEdad = (fechaNacimiento: string): number => {
     const hoy = new Date();
@@ -434,7 +377,7 @@ export default function PacientesPage() {
         ))}
       </div>
       {/* Agregar Patient Modal */}
-      {openAddModal && <AddPatientModal open={openAddModal} setOpen={setOpenAddModal} />}
+      {openAddModal && <AddPatientModal setOpen={setOpenAddModal} addPatient={addPatient} />}
     </div>
   );
 }

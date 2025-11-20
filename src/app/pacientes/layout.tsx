@@ -1,6 +1,7 @@
 import { Sidebar } from "@/components/ui/sidebar";
 import { Metadata } from "next";
 import { verifySession } from "@/auth/dal";
+import ToastNotification from "@/components/ui/ToastNotification";
 
 export const metadata: Metadata = {
   title: "Pacientes - Econolab",
@@ -17,6 +18,7 @@ export default async function PacientesLayout({ children }: { children: React.Re
                     {children}
                 </main>
             </div>
+            <ToastNotification />
         </div>
     );
 }

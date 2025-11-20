@@ -3,13 +3,53 @@
 import { useState } from 'react';
 import { X, User, Calendar, Phone, Mail, MapPin, UserPlus } from 'lucide-react';
 
-export default function AddPatientModal( { open, setOpen }: { open: boolean; setOpen: (open: boolean) => void } ) {
+export interface Paciente {
+  id: number;
+  nombre: string;
+  apellidoPaterno: string;
+  apellidoMaterno: string;
+  fechaNacimiento: string;
+  genero: 'Femenino' | 'Masculino' | 'Otro' | 'Prefiero no decir';
+  telefono: string;
+  email: string;
+  colonia: string; // Faltaba en el modal, lo agregaremos allí
+  ciudad: string;
+  fechaRegistro: string;
+}
+
+// Define la estructura de datos que el modal enviará al padre
+type PatientFormData = Omit<Paciente, 'id' | 'fechaRegistro' | 'colonia'> & {
+  edad: string; // La edad se usa para calcular la fechaNacimiento
+  apellidoPaterno: string;
+  apellidoMaterno: string;
+};
+
+// Define la interfaz de las props del modal
+interface AddPatientModalProps {
+  setOpen: (open: boolean) => void;
+  // La función addPatient recibe los datos sin ID ni fecha de registro
+  addPatient: (newPatient: Omit<Paciente, 'id' | 'fechaRegistro'>) => void;
+}
+
+
+// Función utilitaria para estimar la fecha de nacimiento a partir de la edad
+const calculateDOBFromAge = (age: number): string => {
+  const today = new Date();
+  const year = today.getFullYear() - age;
+  // Retorna la fecha de hoy del año correspondiente, en formato YYYY-MM-DD
+  return `${year}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+};
+
+export default function AddPatientModal( { setOpen, addPatient }: AddPatientModalProps) {
   const [formData, setFormData] = useState({
     nombre: '',
-    edad: '',
+    apellidoPaterno: '', // Nuevo campo
+    apellidoMaterno: '', // Nuevo campo
+    edad: '', // Usaremos este campo para calcular la fechaNacimiento
     genero: '',
     telefono: '',
     email: '',
+    colonia: '', // Nuevo campo
     ciudad: ''
   });
 
@@ -20,7 +60,37 @@ export default function AddPatientModal( { open, setOpen }: { open: boolean; set
     });
   };
 
-  if (!open) return null;
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // 1. Validación (puedes hacerla más detallada)
+    const requiredFields = ['nombre', 'edad', 'genero', 'telefono', 'ciudad'];
+    const isFormValid = requiredFields.every(field => formData[field as keyof typeof formData]);
+
+    if (!isFormValid || isNaN(parseInt(formData.edad)) || parseInt(formData.edad) < 0) {
+      alert('Por favor, completa todos los campos válidos para registrar al paciente.');
+      return;
+    }
+
+    const age = parseInt(formData.edad);
+    const fechaNacimiento = calculateDOBFromAge(age);
+
+    // 2. Preparar el objeto del nuevo paciente
+    const newPatient: Omit<Paciente, 'id' | 'fechaRegistro'> = {
+      nombre: formData.nombre.toUpperCase(),
+      apellidoPaterno: formData.apellidoPaterno.toUpperCase(),
+      apellidoMaterno: formData.apellidoMaterno.toUpperCase(),
+      fechaNacimiento: fechaNacimiento,
+      genero: formData.genero.charAt(0).toUpperCase() + formData.genero.slice(1) as Paciente['genero'],
+      telefono: formData.telefono,
+      email: formData.email,
+      colonia: formData.colonia,
+      ciudad: formData.ciudad
+    };
+
+    // 3. Llamar a la función del componente padre
+    addPatient(newPatient);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -45,7 +115,7 @@ export default function AddPatientModal( { open, setOpen }: { open: boolean; set
         </div>
 
         {/* Form */}
-        <form className="p-6 space-y-6">
+        <form className="p-6 space-y-6" onSubmit={handleSubmit}>
           {/* Información Personal */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Nombre Completo */}
@@ -149,20 +219,40 @@ export default function AddPatientModal( { open, setOpen }: { open: boolean; set
           </div>
 
           {/* Ubicación */}
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">
-              Ciudad
-            </label>
-            <div className="relative">
-              <MapPin className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-              <input
-                type="text"
-                name="ciudad"
-                value={formData.ciudad}
-                onChange={handleChange}
-                placeholder="Ciudad de México"
-                className="w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
-              />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Ciudad */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                Ciudad
+              </label>
+              <div className="relative">
+                <MapPin className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                  type="text"
+                  name="ciudad"
+                  value={formData.ciudad}
+                  onChange={handleChange}
+                  placeholder="Pachuca"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
+                />
+              </div>
+            </div>
+            {/* Colonia */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                Colonia
+              </label>
+              <div className="relative">
+                <MapPin className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                  type="text"
+                  name="colonia"
+                  value={formData.colonia}
+                  onChange={handleChange}
+                  placeholder="Centro"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
+                />
+              </div>
             </div>
           </div>
 
