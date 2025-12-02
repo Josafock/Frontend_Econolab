@@ -12,8 +12,6 @@ export default function GoogleOAuthPage() {
   useEffect(() => {
     const token = params.get("token");
     const message = params.get("message");
-    const rol = params.get("rol");
-    const email = params.get("email");
 
     if (message) {
       toast.success(message);

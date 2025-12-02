@@ -32,8 +32,6 @@ export default function MfaForm({ email }: { email: string }) {
     }
   }, [state, router]);
 
-  const triangles = Array.from({ length: 120 });
-
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-gray-50">
       <div

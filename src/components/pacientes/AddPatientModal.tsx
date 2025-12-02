@@ -17,12 +17,12 @@ export interface Paciente {
   fechaRegistro: string;
 }
 
-// Define la estructura de datos que el modal enviará al padre
-type PatientFormData = Omit<Paciente, 'id' | 'fechaRegistro' | 'colonia'> & {
-  edad: string; // La edad se usa para calcular la fechaNacimiento
-  apellidoPaterno: string;
-  apellidoMaterno: string;
-};
+// // Define la estructura de datos que el modal enviará al padre
+// type PatientFormData = Omit<Paciente, 'id' | 'fechaRegistro' | 'colonia'> & {
+//   edad: string; // La edad se usa para calcular la fechaNacimiento
+//   apellidoPaterno: string;
+//   apellidoMaterno: string;
+// };
 
 // Define la interfaz de las props del modal
 interface AddPatientModalProps {
