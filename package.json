@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 5173",
+    "dev": "next dev -p 5173 --experimental-https",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
@@ -19,6 +19,7 @@
     "next": "15.5.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "react-icons": "^5.5.0",
     "react-toastify": "^11.0.5",
     "zod": "^4.1.12"
   },

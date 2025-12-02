@@ -43,12 +43,13 @@ export async function register(prevState: errorsType, formData: FormData) {
 
     const json = await res.json()
 
-    if (res.status === 409) {
+    if (!res.ok) {
         return {
             ...normalizeErrors(json),
             success: '',
         }
     }
+    console.log(json);
 
     const { message } = successSchema.parse(json)
 

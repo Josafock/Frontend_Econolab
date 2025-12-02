@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
 import { Eye, EyeOff, User, Lock } from 'lucide-react';
+import { FcGoogle } from 'react-icons/fc';
 import { login } from '@/actions/auth/loginAction';
 import Link from 'next/link';
 
@@ -14,14 +15,33 @@ export default function LoginForm() {
     errors: [],
     success: '',
     rol: '',
+    mfa: false,
+    email: '',
   });
 
   useEffect(() => {
     if (state?.errors?.length) {
       state.errors.forEach((error: string) => toast.error(error));
     }
+
+    // 🔐 Caso MFA: no vamos a /home, sino a /auth/mfa
+    if (state?.mfa) {
+      if (state.success) {
+        toast.info(state.success);
+      }
+      if (state.email) {
+        router.push(`/auth/mfa?email=${encodeURIComponent(state.email)}`);
+      } else {
+        router.push('/auth/mfa');
+      }
+      return;
+    }
+
+    // ✅ Login normal
     if (state?.success) {
-      toast.success(state.success, { onClose: () => router.push('/home') });
+      toast.success(state.success, {
+        onClose: () => router.push('/home'),
+      });
     }
   }, [state, router]);
 
@@ -127,8 +147,8 @@ export default function LoginForm() {
 
                 {/* Utilidades */}
                 <div className="flex items-center justify-between">
-                  <Link 
-                    href="/auth/forgot-password" 
+                  <Link
+                    href="/auth/forgot-password"
                     className="text-sm font-medium text-red-600 hover:text-red-700 transition-colors"
                   >
                     ¿Olvidaste tu contraseña?
@@ -158,11 +178,30 @@ export default function LoginForm() {
                   <div className="h-px w-full bg-gray-200" />
                 </div>
 
+                <button
+                  type="button"
+                  onClick={() => {
+                    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+                    if (!apiUrl) {
+                      console.error("Falta NEXT_PUBLIC_API_URL");
+                      return;
+                    }
+                    window.location.href = `${apiUrl}/auth/google`;
+                    // => http://localhost:3000/api/auth/google
+                  }}
+                  className="flex w-full items-center justify-center gap-3 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-100"
+                >
+                  <FcGoogle className="h-5 w-5" />
+                  Continuar con Google
+                </button>
+
+
+
                 {/* Registro */}
                 <p className="text-center text-sm text-gray-600">
                   ¿No tienes una cuenta?{' '}
-                  <Link 
-                    href="/auth/register" 
+                  <Link
+                    href="/auth/register"
                     className="font-medium text-red-600 underline underline-offset-2 hover:text-red-700 transition-colors"
                   >
                     Regístrate aquí

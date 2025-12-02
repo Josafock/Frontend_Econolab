@@ -1,14 +1,28 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
-import { Eye, EyeOff, User, Mail, UserRoundPlus } from 'lucide-react';
-import { register } from '@/actions/auth/registerAction';
+import {
+  Eye,
+  EyeOff,
+  User,
+  Mail,
+  UserRoundPlus,
+  CheckCircle2,
+  XCircle,
+} from 'lucide-react';
 import Link from 'next/link';
+import { register } from '@/actions/auth/registerAction';
+import {
+  passwordRules,
+  getPasswordStrength,
+  isPasswordStrong,
+} from '@/helpers/passwordRules';
 
 export default function RegisterForm() {
   const router = useRouter();
+
   const [formData, setFormData] = useState({
     nombre: '',
     email: '',
@@ -24,6 +38,22 @@ export default function RegisterForm() {
     success: '',
   });
 
+  // 🔐 Fuerza de contraseña + reglas
+  const strength = useMemo(
+    () => getPasswordStrength(formData.password),
+    [formData.password]
+  );
+
+  const allRulesOk = isPasswordStrong(formData.password);
+  const passwordsMatch =
+    !!formData.password2 && formData.password2 === formData.password;
+
+  const canSubmit =
+    allRulesOk &&
+    passwordsMatch &&
+    !!formData.nombre.trim() &&
+    !!formData.email.trim();
+
   useEffect(() => {
     if (state?.errors?.length) {
       state.errors.forEach((error: string) => toast.error(error));
@@ -38,7 +68,10 @@ export default function RegisterForm() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }));
   };
 
   const handleSubmit = async (formData_: FormData) => {
@@ -78,7 +111,9 @@ export default function RegisterForm() {
       </div>
 
       <style jsx>{`
-        .clip-triangle { clip-path: polygon(50% 0%, 0% 100%, 100% 100%); }
+        .clip-triangle {
+          clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+        }
       `}</style>
 
       {/* Contenido */}
@@ -89,14 +124,18 @@ export default function RegisterForm() {
             {/* Encabezado de marca */}
             <div className="flex items-center justify-center gap-3 border-b border-gray-100 px-8 py-6">
               <div className="text-center">
-                <h1 className="text-4xl text-black font-bold"><span className="text-primary font-bold">ECONO</span>LAB</h1>
-                <div className="flex items-center gap-3 mt-4">
+                <h1 className="text-4xl text-black font-bold">
+                  <span className="text-primary font-bold">ECONO</span>LAB
+                </h1>
+                <div className="mt-4 flex items-center gap-3">
                   <div className="flex h-12 w-12 items-center justify-center rounded-md bg-red-600">
                     <UserRoundPlus className="h-6 w-6 text-white" />
                   </div>
                   <div className="text-left">
-                    <h1 className="text-lg font-semibold text-gray-900">Crear Cuenta</h1>
-                    <p className="text-xs text-gray-500">Registrate para acceder</p>
+                    <h1 className="text-lg font-semibold text-gray-900">
+                      Crear Cuenta
+                    </h1>
+                    <p className="text-xs text-gray-500">Regístrate para acceder</p>
                   </div>
                 </div>
               </div>
@@ -107,11 +146,17 @@ export default function RegisterForm() {
               <div className="space-y-5">
                 {/* Nombre */}
                 <div>
-                  <label htmlFor="nombre" className="mb-1 block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="nombre"
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                  >
                     Nombre completo
                   </label>
                   <div className="relative">
-                    <User className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <User
+                      className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                      size={18}
+                    />
                     <input
                       id="nombre"
                       name="nombre"
@@ -127,11 +172,17 @@ export default function RegisterForm() {
 
                 {/* Email */}
                 <div>
-                  <label htmlFor="email" className="mb-1 block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="email"
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                  >
                     Correo electrónico
                   </label>
                   <div className="relative">
-                    <Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <Mail
+                      className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                      size={18}
+                    />
                     <input
                       id="email"
                       name="email"
@@ -147,7 +198,10 @@ export default function RegisterForm() {
 
                 {/* Contraseña */}
                 <div>
-                  <label htmlFor="password" className="mb-1 block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="password"
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                  >
                     Contraseña
                   </label>
                   <div className="relative">
@@ -164,7 +218,9 @@ export default function RegisterForm() {
                     <button
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
-                      aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                      aria-label={
+                        showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'
+                      }
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                     >
                       {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
@@ -174,7 +230,10 @@ export default function RegisterForm() {
 
                 {/* Confirmar contraseña */}
                 <div>
-                  <label htmlFor="password2" className="mb-1 block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="password2"
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                  >
                     Confirmar contraseña
                   </label>
                   <div className="relative">
@@ -191,7 +250,11 @@ export default function RegisterForm() {
                     <button
                       type="button"
                       onClick={() => setShowPassword2((v) => !v)}
-                      aria-label={showPassword2 ? 'Ocultar confirmación de contraseña' : 'Mostrar confirmación de contraseña'}
+                      aria-label={
+                        showPassword2
+                          ? 'Ocultar confirmación de contraseña'
+                          : 'Mostrar confirmación de contraseña'
+                      }
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                     >
                       {showPassword2 ? <Eye size={18} /> : <EyeOff size={18} />}
@@ -199,9 +262,54 @@ export default function RegisterForm() {
                   </div>
                 </div>
 
+                {/* Indicador de fuerza + reglas */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-600">Fuerza de la contraseña</span>
+                    <span className="font-medium text-gray-700">
+                      {strength.label}
+                    </span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+                    <div
+                      className={
+                        'h-full transition-all ' +
+                        (strength.pct < 40
+                          ? 'bg-red-500'
+                          : strength.pct < 80
+                          ? 'bg-yellow-400'
+                          : 'bg-green-500')
+                      }
+                      style={{ width: `${strength.pct}%` }}
+                    />
+                  </div>
+
+                  <ul className="mt-2 grid grid-cols-1 gap-2 text-xs text-gray-600 sm:grid-cols-2">
+                    {passwordRules.map((rule) => (
+                      <li key={rule.id} className="flex items-center gap-2">
+                        {rule.test(formData.password) ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-gray-400" />
+                        )}
+                        {rule.label}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Coincidencia de contraseñas */}
+                {formData.password2 && !passwordsMatch && (
+                  <p className="text-xs font-medium text-red-600">
+                    Las contraseñas no coinciden
+                  </p>
+                )}
+
                 {/* Submit */}
                 <button
-                  className="inline-flex w-full items-center justify-center rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  type="submit"
+                  disabled={pending || !canSubmit}
+                  className="inline-flex w-full items-center justify-center rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {pending ? 'Creando cuenta...' : 'Crear cuenta'}
                 </button>
@@ -209,7 +317,10 @@ export default function RegisterForm() {
                 {/* Link Login */}
                 <p className="text-center text-sm text-gray-600">
                   ¿Ya tienes una cuenta?{' '}
-                  <Link href="/auth/login" className="font-medium text-red-600 underline underline-offset-2 hover:text-red-700">
+                  <Link
+                    href="/auth/login"
+                    className="font-medium text-red-600 underline underline-offset-2 hover:text-red-700"
+                  >
                     Inicia sesión
                   </Link>
                 </p>
@@ -219,7 +330,10 @@ export default function RegisterForm() {
 
           {/* Nota inferior */}
           <div className="mt-6 text-center text-xs text-gray-600">
-            <span>Registro seguro • Protección de datos • Acceso inmediato • Soporte 24/7</span>
+            <span>
+              Registro seguro • Protección de datos • Acceso inmediato • Soporte
+              24/7
+            </span>
           </div>
         </div>
       </div>
