@@ -1,7 +1,10 @@
-import GoogleCallback from "@/components/auth/GoogleCallbackForm";
+import { Suspense } from "react";
+import GoogleOAuthPage from "@/components/auth/GoogleCallbackForm";
 
-export default function Google() {
+export default function GooglePage() {
   return (
-    <GoogleCallback />
-  )
+    <Suspense fallback={<div>Procesando login de Google...</div>}>
+      <GoogleOAuthPage />
+    </Suspense>
+  );
 }
