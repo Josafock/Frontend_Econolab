@@ -34,6 +34,8 @@ export async function forgotPassword(orevState: forgotPasswordType, formData: Fo
 
     const json = await res.json();
 
+    console.log(json);
+
     if (!res.ok) {
             return {
                 ...normalizeErrors(json),
