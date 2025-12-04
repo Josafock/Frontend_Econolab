@@ -3,6 +3,7 @@
 import AddServiceModal from '@/components/servicios/AgregarServicioModal';
 import { Search, Plus, Filter, Edit, Trash2, Eye, FileText, Calendar } from 'lucide-react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useState } from 'react';
 import { toast } from 'react-toastify';
 
@@ -26,6 +27,17 @@ interface StatusColors {
 }
 
 const initialServicios: Servicio[] = [
+  {
+    folio: 'GLU-006',
+    estudio: 'GLUCOSA EN SANGRE EN AYUNAS',
+    paciente: 'JUAN PÉREZ LÓPEZ',
+    telefono: '7711234567',
+    sucursal: 'Matriz',
+    creador: '2025-09-25 09:15:00',
+    fechaEntrega: '2025-09-25 HORA 12:00:00',
+    costo: '180',
+    status: 'PENDIENTE'
+  },
   {
     folio: 'TOL-001',
     estudio: 'GRUPO Y FACTOR-RH',
@@ -83,6 +95,7 @@ const initialServicios: Servicio[] = [
   }
 ];
 
+
 export default function ServiciosPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [openServiceModal, setOpenServiceModal] = useState(false);
@@ -132,27 +145,6 @@ export default function ServiciosPage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Servicios</h1>
           <p className="text-gray-600">Gestión y administración de servicios médicos</p>
-        </div>
-
-        {/* Tarjeta QR AR */}
-        <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm flex items-center gap-4 max-w-md w-full lg:w-auto">
-          <div className="flex-shrink-0">
-            <Image
-              src="/qr.jpeg"               // 👈 desde /public
-              alt="Código QR Econolab AR"
-              width={80}
-              height={80}
-              className="rounded-lg"
-            />
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold text-gray-900">
-              Visualización en Realidad Aumentada
-            </h2>
-            <p className="text-xs text-gray-600 mt-1">
-              Escanea este código con la app Econolab AR para ver una representación 3D del estudio.
-            </p>
-          </div>
         </div>
 
         {/* Botones de acciones */}
@@ -269,6 +261,7 @@ export default function ServiciosPage() {
         {/* Lista de servicios */}
         <div className="divide-y divide-gray-200">
           {servicios.map((servicio) => (
+            <Link href={`/servicios/detalle`} className="block">
             <div key={servicio.folio} className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-gray-50 transition-colors">
               {/* Folio */}
               <div className="col-span-1">
@@ -344,6 +337,7 @@ export default function ServiciosPage() {
                 </div>
               </div>
             </div>
+            </Link>
           ))}
         </div>
 
