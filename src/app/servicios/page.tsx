@@ -2,7 +2,6 @@
 
 import AddServiceModal from '@/components/servicios/AgregarServicioModal';
 import { Search, Plus, Filter, Edit, Trash2, Eye, FileText, Calendar } from 'lucide-react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
 import { toast } from 'react-toastify';
@@ -261,7 +260,7 @@ export default function ServiciosPage() {
         {/* Lista de servicios */}
         <div className="divide-y divide-gray-200">
           {servicios.map((servicio) => (
-            <Link href={`/servicios/detalle`} className="block">
+            <Link href={`/servicios/detalle`} key={servicio.folio} className="block">
             <div key={servicio.folio} className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-gray-50 transition-colors">
               {/* Folio */}
               <div className="col-span-1">
