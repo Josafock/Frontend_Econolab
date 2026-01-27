@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import { Sidebar } from "@/components/ui/sidebar";
 import { verifySession } from "@/auth/dal";
+import Breadcrumbs from "@/components/ui/BreadCrumbs";
 
 export const metadata: Metadata = {
   title: "Home - Econolab",
@@ -14,6 +15,7 @@ export default async function HomeLayout({ children }: { children: React.ReactNo
             <div className="grid grid-cols-1 md:grid-cols-[16rem_1fr] min-h-screen">
                 <Sidebar {...user} />
                 <main className="p-6 bg-gray-50 min-h-screen overflow-y-auto">
+                    <Breadcrumbs />
                     {children}
                 </main>
             </div>
