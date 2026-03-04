@@ -2,6 +2,7 @@ import { Sidebar } from "@/components/ui/sidebar";
 import { Metadata } from "next";
 import { verifySession } from "@/auth/dal";
 import Breadcrumbs from "@/components/ui/BreadCrumbs";
+import ToastNotification from "@/components/ui/ToastNotification";
 export const metadata: Metadata = {
   title: "Estudios - Econolab",
 };
@@ -18,6 +19,7 @@ export default async function EstudiosLayout({ children }: { children: React.Rea
                     {children}
                 </main>
             </div>
+            <ToastNotification />
         </div>
     );
 }

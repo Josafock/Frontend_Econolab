@@ -72,7 +72,11 @@ export async function verifyMfaAction(
 
   // 👇 Aquí ya NO usamos userSchema, tomamos el rol directo si viene
   const rol =
-    typeof json.usuario?.rol === "string" ? (json.usuario.rol as string) : "";
+    typeof json.usuario?.rol === "string"
+      ? (json.usuario.rol as string)
+      : typeof json.usuario?.role === "string"
+      ? (json.usuario.role as string)
+      : "";
 
   return {
     errors: [],

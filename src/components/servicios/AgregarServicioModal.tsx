@@ -1,91 +1,75 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { X, Search, Calendar, DollarSign, Building, Users, Stethoscope } from 'lucide-react';
+import type { Patient } from '@/actions/patients/patientsActions';
+import type { Study } from '@/actions/studies/studiesActions';
+import type { Doctor } from '@/actions/doctors/doctorsActions';
+import Link from 'next/link';
+
+type CreateServiceForm = {
+  folio: string;
+  patientId: number;
+  doctorId?: number;
+  studyId: number;
+  branchName: string;
+  deliveryAt: string;
+};
 
 interface AddServiceModalProps {
-    setOpen: (open: boolean) => void;
-    // Define la forma de los datos que recibirá la función
-    addService: (newService: {
-        estudio: string;
-        paciente: string;
-        telefono: string; // Se asume que el teléfono debe estar disponible aquí para simplificar
-        sucursal: string;
-        fechaEntrega: string;
-        costo: string;
-    }) => void;
+  setOpen: (open: boolean) => void;
+  addService: (newService: CreateServiceForm) => Promise<void>;
+  patients: Patient[];
+  doctors: Doctor[];
+  studies: Study[];
+  isSaving: boolean;
 }
-
-const studies = [
-  { id: '1', name: 'Biometría Hemática Completa' },
-  { id: '2', name: 'Química Sanguínea de 6 Elementos' },
-  { id: '3', name: 'Perfil Lipídico' },
-  { id: '4', name: 'Examen General de Orina' },
-  { id: '5', name: 'Prueba de Embarazo en Orina' },
-];
-
-const patients = [
-  { id: '1', name: 'María González López', record: 'MG-2024-001', telefono: '7711234567' },
-  { id: '2', name: 'Juan Pérez Hernández', record: 'JP-2024-002', telefono: '7717654321' },
-  { id: '3', name: 'Ana Martínez Ruiz', record: 'AM-2024-003', telefono: '7713334444' },
-  { id: '4', name: 'Carlos Sánchez Díaz', record: 'CS-2024-004', telefono: '7715556666' },
-];
 
 const branches = [
   { id: 'matriz', name: 'Matriz - Centro' },
-  { id: 'movil-1', name: 'Unidad Móvil Norte' },
-  { id: 'movil-2', name: 'Unidad Móvil Sur' },
-  { id: 'movil-3', name: 'Unidad Móvil Este' },
+  { id: 'movil-1', name: 'Unidad Movil Norte' },
+  { id: 'movil-2', name: 'Unidad Movil Sur' },
+  { id: 'movil-3', name: 'Unidad Movil Este' },
 ];
 
-export default function AddServiceModal({ setOpen, addService }: AddServiceModalProps) {
-  const [selectedStudyId, setSelectedStudyId] = useState(''); // Cambiado a ID
-  const [selectedPatientId, setSelectedPatientId] = useState(''); // Cambiado a ID
-  const [selectedBranchId, setSelectedBranchId] = useState(''); // Cambiado a ID
+export default function AddServiceModal({ setOpen, addService, patients, doctors, studies, isSaving }: AddServiceModalProps) {
+  const [folio, setFolio] = useState('');
+  const [selectedStudyId, setSelectedStudyId] = useState('');
+  const [selectedPatientId, setSelectedPatientId] = useState('');
+  const [selectedDoctorId, setSelectedDoctorId] = useState('');
+  const [selectedBranchId, setSelectedBranchId] = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
-  const [cost, setCost] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
+  const selectedStudy = useMemo(
+    () => studies.find((s) => String(s.id) === selectedStudyId),
+    [selectedStudyId, studies],
+  );
 
-        // **1. Mapeo de IDs a valores**
-        const studyName = studies.find(s => s.id === selectedStudyId)?.name || 'Estudio Desconocido';
-        const patientData = patients.find(p => p.id === selectedPatientId);
-        const patientName = patientData?.name || 'Paciente Desconocido';
-        const patientTel = patientData?.telefono || ''; // Obtiene el teléfono
-        const branchName = branches.find(b => b.id === selectedBranchId)?.name || 'Sucursal Desconocida';
+  const selectedPrice = selectedStudy ? Number(selectedStudy.normalPrice).toFixed(2) : '0.00';
 
-        // **2. Validación simple (Opcional)**
-        if (!selectedStudyId || !selectedPatientId || !selectedBranchId || !deliveryDate || !cost) {
-            alert('Por favor, completa todos los campos para agregar el servicio.');
-            return;
-        }
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-        const newService = {
-            estudio: studyName,
-            paciente: patientName,
-            telefono: patientTel, // Incluye el teléfono
-            sucursal: branchName,
-            fechaEntrega: `${deliveryDate} HORA 14:00:00`, // Formato de fecha
-            costo: cost,
-        };
+    if (!folio || !selectedStudyId || !selectedPatientId || !selectedBranchId || !deliveryDate) {
+      alert('Completa los campos obligatorios para agregar el servicio.');
+      return;
+    }
 
-        // **3. Llama a la función del componente padre**
-        addService(newService); 
+    const branchName = branches.find((b) => b.id === selectedBranchId)?.name ?? '';
 
-        // Opcional: Limpiar el formulario
-        setSelectedStudyId('');
-        setSelectedPatientId('');
-        setSelectedBranchId('');
-        setDeliveryDate('');
-        setCost('');
-        // Ya no es necesario llamar a setOpen(false) aquí, lo hace el padre.
-    };
+    await addService({
+      folio: folio.trim().toUpperCase(),
+      patientId: Number(selectedPatientId),
+      doctorId: selectedDoctorId ? Number(selectedDoctorId) : undefined,
+      studyId: Number(selectedStudyId),
+      branchName,
+      deliveryAt: `${deliveryDate}T14:00:00.000Z`,
+    });
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-xl">
-        {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 bg-red-50">
@@ -99,18 +83,28 @@ export default function AddServiceModal({ setOpen, addService }: AddServiceModal
           <button
             onClick={() => setOpen(false)}
             className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+            disabled={isSaving}
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Form */}
         <form className="p-6 space-y-6" onSubmit={handleSubmit}>
-          {/* Estudio */}
           <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">
-              Estudio o Análisis
-            </label>
+            <label className="mb-2 block text-sm font-medium text-gray-700">Folio</label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <input
+                value={folio}
+                onChange={(e) => setFolio(e.target.value)}
+                placeholder="ECO-0001"
+                className="w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-gray-700">Estudio o Analisis</label>
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <select
@@ -126,13 +120,15 @@ export default function AddServiceModal({ setOpen, addService }: AddServiceModal
                 ))}
               </select>
             </div>
+            <div className="mt-2 text-right">
+              <Link onClick={() => setOpen(false)} className="text-xs text-red-600 hover:underline" href="/estudios">
+                + Crear nuevo estudio
+              </Link>
+            </div>
           </div>
 
-          {/* Paciente */}
           <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">
-              Paciente
-            </label>
+            <label className="mb-2 block text-sm font-medium text-gray-700">Paciente</label>
             <div className="relative">
               <Users className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <select
@@ -143,18 +139,44 @@ export default function AddServiceModal({ setOpen, addService }: AddServiceModal
                 <option value="">Seleccionar paciente...</option>
                 {patients.map((patient) => (
                   <option key={patient.id} value={patient.id}>
-                    {patient.name} - {patient.record}
+                    {patient.firstName} {patient.lastName} {patient.middleName ?? ''}
                   </option>
                 ))}
               </select>
             </div>
+            <div className="mt-2 text-right">
+              <Link onClick={() => setOpen(false)} className="text-xs text-red-600 hover:underline" href="/pacientes">
+                + Crear nuevo paciente
+              </Link>
+            </div>
           </div>
 
-          {/* Sucursal */}
           <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">
-              Sucursal
-            </label>
+            <label className="mb-2 block text-sm font-medium text-gray-700">Doctor (opcional)</label>
+            <div className="relative">
+              <Users className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <select
+                value={selectedDoctorId}
+                onChange={(e) => setSelectedDoctorId(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1 appearance-none"
+              >
+                <option value="">Sin doctor asignado</option>
+                {doctors.map((doctor) => (
+                  <option key={doctor.id} value={doctor.id}>
+                    {doctor.firstName} {doctor.lastName} {doctor.middleName ?? ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="mt-2 text-right">
+              <Link onClick={() => setOpen(false)} className="text-xs text-red-600 hover:underline" href="/medicos">
+                + Crear nuevo doctor
+              </Link>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-gray-700">Sucursal</label>
             <div className="relative">
               <Building className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <select
@@ -173,11 +195,8 @@ export default function AddServiceModal({ setOpen, addService }: AddServiceModal
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Fecha de Entrega */}
             <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Fecha de Entrega
-              </label>
+              <label className="mb-2 block text-sm font-medium text-gray-700">Fecha de Entrega</label>
               <div className="relative">
                 <Calendar className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input
@@ -189,39 +208,34 @@ export default function AddServiceModal({ setOpen, addService }: AddServiceModal
               </div>
             </div>
 
-            {/* Costo */}
             <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Costo
-              </label>
+              <label className="mb-2 block text-sm font-medium text-gray-700">Costo</label>
               <div className="relative">
                 <DollarSign className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={cost}
-                  onChange={(e) => setCost(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
+                  value={selectedPrice}
+                  readOnly
+                  className="w-full rounded-lg border border-gray-300 bg-gray-50 px-10 py-3 text-sm text-gray-900 outline-none"
                 />
               </div>
             </div>
           </div>
 
-          {/* Actions */}
           <div className="flex gap-3 pt-4 border-t border-gray-200">
             <button
               type="button"
               onClick={() => setOpen(false)}
               className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+              disabled={isSaving}
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="flex-1 rounded-lg bg-white px-4 py-3 text-sm font-semibold border border-red-500 text-red-500 shadow-sm transition-all hover:bg-red-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+              className="flex-1 rounded-lg bg-white px-4 py-3 text-sm font-semibold border border-red-500 text-red-500 shadow-sm transition-all hover:bg-red-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50"
+              disabled={isSaving}
             >
-              Agregar Servicio
+              {isSaving ? 'Guardando...' : 'Agregar Servicio'}
             </button>
           </div>
         </form>

@@ -1,15 +1,40 @@
 import { z } from "zod";
 
-const rawUserSchema = z.object({
-        sub: z.number(),
-        nombre: z.string(),
-        email: z.string().email(),
-        rol: z.enum(["admin", "recepcionista", "unassigned"]),
-});
+const roleSchema = z.enum(["admin", "recepcionista", "unassigned"]);
+
+const rawUserSchema = z
+        .object({
+                sub: z.union([z.string(), z.number()]).optional(),
+                id: z.union([z.string(), z.number()]).optional(),
+                nombre: z.string(),
+                email: z.string().email(),
+                rol: roleSchema.optional(),
+                role: roleSchema.optional(),
+        })
+        .superRefine((user, ctx) => {
+                if (!user.sub && !user.id) {
+                        ctx.addIssue({
+                                code: z.ZodIssueCode.custom,
+                                message: "El usuario no incluye un identificador valido",
+                                path: ["sub"],
+                        });
+                }
+
+                if (!user.rol && !user.role) {
+                        ctx.addIssue({
+                                code: z.ZodIssueCode.custom,
+                                message: "El usuario no incluye un rol valido",
+                                path: ["rol"],
+                        });
+                }
+        });
 
 export const userSchema = rawUserSchema.transform((u) => ({
-        ...u,
-        id: u.sub,
+        id: String(u.sub ?? u.id ?? ""),
+        sub: String(u.sub ?? u.id ?? ""),
+        nombre: u.nombre,
+        email: u.email,
+        rol: u.rol ?? u.role ?? "unassigned",
 }));
 
 export type User = z.infer<typeof userSchema>
