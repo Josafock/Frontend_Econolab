@@ -8,8 +8,6 @@ type LoginType = {
   errors: string[];
   success: string;
   rol: string;
-  mfa: boolean;
-  email: string;
 };
 
 export async function login(
@@ -31,8 +29,6 @@ export async function login(
       errors,
       success: "",
       rol: "",
-      mfa: false,
-      email: "",
     };
   }
 
@@ -51,25 +47,12 @@ export async function login(
 
   const json = await res.json().catch(() => ({}));
 
-  // 🔐 Caso: el backend pide MFA
-  if (res.ok && json?.mfa) {
-    return {
-      errors: [],
-      success: json.message ?? "Se requiere verificación MFA",
-      rol: "",
-      mfa: true,
-      email: json.email ?? parsed.data.email,
-    };
-  }
-
   // ❌ Errores normales (401, 400, etc)
   if (!res.ok) {
     return {
       ...normalizeErrors(json),
       success: "",
       rol: "",
-      mfa: false,
-      email: "",
     };
   }
 
@@ -81,8 +64,6 @@ export async function login(
       errors: ["No se recibió el token de autenticación"],
       success: "",
       rol: "",
-      mfa: false,
-      email: "",
     };
   }
 
@@ -105,7 +86,5 @@ export async function login(
     errors: [],
     success: message,
     rol,
-    mfa: false,
-    email: "",
   };
 }

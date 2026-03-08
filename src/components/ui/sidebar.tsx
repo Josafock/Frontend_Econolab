@@ -10,8 +10,7 @@ import {
   LogOut,
   Menu,
   X,
-  Monitor,
-  Database
+  Monitor
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
@@ -34,9 +33,6 @@ export function Sidebar(user: UserType) {
     { name: 'Estudios', icon: <BookOpen size={20} />, path: '/estudios' },
     { name: 'Pacientes', icon: <Users size={20} />, path: '/pacientes' },
     { name: 'Medicos', icon: <Stethoscope size={20} />, path: '/medicos' },
-    ...(user.rol === 'admin'
-      ? [{ name: 'Admin BD', icon: <Database size={20} />, path: '/admin/database' }]
-      : []),
   ];
 
   useEffect(() => {

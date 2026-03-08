@@ -15,26 +15,11 @@ export default function LoginForm() {
     errors: [],
     success: '',
     rol: '',
-    mfa: false,
-    email: '',
   });
 
   useEffect(() => {
     if (state?.errors?.length) {
       state.errors.forEach((error: string) => toast.error(error));
-    }
-
-    // 🔐 Caso MFA: no vamos a /home, sino a /auth/mfa
-    if (state?.mfa) {
-      if (state.success) {
-        toast.info(state.success);
-      }
-      if (state.email) {
-        router.push(`/auth/mfa?email=${encodeURIComponent(state.email)}`);
-      } else {
-        router.push('/auth/mfa');
-      }
-      return;
     }
 
     // ✅ Login normal
