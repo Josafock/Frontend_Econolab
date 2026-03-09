@@ -9,6 +9,23 @@ type ServiceItemLike = { id: number };
 type ServiceLike = { items?: ServiceItemLike[] };
 type ResultLike = { id?: number };
 
+async function readErrorMessage(response: Response, fallback: string): Promise<string> {
+  const payload = await response.text().catch(() => '');
+  if (!payload) return fallback;
+
+  try {
+    const parsed = JSON.parse(payload) as { message?: string | string[] };
+    if (Array.isArray(parsed.message)) return parsed.message[0] ?? fallback;
+    if (typeof parsed.message === 'string' && parsed.message.trim().length > 0) {
+      return parsed.message;
+    }
+  } catch {
+    return payload;
+  }
+
+  return fallback;
+}
+
 export async function GET(_: Request, context: RouteContext) {
   const resolved = await Promise.resolve(context.params);
   const id = Number.parseInt(String(resolved?.id ?? ''), 10);
@@ -32,9 +49,8 @@ export async function GET(_: Request, context: RouteContext) {
   });
 
   if (!serviceRes.ok) {
-    const payload = await serviceRes.text().catch(() => '');
     return NextResponse.json(
-      { message: payload || 'No se pudo obtener el servicio.' },
+      { message: await readErrorMessage(serviceRes, 'No se pudo obtener el servicio.') },
       { status: serviceRes.status },
     );
   }
@@ -56,9 +72,8 @@ export async function GET(_: Request, context: RouteContext) {
   });
 
   if (!resultByItemRes.ok) {
-    const payload = await resultByItemRes.text().catch(() => '');
     return NextResponse.json(
-      { message: payload || 'No se pudo obtener el resultado del servicio.' },
+      { message: await readErrorMessage(resultByItemRes, 'No se pudo obtener el resultado del servicio.') },
       { status: resultByItemRes.status },
     );
   }
@@ -78,9 +93,8 @@ export async function GET(_: Request, context: RouteContext) {
   });
 
   if (!pdfRes.ok) {
-    const payload = await pdfRes.text().catch(() => '');
     return NextResponse.json(
-      { message: payload || 'No se pudo generar el PDF de resultados.' },
+      { message: await readErrorMessage(pdfRes, 'No se pudo generar el PDF de resultados.') },
       { status: pdfRes.status },
     );
   }
