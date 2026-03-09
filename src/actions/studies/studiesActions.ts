@@ -6,7 +6,6 @@ import { z } from "zod";
 export type StudyType = "study" | "package" | "other";
 export type StudyStatus = "active" | "suspended";
 
-const numericFieldSchema = z.coerce.number();
 const numericIntFieldSchema = z.coerce.number().int();
 const nonNegativeNumericFieldSchema = z.coerce.number().min(0);
 
@@ -45,6 +44,11 @@ const createStudyResponseSchema = z.object({
   data: studySchema,
 });
 
+const updateStudyResponseSchema = z.object({
+  message: z.string(),
+  data: studySchema,
+});
+
 const createStudyPayloadSchema = z.object({
   name: z.string().min(1).max(200),
   code: z.string().min(1).max(50),
@@ -66,7 +70,9 @@ export type Study = z.infer<typeof studySchema>;
 
 type StudiesSearchResponse = z.infer<typeof studiesSearchResponseSchema>;
 type CreateStudyResponse = z.infer<typeof createStudyResponseSchema>;
+type UpdateStudyResponse = z.infer<typeof updateStudyResponseSchema>;
 export type CreateStudyPayload = z.infer<typeof createStudyPayloadSchema>;
+export type UpdateStudyPayload = z.infer<typeof createStudyPayloadSchema>;
 
 export async function getStudies(params?: {
   search?: string;
@@ -111,6 +117,56 @@ export async function createStudy(payload: CreateStudyPayload): Promise<ApiResul
   const parsed = createStudyResponseSchema.safeParse(response.data);
   if (!parsed.success) {
     return { ok: false, errors: ["La respuesta al crear estudio es invalida."] };
+  }
+
+  return { ok: true, data: parsed.data };
+}
+
+export async function getStudyById(id: number): Promise<ApiResult<Study>> {
+  const response = await fetchApi<Study>(`/studies/${id}`);
+  if (!response.ok) return response;
+
+  const parsed = studySchema.safeParse(response.data);
+  if (!parsed.success) {
+    return { ok: false, errors: ["La respuesta de detalle de estudio es invalida."] };
+  }
+
+  return { ok: true, data: parsed.data };
+}
+
+export async function updateStudy(id: number, payload: UpdateStudyPayload): Promise<ApiResult<UpdateStudyResponse>> {
+  const parsedPayload = createStudyPayloadSchema.safeParse(payload);
+  if (!parsedPayload.success) {
+    const firstError = parsedPayload.error.issues[0]?.message ?? "Datos de estudio invalidos.";
+    return { ok: false, errors: [firstError] };
+  }
+
+  const response = await fetchApi<UpdateStudyResponse>(`/studies/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(parsedPayload.data),
+  });
+
+  if (!response.ok) return response;
+
+  const parsed = updateStudyResponseSchema.safeParse(response.data);
+  if (!parsed.success) {
+    return { ok: false, errors: ["La respuesta al actualizar estudio es invalida."] };
+  }
+
+  return { ok: true, data: parsed.data };
+}
+
+export async function updateStudyStatus(id: number, status: StudyStatus): Promise<ApiResult<UpdateStudyResponse>> {
+  const response = await fetchApi<UpdateStudyResponse>(`/studies/${id}`, {
+    method: "PUT",
+    body: JSON.stringify({ status }),
+  });
+
+  if (!response.ok) return response;
+
+  const parsed = updateStudyResponseSchema.safeParse(response.data);
+  if (!parsed.success) {
+    return { ok: false, errors: ["La respuesta al cambiar estatus de estudio es invalida."] };
   }
 
   return { ok: true, data: parsed.data };

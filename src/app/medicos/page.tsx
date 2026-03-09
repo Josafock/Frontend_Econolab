@@ -1,107 +1,37 @@
 'use client';
 
-import { getDoctors, type Doctor } from '@/actions/doctors/doctorsActions';
-import { createDoctor, type CreateDoctorPayload } from '@/actions/doctors/doctorsActions';
-import { Search, Plus, Filter, Edit, Trash2, Eye, Phone, Mail, User, Stethoscope, BadgeCheck, Calendar, Loader2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import { toast } from 'react-toastify';
 import AddDoctorModal from '@/components/medicos/AddDoctorModal';
+import EntityActionsMenu from '@/components/ui/EntityActionsMenu';
+import { useDoctorsData } from '@/hooks/useDoctorsData';
+import { Search, Plus, Filter, Phone, Mail, User, Stethoscope, BadgeCheck, Calendar, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { toast } from 'react-toastify';
 
-type UiDoctor = {
-  id: number;
-  nombre: string;
-  apellidoPaterno: string;
-  apellidoMaterno: string;
-  especialidad: string;
-  cedula: string;
-  telefono: string;
-  email: string;
-  estatus: 'Activo';
+const getEstatusColor = (estatus: string): string => {
+  const colors: Record<string, string> = {
+    Activo: 'bg-green-100 text-green-800 border-green-200',
+    Inactivo: 'bg-red-100 text-red-800 border-red-200',
+  };
+  return colors[estatus] || 'bg-gray-100 text-gray-800 border-gray-200';
 };
 
-function toUiDoctor(doctor: Doctor): UiDoctor {
-  return {
-    id: doctor.id,
-    nombre: (doctor.firstName ?? '').toUpperCase(),
-    apellidoPaterno: (doctor.lastName ?? '').toUpperCase(),
-    apellidoMaterno: (doctor.middleName ?? '').toUpperCase(),
-    especialidad: doctor.specialty ?? 'Sin especialidad',
-    cedula: doctor.licenseNumber ?? '-',
-    telefono: doctor.phone ?? '-',
-    email: doctor.email ?? '-',
-    estatus: 'Activo',
-  };
-}
+const getEspecialidadColor = (especialidad: string): string => {
+  const low = especialidad.toLowerCase();
+  if (low.includes('cardio')) return 'bg-red-100 text-red-800';
+  if (low.includes('pedia')) return 'bg-pink-100 text-pink-800';
+  if (low.includes('derma')) return 'bg-cyan-100 text-cyan-800';
+  if (low.includes('gine')) return 'bg-purple-100 text-purple-800';
+  return 'bg-blue-100 text-blue-800';
+};
 
 export default function MedicosPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [openAddModal, setOpenAddModal] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [medicos, setMedicos] = useState<UiDoctor[]>([]);
 
-  const fetchDoctors = async (search = '') => {
-    setLoading(true);
-    const response = await getDoctors({ search: search.trim(), limit: 100 });
-    if (!response.ok) {
-      toast.error(response.errors[0] ?? 'No se pudieron cargar medicos.');
-      setMedicos([]);
-      setLoading(false);
-      return;
-    }
-
-    setMedicos(response.data.data.map(toUiDoctor));
-    setLoading(false);
+  const { doctors, loading, refreshing, saving, updatingStatusId, especialidadesUnicas, conCedula, addDoctor, deactivateDoctorById } = useDoctorsData(searchTerm);
+  const showSoonMessage = (action: string) => {
+    toast.info(`${action} de medicos estara disponible en la siguiente fase del CRUD.`);
   };
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      void fetchDoctors(searchTerm);
-    }, 350);
-
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  const addDoctor = async (payload: CreateDoctorPayload) => {
-    setSaving(true);
-    const response = await createDoctor(payload);
-    if (!response.ok) {
-      toast.error(response.errors[0] ?? 'No se pudo crear el medico.');
-      setSaving(false);
-      return;
-    }
-
-    toast.success('Medico registrado con exito.');
-    setOpenAddModal(false);
-    await fetchDoctors(searchTerm);
-    setSaving(false);
-  };
-
-  const getEstatusColor = (estatus: string): string => {
-    const colors: Record<string, string> = {
-      Activo: 'bg-green-100 text-green-800 border-green-200',
-    };
-    return colors[estatus] || 'bg-gray-100 text-gray-800 border-gray-200';
-  };
-
-  const getEspecialidadColor = (especialidad: string): string => {
-    const low = especialidad.toLowerCase();
-    if (low.includes('cardio')) return 'bg-red-100 text-red-800';
-    if (low.includes('pedia')) return 'bg-pink-100 text-pink-800';
-    if (low.includes('derma')) return 'bg-cyan-100 text-cyan-800';
-    if (low.includes('gine')) return 'bg-purple-100 text-purple-800';
-    return 'bg-blue-100 text-blue-800';
-  };
-
-  const especialidadesUnicas = useMemo(
-    () => new Set(medicos.map((m) => m.especialidad)).size,
-    [medicos],
-  );
-
-  const conCedula = useMemo(
-    () => medicos.filter((m) => m.cedula !== '-').length,
-    [medicos],
-  );
 
   return (
     <div className="p-8">
@@ -147,7 +77,7 @@ export default function MedicosPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Total Medicos</p>
-              <p className="text-2xl font-bold text-gray-900">{medicos.length}</p>
+              <p className="text-2xl font-bold text-gray-900">{doctors.length}</p>
             </div>
             <div className="p-2 bg-blue-100 rounded-lg">
               <User size={20} className="text-blue-600" />
@@ -159,7 +89,7 @@ export default function MedicosPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Activos</p>
-              <p className="text-2xl font-bold text-gray-900">{medicos.length}</p>
+              <p className="text-2xl font-bold text-gray-900">{doctors.length}</p>
             </div>
             <div className="p-2 bg-green-100 rounded-lg">
               <BadgeCheck size={20} className="text-green-600" />
@@ -192,18 +122,25 @@ export default function MedicosPage() {
         </div>
       </div>
 
+      {refreshing && !loading && (
+        <div className="mb-3 text-xs text-gray-500 flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Actualizando medicos...
+        </div>
+      )}
+
       {loading ? (
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-10 flex items-center justify-center gap-3 text-gray-600">
           <Loader2 className="h-5 w-5 animate-spin" />
           Cargando medicos...
         </div>
-      ) : medicos.length === 0 ? (
+      ) : doctors.length === 0 ? (
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-10 text-center text-gray-600">
           No hay medicos registrados.
         </div>
       ) : (
         <>
-          <div className="hidden lg:block bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+          <div className="hidden lg:block bg-white border border-gray-200 rounded-lg shadow-sm overflow-visible">
             <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-gray-50 border-b border-gray-200 text-sm font-semibold text-gray-700">
               <div className="col-span-3">Nombre Completo</div>
               <div className="col-span-2">Especialidad</div>
@@ -214,7 +151,7 @@ export default function MedicosPage() {
             </div>
 
             <div className="divide-y divide-gray-200">
-              {medicos.map((medico) => (
+              {doctors.map((medico) => (
                 <div key={medico.id} className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-gray-50 transition-colors">
                   <div className="col-span-3">
                     <h3 className="font-medium text-gray-900 text-sm">
@@ -252,16 +189,26 @@ export default function MedicosPage() {
                   </div>
 
                   <div className="col-span-1">
-                    <div className="flex items-center justify-end space-x-1">
-                      <button className="p-1 text-gray-400 hover:text-blue-600 transition-colors" title="Ver perfil">
-                        <Eye size={16} />
-                      </button>
-                      <button className="p-1 text-gray-400 hover:text-green-600 transition-colors" title="Editar">
-                        <Edit size={16} />
-                      </button>
-                      <button className="p-1 text-gray-400 hover:text-red-600 transition-colors" title="Eliminar">
-                        <Trash2 size={16} />
-                      </button>
+                    <div className="flex justify-end">
+                      <EntityActionsMenu
+                        items={[
+                          {
+                            label: 'Ver perfil medico',
+                            href: `/medicos/detalle/${medico.id}`,
+                            hint: 'Disponible',
+                          },
+                          {
+                            label: 'Editar medico',
+                            onClick: () => showSoonMessage('Editar'),
+                            hint: 'Proximamente',
+                          },
+                          {
+                            label: 'Desactivar medico',
+                            onClick: () => void deactivateDoctorById(medico),
+                            hint: updatingStatusId === medico.id ? 'Actualizando...' : 'Disponible',
+                          },
+                        ]}
+                      />
                     </div>
                   </div>
                 </div>
@@ -270,13 +217,13 @@ export default function MedicosPage() {
 
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
               <p className="text-sm text-gray-600">
-                Mostrando <span className="font-medium">{medicos.length}</span> medicos
+                Mostrando <span className="font-medium">{doctors.length}</span> medicos
               </p>
             </div>
           </div>
 
           <div className="lg:hidden space-y-4">
-            {medicos.map((medico) => (
+            {doctors.map((medico) => (
               <div key={medico.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                 <div className="flex justify-between items-start mb-3">
                   <div>
@@ -316,16 +263,26 @@ export default function MedicosPage() {
 
                 <div className="flex justify-between items-center pt-3 border-t border-gray-200">
                   <span className="text-xs text-gray-500">ID: {medico.id}</span>
-                  <div className="flex space-x-2">
-                    <button className="p-1 text-gray-400 hover:text-blue-600 transition-colors">
-                      <Eye size={14} />
-                    </button>
-                    <button className="p-1 text-gray-400 hover:text-green-600 transition-colors">
-                      <Edit size={14} />
-                    </button>
-                    <button className="p-1 text-gray-400 hover:text-red-600 transition-colors">
-                      <Trash2 size={14} />
-                    </button>
+                  <div>
+                    <EntityActionsMenu
+                      items={[
+                        {
+                          label: 'Ver perfil medico',
+                          href: `/medicos/detalle/${medico.id}`,
+                          hint: 'Disponible',
+                        },
+                        {
+                          label: 'Editar medico',
+                          onClick: () => showSoonMessage('Editar'),
+                          hint: 'Proximamente',
+                        },
+                        {
+                          label: 'Eliminar medico',
+                          onClick: () => void deactivateDoctorById(medico),
+                          hint: updatingStatusId === medico.id ? 'Actualizando...' : 'Disponible',
+                        },
+                      ]}
+                    />
                   </div>
                 </div>
               </div>
@@ -333,8 +290,18 @@ export default function MedicosPage() {
           </div>
         </>
       )}
+
       {openAddModal && (
-        <AddDoctorModal setOpen={setOpenAddModal} addDoctor={addDoctor} isSaving={saving} />
+        <AddDoctorModal
+          setOpen={setOpenAddModal}
+          addDoctor={async (payload) => {
+            const ok = await addDoctor(payload);
+            if (ok) {
+              setOpenAddModal(false);
+            }
+          }}
+          isSaving={saving}
+        />
       )}
     </div>
   );

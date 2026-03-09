@@ -1,79 +1,37 @@
 'use client';
 
-import { getStudies, type Study } from '@/actions/studies/studiesActions';
-import { createStudy, type CreateStudyPayload } from '@/actions/studies/studiesActions';
-import { Search, Plus, Filter, Edit, Trash2, Eye, Tag, DollarSign, Hash, Loader2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import { toast } from 'react-toastify';
 import AddStudyModal from '@/components/estudios/AddStudyModal';
+import EntityActionsMenu from '@/components/ui/EntityActionsMenu';
+import { useStudiesData } from '@/hooks/useStudiesData';
+import { Search, Plus, Filter, Tag, DollarSign, Hash, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { toast } from 'react-toastify';
+
+const getStatusColor = (estatus: string): string => {
+  const colors: Record<string, string> = {
+    active: 'bg-green-100 text-green-800 border-green-200',
+    suspended: 'bg-red-100 text-red-800 border-red-200',
+  };
+  return colors[estatus] || 'bg-gray-100 text-gray-800 border-gray-200';
+};
+
+const getCategoryColor = (tipo: string): string => {
+  const colors: Record<string, string> = {
+    study: 'bg-blue-100 text-blue-800',
+    package: 'bg-purple-100 text-purple-800',
+    other: 'bg-gray-100 text-gray-800',
+  };
+  return colors[tipo] || 'bg-gray-100 text-gray-800';
+};
 
 export default function EstudiosPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [openAddModal, setOpenAddModal] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [estudios, setEstudios] = useState<Study[]>([]);
 
-  const fetchStudies = async (search = '') => {
-    setLoading(true);
-    const response = await getStudies({ search: search.trim(), limit: 100 });
-    if (!response.ok) {
-      toast.error(response.errors[0] ?? 'No se pudieron cargar estudios.');
-      setEstudios([]);
-      setLoading(false);
-      return;
-    }
-
-    setEstudios(response.data.data);
-    setLoading(false);
+  const { studies, loading, refreshing, saving, updatingStatusId, activos, inactivos, precioPromedio, addStudy, toggleStudyStatus } = useStudiesData(searchTerm);
+  const showSoonMessage = (action: string) => {
+    toast.info(`${action} de estudios estara disponible en la siguiente fase del CRUD.`);
   };
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      void fetchStudies(searchTerm);
-    }, 350);
-
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  const addStudy = async (payload: CreateStudyPayload) => {
-    setSaving(true);
-    const response = await createStudy(payload);
-    if (!response.ok) {
-      toast.error(response.errors[0] ?? 'No se pudo crear el estudio.');
-      setSaving(false);
-      return;
-    }
-
-    toast.success('Estudio registrado con exito.');
-    setOpenAddModal(false);
-    await fetchStudies(searchTerm);
-    setSaving(false);
-  };
-
-  const getStatusColor = (estatus: string): string => {
-    const colors: Record<string, string> = {
-      active: 'bg-green-100 text-green-800 border-green-200',
-      suspended: 'bg-red-100 text-red-800 border-red-200',
-    };
-    return colors[estatus] || 'bg-gray-100 text-gray-800 border-gray-200';
-  };
-
-  const getCategoryColor = (tipo: string): string => {
-    const colors: Record<string, string> = {
-      study: 'bg-blue-100 text-blue-800',
-      package: 'bg-purple-100 text-purple-800',
-      other: 'bg-gray-100 text-gray-800',
-    };
-    return colors[tipo] || 'bg-gray-100 text-gray-800';
-  };
-
-  const activos = useMemo(() => estudios.filter((e) => e.status === 'active').length, [estudios]);
-  const inactivos = useMemo(() => estudios.filter((e) => e.status === 'suspended').length, [estudios]);
-  const precioPromedio = useMemo(() => {
-    if (!estudios.length) return 0;
-    return Math.round(estudios.reduce((acc, e) => acc + Number(e.normalPrice), 0) / estudios.length);
-  }, [estudios]);
 
   return (
     <div className="p-8">
@@ -119,7 +77,7 @@ export default function EstudiosPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Total Estudios</p>
-              <p className="text-2xl font-bold text-gray-900">{estudios.length}</p>
+              <p className="text-2xl font-bold text-gray-900">{studies.length}</p>
             </div>
             <div className="p-2 bg-blue-100 rounded-lg">
               <Hash size={20} className="text-blue-600" />
@@ -164,18 +122,25 @@ export default function EstudiosPage() {
         </div>
       </div>
 
+      {refreshing && !loading && (
+        <div className="mb-3 text-xs text-gray-500 flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Actualizando estudios...
+        </div>
+      )}
+
       {loading ? (
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-10 flex items-center justify-center gap-3 text-gray-600">
           <Loader2 className="h-5 w-5 animate-spin" />
           Cargando estudios...
         </div>
-      ) : estudios.length === 0 ? (
+      ) : studies.length === 0 ? (
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-10 text-center text-gray-600">
           No hay estudios registrados.
         </div>
       ) : (
         <>
-          <div className="hidden lg:block bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+          <div className="hidden lg:block bg-white border border-gray-200 rounded-lg shadow-sm overflow-visible">
             <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-gray-50 border-b border-gray-200 text-sm font-semibold text-gray-700">
               <div className="col-span-4">Nombre del Estudio</div>
               <div className="col-span-1">Clave</div>
@@ -186,7 +151,7 @@ export default function EstudiosPage() {
             </div>
 
             <div className="divide-y divide-gray-200">
-              {estudios.map((estudio) => (
+              {studies.map((estudio) => (
                 <div key={estudio.id} className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-gray-50 transition-colors">
                   <div className="col-span-4">
                     <h3 className="font-medium text-gray-900 text-sm mb-1">{estudio.name}</h3>
@@ -220,16 +185,26 @@ export default function EstudiosPage() {
                   </div>
 
                   <div className="col-span-1">
-                    <div className="flex items-center justify-end space-x-1">
-                      <button className="p-1 text-gray-400 hover:text-blue-600 transition-colors" title="Ver detalles">
-                        <Eye size={16} />
-                      </button>
-                      <button className="p-1 text-gray-400 hover:text-green-600 transition-colors" title="Editar">
-                        <Edit size={16} />
-                      </button>
-                      <button className="p-1 text-gray-400 hover:text-red-600 transition-colors" title="Eliminar">
-                        <Trash2 size={16} />
-                      </button>
+                    <div className="flex justify-end">
+                      <EntityActionsMenu
+                        items={[
+                          {
+                            label: 'Ver detalle',
+                            href: `/estudios/detalle/${estudio.id}`,
+                            hint: 'Disponible',
+                          },
+                          {
+                            label: 'Editar estudio',
+                            onClick: () => showSoonMessage('Editar'),
+                            hint: 'Proximamente',
+                          },
+                          {
+                            label: estudio.status === 'active' ? 'Desactivar estudio' : 'Activar estudio',
+                            onClick: () => void toggleStudyStatus(estudio),
+                            hint: updatingStatusId === estudio.id ? 'Actualizando...' : 'Disponible',
+                          },
+                        ]}
+                      />
                     </div>
                   </div>
                 </div>
@@ -238,13 +213,13 @@ export default function EstudiosPage() {
 
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
               <p className="text-sm text-gray-600">
-                Mostrando <span className="font-medium">{estudios.length}</span> estudios
+                Mostrando <span className="font-medium">{studies.length}</span> estudios
               </p>
             </div>
           </div>
 
           <div className="lg:hidden space-y-4">
-            {estudios.map((estudio) => (
+            {studies.map((estudio) => (
               <div key={estudio.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                 <div className="flex justify-between items-start mb-3">
                   <span className="font-mono text-sm font-medium text-gray-900 bg-gray-100 px-2 py-1 rounded">{estudio.code}</span>
@@ -277,16 +252,26 @@ export default function EstudiosPage() {
 
                 <div className="flex justify-between items-center pt-3 border-t border-gray-200">
                   <div className="text-xs text-gray-500">ID: {estudio.id}</div>
-                  <div className="flex space-x-2">
-                    <button className="p-1 text-gray-400 hover:text-blue-600 transition-colors">
-                      <Eye size={14} />
-                    </button>
-                    <button className="p-1 text-gray-400 hover:text-green-600 transition-colors">
-                      <Edit size={14} />
-                    </button>
-                    <button className="p-1 text-gray-400 hover:text-red-600 transition-colors">
-                      <Trash2 size={14} />
-                    </button>
+                  <div>
+                    <EntityActionsMenu
+                      items={[
+                        {
+                          label: 'Ver detalle',
+                          href: `/estudios/detalle/${estudio.id}`,
+                          hint: 'Disponible',
+                        },
+                        {
+                          label: 'Editar estudio',
+                          onClick: () => showSoonMessage('Editar'),
+                          hint: 'Proximamente',
+                        },
+                        {
+                          label: estudio.status === 'active' ? 'Desactivar estudio' : 'Activar estudio',
+                          onClick: () => void toggleStudyStatus(estudio),
+                          hint: updatingStatusId === estudio.id ? 'Actualizando...' : 'Disponible',
+                        },
+                      ]}
+                    />
                   </div>
                 </div>
               </div>
@@ -294,8 +279,18 @@ export default function EstudiosPage() {
           </div>
         </>
       )}
+
       {openAddModal && (
-        <AddStudyModal setOpen={setOpenAddModal} addStudy={addStudy} isSaving={saving} />
+        <AddStudyModal
+          setOpen={setOpenAddModal}
+          addStudy={async (payload) => {
+            const ok = await addStudy(payload);
+            if (ok) {
+              setOpenAddModal(false);
+            }
+          }}
+          isSaving={saving}
+        />
       )}
     </div>
   );

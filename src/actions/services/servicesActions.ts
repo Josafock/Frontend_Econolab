@@ -68,6 +68,11 @@ type CreateServiceResponse = {
   data: ServiceOrder;
 };
 
+type UpdateServiceResponse = {
+  message: string;
+  data: ServiceOrder;
+};
+
 export type CreateServicePayload = {
   folio: string;
   patientId: number;
@@ -110,5 +115,16 @@ export async function createService(payload: CreateServicePayload) {
   return fetchApi<CreateServiceResponse>("/services", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function getServiceById(id: number) {
+  return fetchApi<ServiceOrder>(`/services/${id}`);
+}
+
+export async function updateServiceStatus(id: number, status: ServiceStatus) {
+  return fetchApi<UpdateServiceResponse>(`/services/${id}/status`, {
+    method: "PUT",
+    body: JSON.stringify({ status }),
   });
 }

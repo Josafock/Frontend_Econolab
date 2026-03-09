@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { X, Plus, Hash, Clock3, DollarSign, AlignLeft } from 'lucide-react';
 import type { CreateStudyPayload, StudyStatus, StudyType } from '@/actions/studies/studiesActions';
+import AppModal from '@/components/ui/AppModal';
 
 interface AddStudyModalProps {
   setOpen: (open: boolean) => void;
@@ -55,7 +56,7 @@ export default function AddStudyModal({ setOpen, addStudy, isSaving }: AddStudyM
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <AppModal>
       <div className="relative w-full max-w-3xl bg-white rounded-2xl shadow-xl">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">
@@ -101,10 +102,10 @@ export default function AddStudyModal({ setOpen, addStudy, isSaving }: AddStudyM
             </div>
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700">Tipo</label>
-              <select name="type" value={formData.type} onChange={handleChange} className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500">
-                <option value="study">Estudio</option>
-                <option value="package">Paquete</option>
-                <option value="other">Otro</option>
+              <select name="type" value={formData.type} onChange={handleChange} className="modal-select w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500">
+                <option className="bg-white text-gray-900" value="study">Estudio</option>
+                <option className="bg-white text-gray-900" value="package">Paquete</option>
+                <option className="bg-white text-gray-900" value="other">Otro</option>
               </select>
             </div>
           </div>
@@ -142,9 +143,9 @@ export default function AddStudyModal({ setOpen, addStudy, isSaving }: AddStudyM
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700">Estatus</label>
-              <select name="status" value={formData.status} onChange={handleChange} className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500">
-                <option value="active">Activo</option>
-                <option value="suspended">Suspendido</option>
+              <select name="status" value={formData.status} onChange={handleChange} className="modal-select w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500">
+                <option className="bg-white text-gray-900" value="active">Activo</option>
+                <option className="bg-white text-gray-900" value="suspended">Suspendido</option>
               </select>
             </div>
             <div className="md:col-span-1">
@@ -172,6 +173,6 @@ export default function AddStudyModal({ setOpen, addStudy, isSaving }: AddStudyM
           </div>
         </form>
       </div>
-    </div>
+    </AppModal>
   );
 }

@@ -157,3 +157,15 @@
   font-weight: 500;
   line-height: 1;
 }
+
+/* Selects en modales: evita parpadeo oscuro en despliegue de opciones */
+.modal-select {
+  color-scheme: light;
+  background-color: #ffffff;
+  color: #111827;
+}
+
+.modal-select option {
+  background-color: #ffffff;
+  color: #111827;
+}

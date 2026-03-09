@@ -28,7 +28,14 @@ type PatientsSearchResponse = {
   meta: { page: number; limit: number; total: number };
 };
 
+type PatientDetailResponse = Patient;
+
 type CreatePatientResponse = {
+  message: string;
+  data: Patient;
+};
+
+type UpdatePatientResponse = {
   message: string;
   data: Patient;
 };
@@ -46,6 +53,8 @@ export type CreatePatientPayload = {
   documentType?: string;
   documentNumber?: string;
 };
+
+export type UpdatePatientPayload = Partial<CreatePatientPayload>;
 
 export async function getPatients(params?: {
   search?: string;
@@ -65,5 +74,22 @@ export async function createPatient(payload: CreatePatientPayload) {
   return fetchApi<CreatePatientResponse>("/patients", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function getPatientById(id: number) {
+  return fetchApi<PatientDetailResponse>(`/patients/${id}`);
+}
+
+export async function updatePatient(id: number, payload: UpdatePatientPayload) {
+  return fetchApi<UpdatePatientResponse>(`/patients/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deactivatePatient(id: number) {
+  return fetchApi<{ message: string }>(`/patients/${id}`, {
+    method: "DELETE",
   });
 }

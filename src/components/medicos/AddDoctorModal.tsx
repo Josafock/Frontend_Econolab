@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { X, UserPlus, User, Mail, Phone, BadgeCheck, Stethoscope } from 'lucide-react';
 import type { CreateDoctorPayload } from '@/actions/doctors/doctorsActions';
+import { toast } from 'react-toastify';
+import AppModal from '@/components/ui/AppModal';
 
 interface AddDoctorModalProps {
   setOpen: (open: boolean) => void;
@@ -29,7 +31,7 @@ export default function AddDoctorModal({ setOpen, addDoctor, isSaving }: AddDoct
     e.preventDefault();
 
     if (!formData.firstName.trim() || !formData.lastName.trim()) {
-      alert('Nombre y apellido paterno son obligatorios.');
+      toast.info('Nombre y apellido paterno son obligatorios.');
       return;
     }
 
@@ -45,7 +47,7 @@ export default function AddDoctorModal({ setOpen, addDoctor, isSaving }: AddDoct
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <AppModal>
       <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-xl">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">
@@ -138,6 +140,6 @@ export default function AddDoctorModal({ setOpen, addDoctor, isSaving }: AddDoct
           </div>
         </form>
       </div>
-    </div>
+    </AppModal>
   );
 }

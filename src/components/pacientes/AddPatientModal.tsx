@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { X, User, Calendar, Phone, Mail, MapPin, UserPlus } from 'lucide-react';
 import type { CreatePatientPayload } from '@/actions/patients/patientsActions';
+import AppModal from '@/components/ui/AppModal';
 
 interface AddPatientModalProps {
   setOpen: (open: boolean) => void;
@@ -10,10 +11,19 @@ interface AddPatientModalProps {
   isSaving: boolean;
 }
 
-const calculateDOBFromAge = (age: number): string => {
+const calculateAge = (birthDate: string): number => {
+  if (!birthDate) return 0;
+
   const today = new Date();
-  const year = today.getFullYear() - age;
-  return `${year}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const born = new Date(`${birthDate}T00:00:00`);
+  let age = today.getFullYear() - born.getFullYear();
+  const monthDiff = today.getMonth() - born.getMonth();
+
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < born.getDate())) {
+    age -= 1;
+  }
+
+  return Number.isNaN(age) || age < 0 ? 0 : age;
 };
 
 export default function AddPatientModal({ setOpen, addPatient, isSaving }: AddPatientModalProps) {
@@ -21,7 +31,7 @@ export default function AddPatientModal({ setOpen, addPatient, isSaving }: AddPa
     nombre: '',
     apellidoPaterno: '',
     apellidoMaterno: '',
-    edad: '',
+    fechaNacimiento: '',
     genero: '',
     telefono: '',
     email: '',
@@ -39,11 +49,13 @@ export default function AddPatientModal({ setOpen, addPatient, isSaving }: AddPa
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const requiredFields = ['nombre', 'apellidoPaterno', 'edad', 'genero'];
+    const requiredFields = ['nombre', 'apellidoPaterno', 'fechaNacimiento', 'genero'];
     const isFormValid = requiredFields.every((field) => formData[field as keyof typeof formData]);
-    const parsedAge = parseInt(formData.edad, 10);
+    const selectedDate = new Date(`${formData.fechaNacimiento}T00:00:00`);
+    const today = new Date();
+    const isFutureDate = Number.isNaN(selectedDate.getTime()) || selectedDate > today;
 
-    if (!isFormValid || Number.isNaN(parsedAge) || parsedAge < 0) {
+    if (!isFormValid || isFutureDate) {
       alert('Completa los datos obligatorios del paciente.');
       return;
     }
@@ -52,7 +64,7 @@ export default function AddPatientModal({ setOpen, addPatient, isSaving }: AddPa
       firstName: formData.nombre.trim().toUpperCase(),
       lastName: formData.apellidoPaterno.trim().toUpperCase(),
       middleName: formData.apellidoMaterno.trim().toUpperCase() || undefined,
-      birthDate: calculateDOBFromAge(parsedAge),
+      birthDate: formData.fechaNacimiento,
       gender: formData.genero as 'female' | 'male' | 'other',
       phone: formData.telefono.trim() || undefined,
       email: formData.email.trim() || undefined,
@@ -64,7 +76,7 @@ export default function AddPatientModal({ setOpen, addPatient, isSaving }: AddPa
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <AppModal>
       <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-xl">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">
@@ -133,20 +145,23 @@ export default function AddPatientModal({ setOpen, addPatient, isSaving }: AddPa
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">Edad</label>
+              <label className="mb-2 block text-sm font-medium text-gray-700">Fecha de nacimiento</label>
               <div className="relative">
                 <Calendar className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input
-                  type="number"
-                  name="edad"
-                  value={formData.edad}
+                  type="date"
+                  name="fechaNacimiento"
+                  value={formData.fechaNacimiento}
                   onChange={handleChange}
-                  placeholder="30"
-                  min="0"
-                  max="120"
+                  max={new Date().toISOString().split('T')[0]}
                   className="w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
                 />
               </div>
+              {formData.fechaNacimiento && (
+                <p className="mt-2 text-xs text-gray-500">
+                  Edad calculada: {calculateAge(formData.fechaNacimiento)} años
+                </p>
+              )}
             </div>
 
             <div>
@@ -157,12 +172,12 @@ export default function AddPatientModal({ setOpen, addPatient, isSaving }: AddPa
                   name="genero"
                   value={formData.genero}
                   onChange={handleChange}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1 appearance-none"
+                  className="modal-select w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1 appearance-none"
                 >
-                  <option value="">Seleccionar genero...</option>
-                  <option value="female">Femenino</option>
-                  <option value="male">Masculino</option>
-                  <option value="other">Otro</option>
+                  <option className="bg-white text-gray-900" value="">Seleccionar genero...</option>
+                  <option className="bg-white text-gray-900" value="female">Femenino</option>
+                  <option className="bg-white text-gray-900" value="male">Masculino</option>
+                  <option className="bg-white text-gray-900" value="other">Otro</option>
                 </select>
               </div>
             </div>
@@ -251,6 +266,6 @@ export default function AddPatientModal({ setOpen, addPatient, isSaving }: AddPa
           </div>
         </form>
       </div>
-    </div>
+    </AppModal>
   );
 }

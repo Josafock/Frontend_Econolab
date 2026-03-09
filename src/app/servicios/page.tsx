@@ -1,171 +1,94 @@
 'use client';
 
 import AddServiceModal from '@/components/servicios/AgregarServicioModal';
-import { createService, getServices, type ServiceOrder, type ServiceStatus } from '@/actions/services/servicesActions';
-import { getPatients, type Patient } from '@/actions/patients/patientsActions';
-import { getStudies, type Study } from '@/actions/studies/studiesActions';
-import { getDoctors, type Doctor } from '@/actions/doctors/doctorsActions';
-import { Search, Plus, Filter, Edit, Trash2, Eye, FileText, Calendar, Loader2 } from 'lucide-react';
-import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
-import { toast } from 'react-toastify';
+import EntityActionsMenu from '@/components/ui/EntityActionsMenu';
+import { useServicesData } from '@/hooks/useServicesData';
+import { Search, Plus, Filter, FileText, Calendar, Loader2 } from 'lucide-react';
+import { useState } from 'react';
 
-type UiService = {
-  id: number;
-  folio: string;
-  estudio: string;
-  paciente: string;
-  telefono: string;
-  sucursal: string;
-  creador: string;
-  fechaEntrega: string;
-  costo: string;
-  status: ServiceStatus;
+const getStatusColor = (status: 'pending' | 'in_progress' | 'delayed' | 'completed' | 'cancelled'): string => {
+  const colors = {
+    pending: 'bg-blue-100 text-blue-800 border-blue-200',
+    in_progress: 'bg-orange-100 text-orange-800 border-orange-200',
+    delayed: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+    completed: 'bg-green-100 text-green-800 border-green-200',
+    cancelled: 'bg-red-100 text-red-800 border-red-200',
+  } as const;
+  return colors[status] || 'bg-gray-100 text-gray-800 border-gray-200';
 };
 
-function formatDate(date?: string | null) {
-  if (!date) return 'N/D';
-  const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) return 'N/D';
-  return parsed.toLocaleString('es-MX');
-}
-
-function toUiService(service: ServiceOrder): UiService {
-  const studyNames = (service.items ?? []).map((item) => item.studyNameSnapshot).join(', ');
-  const patientName = service.patient
-    ? `${service.patient.firstName} ${service.patient.lastName} ${service.patient.middleName ?? ''}`.trim()
-    : 'Sin paciente';
-
-  return {
-    id: service.id,
-    folio: service.folio,
-    estudio: studyNames || 'Sin estudios',
-    paciente: patientName,
-    telefono: service.patient?.phone ?? '-',
-    sucursal: service.branchName ?? 'Sin sucursal',
-    creador: formatDate(service.createdAt),
-    fechaEntrega: formatDate(service.deliveryAt),
-    costo: Number(service.totalAmount).toFixed(2),
-    status: service.status,
-  };
-}
+const statusLabel = (status: 'pending' | 'in_progress' | 'delayed' | 'completed' | 'cancelled') => {
+  const labels = {
+    pending: 'PENDIENTE',
+    in_progress: 'EN CURSO',
+    delayed: 'RETRASADO',
+    completed: 'CONCLUIDO',
+    cancelled: 'CANCELADO',
+  } as const;
+  return labels[status] || status;
+};
 
 export default function ServiciosPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [openServiceModal, setOpenServiceModal] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [servicios, setServicios] = useState<UiService[]>([]);
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [doctors, setDoctors] = useState<Doctor[]>([]);
-  const [studies, setStudies] = useState<Study[]>([]);
 
-  const fetchServices = async (search = '') => {
-    setLoading(true);
-    const response = await getServices({ search, limit: 100 });
-    if (!response.ok) {
-      toast.error(response.errors[0] ?? 'No se pudieron cargar servicios.');
-      setServicios([]);
-      setLoading(false);
-      return;
-    }
-    setServicios(response.data.data.map(toUiService));
-    setLoading(false);
-  };
-
-  const loadFormCatalogs = async () => {
-    const [patientsResponse, doctorsResponse, studiesResponse] = await Promise.all([
-      getPatients({ limit: 200 }),
-      getDoctors({ limit: 200 }),
-      getStudies({ limit: 200, status: 'active' }),
-    ]);
-
-    if (patientsResponse.ok) {
-      setPatients(patientsResponse.data.data);
-    }
-    if (doctorsResponse.ok) {
-      setDoctors(doctorsResponse.data.data);
-    }
-    if (studiesResponse.ok) {
-      setStudies(studiesResponse.data.data);
-    }
-  };
-
-  useEffect(() => {
-    void loadFormCatalogs();
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      void fetchServices(searchTerm.trim());
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  const addService = async (newService: {
-    folio: string;
-    patientId: number;
-    doctorId?: number;
-    studyId: number;
-    branchName: string;
-    deliveryAt: string;
-  }) => {
-    setSaving(true);
-    const response = await createService({
-      folio: newService.folio,
-      patientId: newService.patientId,
-      doctorId: newService.doctorId,
-      branchName: newService.branchName,
-      deliveryAt: newService.deliveryAt,
-      items: [
-        {
-          studyId: newService.studyId,
-          priceType: 'normal',
-          quantity: 1,
-        },
-      ],
-    });
-
-    if (!response.ok) {
-      toast.error(response.errors[0] ?? 'No se pudo crear el servicio.');
-      setSaving(false);
-      return;
-    }
-
-    toast.success(`Servicio ${newService.folio} agregado exitosamente.`);
-    setOpenServiceModal(false);
-    await fetchServices(searchTerm.trim());
-    setSaving(false);
-  };
-
-  const getStatusColor = (status: ServiceStatus): string => {
-    const colors: Record<ServiceStatus, string> = {
-      pending: 'bg-blue-100 text-blue-800 border-blue-200',
-      in_progress: 'bg-orange-100 text-orange-800 border-orange-200',
-      delayed: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      completed: 'bg-green-100 text-green-800 border-green-200',
-      cancelled: 'bg-red-100 text-red-800 border-red-200',
-    };
-    return colors[status] || 'bg-gray-100 text-gray-800 border-gray-200';
-  };
-
-  const statusLabel = (status: ServiceStatus) => {
-    const labels: Record<ServiceStatus, string> = {
-      pending: 'PENDIENTE',
-      in_progress: 'EN PROCESO',
-      delayed: 'RETRASADO',
-      completed: 'COMPLETADO',
-      cancelled: 'CANCELADO',
-    };
-    return labels[status] || status;
-  };
-
-  const stats = useMemo(() => {
-    const completed = servicios.filter((s) => s.status === 'completed').length;
-    const inProgress = servicios.filter((s) => s.status === 'in_progress').length;
-    const income = servicios.reduce((acc, s) => acc + Number(s.costo), 0);
-    return { total: servicios.length, completed, inProgress, income };
-  }, [servicios]);
+  const { services, loading, refreshing, saving, updatingStatusId, stats, catalogs, catalogsLoading, addService, changeServiceStatus } = useServicesData(searchTerm);
+  const buildServiceActions = (servicio: { id: number; status: 'pending' | 'in_progress' | 'delayed' | 'completed' | 'cancelled' }) => [
+    {
+      label: 'En curso',
+      onClick: () => void changeServiceStatus(servicio.id, 'in_progress'),
+      disabled: servicio.status === 'in_progress' || updatingStatusId === servicio.id,
+      hint: updatingStatusId === servicio.id ? 'Actualizando...' : 'Cambiar estatus',
+    },
+    {
+      label: 'Concluido',
+      onClick: () => void changeServiceStatus(servicio.id, 'completed'),
+      disabled: servicio.status === 'completed' || updatingStatusId === servicio.id,
+      hint: updatingStatusId === servicio.id ? 'Actualizando...' : 'Cambiar estatus',
+    },
+    {
+      label: 'Retrasado',
+      onClick: () => void changeServiceStatus(servicio.id, 'delayed'),
+      disabled: servicio.status === 'delayed' || updatingStatusId === servicio.id,
+      hint: updatingStatusId === servicio.id ? 'Actualizando...' : 'Cambiar estatus',
+    },
+    {
+      label: 'Cancelar',
+      onClick: () => void changeServiceStatus(servicio.id, 'cancelled'),
+      disabled: servicio.status === 'cancelled' || updatingStatusId === servicio.id,
+      destructive: true,
+      hint: updatingStatusId === servicio.id ? 'Actualizando...' : 'Cambiar estatus',
+    },
+    {
+      label: 'Codigo Barras',
+      href: `/api/services/${servicio.id}/labels`,
+      newTab: true,
+      hint: 'PDF etiquetas',
+    },
+    {
+      label: 'Recibo',
+      href: `/api/services/${servicio.id}/receipt`,
+      newTab: true,
+      hint: 'PDF recibo',
+    },
+    {
+      label: 'Tiket',
+      href: `/api/services/${servicio.id}/ticket`,
+      newTab: true,
+      hint: 'PDF ticket',
+    },
+    {
+      label: 'Resultados',
+      href: `/api/services/${servicio.id}/results`,
+      newTab: true,
+      hint: 'PDF resultado',
+    },
+    {
+      label: 'Ver detalle del servicio',
+      href: `/servicios/detalle/${servicio.id}`,
+      hint: 'Disponible',
+    },
+  ];
 
   return (
     <div className="p-8">
@@ -263,18 +186,25 @@ export default function ServiciosPage() {
         </div>
       </div>
 
+      {refreshing && !loading && (
+        <div className="mb-3 text-xs text-gray-500 flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Actualizando servicios...
+        </div>
+      )}
+
       {loading ? (
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-10 flex items-center justify-center gap-3 text-gray-600">
           <Loader2 className="h-5 w-5 animate-spin" />
           Cargando servicios...
         </div>
-      ) : servicios.length === 0 ? (
+      ) : services.length === 0 ? (
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-10 text-center text-gray-600">
           No hay servicios registrados.
         </div>
       ) : (
         <>
-          <div className="hidden lg:block bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+          <div className="hidden lg:block bg-white border border-gray-200 rounded-lg shadow-sm overflow-visible">
             <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-gray-50 border-b border-gray-200 text-sm font-semibold text-gray-700">
               <div className="col-span-1">Folio</div>
               <div className="col-span-2">Estudio</div>
@@ -288,77 +218,70 @@ export default function ServiciosPage() {
             </div>
 
             <div className="divide-y divide-gray-200">
-              {servicios.map((servicio) => (
-                <Link href="/servicios/detalle" key={servicio.folio} className="block">
-                  <div className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-gray-50 transition-colors">
-                    <div className="col-span-1">
-                      <span className="font-mono text-sm font-medium text-gray-900 bg-gray-100 px-2 py-1 rounded">
-                        {servicio.folio}
-                      </span>
-                    </div>
+              {services.map((servicio) => (
+                <div key={servicio.folio} className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-gray-50 transition-colors">
+                  <div className="col-span-1">
+                    <span className="font-mono text-sm font-medium text-gray-900 bg-gray-100 px-2 py-1 rounded">
+                      {servicio.folio}
+                    </span>
+                  </div>
 
-                    <div className="col-span-2">
-                      <h3 className="font-medium text-gray-900 text-sm line-clamp-3">{servicio.estudio}</h3>
-                    </div>
+                  <div className="col-span-2">
+                    <h3 className="font-medium text-gray-900 text-sm line-clamp-3">{servicio.estudio}</h3>
+                  </div>
 
-                    <div className="col-span-2">
-                      <p className="text-sm text-gray-900 font-medium mb-1">{servicio.paciente}</p>
-                      {servicio.telefono && <p className="text-xs text-gray-500">Tel: {servicio.telefono}</p>}
-                    </div>
+                  <div className="col-span-2">
+                    <p className="text-sm text-gray-900 font-medium mb-1">{servicio.paciente}</p>
+                    {servicio.telefono && <p className="text-xs text-gray-500">Tel: {servicio.telefono}</p>}
+                  </div>
 
-                    <div className="col-span-1">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        {servicio.sucursal}
-                      </span>
-                    </div>
+                  <div className="col-span-1">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      {servicio.sucursal}
+                    </span>
+                  </div>
 
-                    <div className="col-span-2">
-                      <p className="text-sm text-gray-900">{servicio.creador}</p>
-                    </div>
+                  <div className="col-span-2">
+                    <p className="text-sm text-gray-900">{servicio.creador}</p>
+                  </div>
 
-                    <div className="col-span-1">
-                      <p className="text-sm text-gray-900">{servicio.fechaEntrega}</p>
-                    </div>
+                  <div className="col-span-1">
+                    <p className="text-sm text-gray-900">{servicio.fechaEntrega}</p>
+                  </div>
 
-                    <div className="col-span-1">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        ${servicio.costo}
-                      </span>
-                    </div>
+                  <div className="col-span-1">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      ${servicio.costo}
+                    </span>
+                  </div>
 
-                    <div className="col-span-1">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(servicio.status)}`}>
-                        {statusLabel(servicio.status)}
-                      </span>
-                    </div>
+                  <div className="col-span-1">
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(servicio.status)}`}>
+                      {statusLabel(servicio.status)}
+                    </span>
+                  </div>
 
-                    <div className="col-span-1">
-                      <div className="flex items-center justify-end space-x-1">
-                        <button className="p-1 text-gray-400 hover:text-blue-600 transition-colors" title="Ver">
-                          <Eye size={16} />
-                        </button>
-                        <button className="p-1 text-gray-400 hover:text-green-600 transition-colors" title="Editar">
-                          <Edit size={16} />
-                        </button>
-                        <button className="p-1 text-gray-400 hover:text-red-600 transition-colors" title="Eliminar">
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
+                  <div className="col-span-1">
+                    <div className="flex justify-end">
+                      <EntityActionsMenu
+                        buttonLabel="Acciones"
+                        items={buildServiceActions(servicio)}
+                      />
                     </div>
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
 
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
               <p className="text-sm text-gray-600">
-                Mostrando <span className="font-medium">{servicios.length}</span> servicios
+                Mostrando <span className="font-medium">{services.length}</span> servicios
               </p>
             </div>
           </div>
 
           <div className="lg:hidden space-y-4">
-            {servicios.map((servicio) => (
+            {services.map((servicio) => (
               <div key={servicio.folio} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                 <div className="flex justify-between items-start mb-3">
                   <span className="font-mono text-sm font-medium text-gray-900 bg-gray-100 px-2 py-1 rounded">
@@ -404,16 +327,11 @@ export default function ServiciosPage() {
 
                 <div className="flex justify-between items-center pt-3 border-t border-gray-200">
                   <div className="text-xs text-gray-500">Ultima actualizacion</div>
-                  <div className="flex space-x-2">
-                    <button className="p-1 text-gray-400 hover:text-blue-600 transition-colors">
-                      <Eye size={14} />
-                    </button>
-                    <button className="p-1 text-gray-400 hover:text-green-600 transition-colors">
-                      <Edit size={14} />
-                    </button>
-                    <button className="p-1 text-gray-400 hover:text-red-600 transition-colors">
-                      <Trash2 size={14} />
-                    </button>
+                  <div>
+                    <EntityActionsMenu
+                      buttonLabel="Acciones"
+                      items={buildServiceActions(servicio)}
+                    />
                   </div>
                 </div>
               </div>
@@ -425,11 +343,16 @@ export default function ServiciosPage() {
       {openServiceModal && (
         <AddServiceModal
           setOpen={setOpenServiceModal}
-          addService={addService}
-          patients={patients}
-          doctors={doctors}
-          studies={studies}
-          isSaving={saving}
+          addService={async (payload) => {
+            const ok = await addService(payload);
+            if (ok) {
+              setOpenServiceModal(false);
+            }
+          }}
+          patients={catalogs.patients}
+          doctors={catalogs.doctors}
+          studies={catalogs.studies}
+          isSaving={saving || catalogsLoading}
         />
       )}
     </div>

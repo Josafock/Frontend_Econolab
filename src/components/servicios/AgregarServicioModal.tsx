@@ -6,6 +6,7 @@ import type { Patient } from '@/actions/patients/patientsActions';
 import type { Study } from '@/actions/studies/studiesActions';
 import type { Doctor } from '@/actions/doctors/doctorsActions';
 import Link from 'next/link';
+import AppModal from '@/components/ui/AppModal';
 
 type CreateServiceForm = {
   folio: string;
@@ -26,10 +27,8 @@ interface AddServiceModalProps {
 }
 
 const branches = [
-  { id: 'matriz', name: 'Matriz - Centro' },
-  { id: 'movil-1', name: 'Unidad Movil Norte' },
-  { id: 'movil-2', name: 'Unidad Movil Sur' },
-  { id: 'movil-3', name: 'Unidad Movil Este' },
+  { id: 'Sucursal 1', name: 'Sucursal 1' },
+  { id: 'Sucursal 2', name: 'Sucursal 2' },
 ];
 
 export default function AddServiceModal({ setOpen, addService, patients, doctors, studies, isSaving }: AddServiceModalProps) {
@@ -68,7 +67,7 @@ export default function AddServiceModal({ setOpen, addService, patients, doctors
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <AppModal>
       <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-xl">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">
@@ -110,11 +109,11 @@ export default function AddServiceModal({ setOpen, addService, patients, doctors
               <select
                 value={selectedStudyId}
                 onChange={(e) => setSelectedStudyId(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1 appearance-none"
+                className="modal-select w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1 appearance-none"
               >
-                <option value="">Seleccionar estudio...</option>
+                <option className="bg-white text-gray-900" value="">Seleccionar estudio...</option>
                 {studies.map((study) => (
-                  <option key={study.id} value={study.id}>
+                  <option className="bg-white text-gray-900" key={study.id} value={study.id}>
                     {study.name}
                   </option>
                 ))}
@@ -134,11 +133,11 @@ export default function AddServiceModal({ setOpen, addService, patients, doctors
               <select
                 value={selectedPatientId}
                 onChange={(e) => setSelectedPatientId(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1 appearance-none"
+                className="modal-select w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1 appearance-none"
               >
-                <option value="">Seleccionar paciente...</option>
+                <option className="bg-white text-gray-900" value="">Seleccionar paciente...</option>
                 {patients.map((patient) => (
-                  <option key={patient.id} value={patient.id}>
+                  <option className="bg-white text-gray-900" key={patient.id} value={patient.id}>
                     {patient.firstName} {patient.lastName} {patient.middleName ?? ''}
                   </option>
                 ))}
@@ -158,11 +157,11 @@ export default function AddServiceModal({ setOpen, addService, patients, doctors
               <select
                 value={selectedDoctorId}
                 onChange={(e) => setSelectedDoctorId(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1 appearance-none"
+                className="modal-select w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1 appearance-none"
               >
-                <option value="">Sin doctor asignado</option>
+                <option className="bg-white text-gray-900" value="">Sin doctor asignado</option>
                 {doctors.map((doctor) => (
-                  <option key={doctor.id} value={doctor.id}>
+                  <option className="bg-white text-gray-900" key={doctor.id} value={doctor.id}>
                     {doctor.firstName} {doctor.lastName} {doctor.middleName ?? ''}
                   </option>
                 ))}
@@ -182,11 +181,11 @@ export default function AddServiceModal({ setOpen, addService, patients, doctors
               <select
                 value={selectedBranchId}
                 onChange={(e) => setSelectedBranchId(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1 appearance-none"
+                className="modal-select w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1 appearance-none"
               >
-                <option value="">Seleccionar sucursal...</option>
+                <option className="bg-white text-gray-900" value="">Seleccionar sucursal...</option>
                 {branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
+                  <option className="bg-white text-gray-900" key={branch.id} value={branch.id}>
                     {branch.name}
                   </option>
                 ))}
@@ -240,6 +239,6 @@ export default function AddServiceModal({ setOpen, addService, patients, doctors
           </div>
         </form>
       </div>
-    </div>
+    </AppModal>
   );
 }

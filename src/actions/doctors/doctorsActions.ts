@@ -18,7 +18,14 @@ type DoctorsSearchResponse = {
   meta: { page: number; limit: number; total: number };
 };
 
+type DoctorDetailResponse = Doctor;
+
 type CreateDoctorResponse = {
+  message: string;
+  data: Doctor;
+};
+
+type UpdateDoctorResponse = {
   message: string;
   data: Doctor;
 };
@@ -33,6 +40,8 @@ export type CreateDoctorPayload = {
   licenseNumber?: string;
   notes?: string;
 };
+
+export type UpdateDoctorPayload = Partial<CreateDoctorPayload>;
 
 export async function getDoctors(params?: {
   search?: string;
@@ -52,5 +61,22 @@ export async function createDoctor(payload: CreateDoctorPayload) {
   return fetchApi<CreateDoctorResponse>("/doctors", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function getDoctorById(id: number) {
+  return fetchApi<DoctorDetailResponse>(`/doctors/${id}`);
+}
+
+export async function updateDoctor(id: number, payload: UpdateDoctorPayload) {
+  return fetchApi<UpdateDoctorResponse>(`/doctors/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deactivateDoctor(id: number) {
+  return fetchApi<{ message: string }>(`/doctors/${id}`, {
+    method: "DELETE",
   });
 }
