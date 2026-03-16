@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   BadgeCheck,
@@ -16,7 +16,9 @@ import {
   XCircle,
 } from 'lucide-react';
 import AddServiceModal from '@/components/servicios/AgregarServicioModal';
+import { CollectionContentSkeleton } from '@/components/ui/PageSkeletons';
 import EntityActionsMenu from '@/components/ui/EntityActionsMenu';
+import TablePagination from '@/components/ui/TablePagination';
 import { SERVICE_BRANCH_OPTIONS } from '@/components/servicios/serviceFormUtils';
 import { useServicesData, type ServicesFilters } from '@/hooks/useServicesData';
 import type { ServiceStatus } from '@/actions/services/servicesActions';
@@ -62,6 +64,8 @@ export default function ServiciosPage() {
     fromDate: '',
     toDate: '',
   });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const {
     services,
@@ -75,6 +79,23 @@ export default function ServiciosPage() {
     saveService,
     changeServiceStatus,
   } = useServicesData(searchTerm, filters);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, filters]);
+
+  const totalPages = Math.max(1, Math.ceil(services.length / pageSize));
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
+  const paginatedServices = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return services.slice(start, start + pageSize);
+  }, [page, pageSize, services]);
 
   const buildServiceActions = (service: { id: number; status: ServiceStatus }) => [
     {
@@ -154,11 +175,11 @@ export default function ServiciosPage() {
         <div>
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
             <span className="h-2 w-2 rounded-full bg-red-500" />
-            Modulo de servicios
+            Gestion de servicios
           </div>
           <h1 className="text-3xl font-bold text-gray-900">Servicios</h1>
           <p className="mt-2 max-w-2xl text-gray-600">
-            Crea servicios completos, controla su estatus y captura resultados operativos por estudio.
+            Registra servicios, da seguimiento a su estatus y consulta sus resultados.
           </p>
         </div>
 
@@ -334,10 +355,7 @@ export default function ServiciosPage() {
       ) : null}
 
       {loading ? (
-        <div className="flex items-center justify-center gap-3 rounded-3xl border border-gray-200 bg-white p-10 text-gray-600 shadow-sm">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          Cargando servicios...
-        </div>
+        <CollectionContentSkeleton statCards={4} rows={5} />
       ) : services.length === 0 ? (
         <div className="rounded-3xl border border-gray-200 bg-white p-10 text-center text-gray-600 shadow-sm">
           No hay servicios para el filtro seleccionado.
@@ -358,7 +376,7 @@ export default function ServiciosPage() {
             </div>
 
             <div className="divide-y divide-gray-200">
-              {services.map((service) => (
+              {paginatedServices.map((service) => (
                 <div
                   key={service.id}
                   className="grid grid-cols-[1.45fr_2.2fr_2fr_1fr_1.7fr_1fr_0.8fr_1fr_1fr] items-start gap-4 px-6 py-5 transition-colors hover:bg-gray-50"
@@ -412,13 +430,18 @@ export default function ServiciosPage() {
               ))}
             </div>
 
-            <div className="border-t border-gray-200 bg-gray-50 px-6 py-4 text-sm text-gray-600">
-              Mostrando <span className="font-semibold">{services.length}</span> servicios
-            </div>
+            <TablePagination
+              page={page}
+              pageSize={pageSize}
+              totalItems={services.length}
+              itemLabel="registros"
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
           </div>
 
           <div className="space-y-4 xl:hidden">
-            {services.map((service) => (
+            {paginatedServices.map((service) => (
               <div key={service.id} className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div>
@@ -460,6 +483,17 @@ export default function ServiciosPage() {
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm xl:hidden">
+            <TablePagination
+              page={page}
+              pageSize={pageSize}
+              totalItems={services.length}
+              itemLabel="registros"
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
           </div>
         </>
       )}

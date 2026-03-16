@@ -35,7 +35,7 @@ type AddStudyDetailModalProps = {
 const fieldClassName =
   'w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 disabled:bg-gray-100 disabled:text-gray-500';
 
-const textareaClassName = `${fieldClassName} min-h-56 resize-y`;
+const textareaClassName = `${fieldClassName} min-h-48 resize-y sm:min-h-56`;
 
 function getExamples(mode: 'category' | 'parameter') {
   if (mode === 'category') {
@@ -123,11 +123,11 @@ export default function AddStudyDetailModal({
   return (
     <AppModal>
       <div className="mx-auto w-full max-w-5xl">
-        <div className="overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-2xl">
-          <div className="border-b border-gray-200 bg-gradient-to-r from-emerald-700 via-emerald-600 to-teal-500 p-6 text-white">
+        <div className="max-h-[calc(100vh-1.5rem)] overflow-y-auto rounded-[1.5rem] border border-gray-200 bg-white shadow-2xl sm:max-h-[calc(100vh-3rem)] sm:rounded-[2rem]">
+          <div className="border-b border-gray-200 bg-gradient-to-r from-emerald-700 via-emerald-600 to-teal-500 p-4 text-white sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-2xl font-semibold">
+                <h2 className="text-xl font-semibold sm:text-2xl">
                   {mode === 'category'
                     ? 'Alta multiple de categorias'
                     : 'Alta multiple de parametros'}
@@ -149,7 +149,7 @@ export default function AddStudyDetailModal({
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6 p-6">
+          <form onSubmit={handleSubmit} className="space-y-6 p-4 sm:p-6">
             <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
               <div className="space-y-4">
                 <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 text-sm text-emerald-900">

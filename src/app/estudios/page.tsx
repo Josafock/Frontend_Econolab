@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   BadgeCheck,
   Eye,
@@ -15,7 +15,9 @@ import {
   Trash2,
 } from 'lucide-react';
 import AddStudyModal from '@/components/estudios/AddStudyModal';
+import { CollectionContentSkeleton } from '@/components/ui/PageSkeletons';
 import EntityActionsMenu from '@/components/ui/EntityActionsMenu';
+import TablePagination from '@/components/ui/TablePagination';
 import { useStudiesData } from '@/hooks/useStudiesData';
 import {
   formatStudyDuration,
@@ -49,6 +51,8 @@ export default function EstudiosPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [openAddModal, setOpenAddModal] = useState(false);
   const [createType, setCreateType] = useState<'study' | 'package'>('study');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const {
     studies,
@@ -65,6 +69,23 @@ export default function EstudiosPage() {
     toggleStudyStatus,
     deleteStudyById,
   } = useStudiesData(searchTerm, statusFilter, typeFilter);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, statusFilter, typeFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(studies.length / pageSize));
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
+  const paginatedStudies = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return studies.slice(start, start + pageSize);
+  }, [page, pageSize, studies]);
 
   const handleDelete = (id: number, name: string) => {
     const confirmed = window.confirm(
@@ -85,7 +106,7 @@ export default function EstudiosPage() {
         <div>
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
             <span className="h-2 w-2 rounded-full bg-red-500" />
-            Modulo de estudios
+            Catalogo de estudios
           </div>
           <h1 className="text-3xl font-bold text-gray-900">Estudios</h1>
           <p className="mt-2 max-w-2xl text-gray-600">
@@ -250,10 +271,7 @@ export default function EstudiosPage() {
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center gap-3 rounded-3xl border border-gray-200 bg-white p-10 text-gray-600 shadow-sm">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          Cargando estudios...
-        </div>
+        <CollectionContentSkeleton statCards={4} rows={5} />
       ) : studies.length === 0 ? (
         <div className="rounded-3xl border border-gray-200 bg-white p-10 text-center text-gray-600 shadow-sm">
           No hay estudios para el filtro seleccionado.
@@ -265,14 +283,14 @@ export default function EstudiosPage() {
               <div className="col-span-4">Estudio</div>
               <div className="col-span-1">Clave</div>
               <div className="col-span-1">Tipo</div>
-              <div className="col-span-1">Horas</div>
+              <div className="col-span-1">Duracion</div>
               <div className="col-span-2">Precio normal</div>
               <div className="col-span-2">Estatus</div>
               <div className="col-span-1">Acciones</div>
             </div>
 
             <div className="divide-y divide-gray-200">
-              {studies.map((study) => (
+              {paginatedStudies.map((study) => (
                 <div
                   key={study.id}
                   className="grid grid-cols-12 gap-4 px-6 py-5 transition-colors hover:bg-gray-50"
@@ -389,13 +407,18 @@ export default function EstudiosPage() {
               ))}
             </div>
 
-            <div className="border-t border-gray-200 bg-gray-50 px-6 py-4 text-sm text-gray-600">
-              Mostrando <span className="font-semibold">{studies.length}</span> estudios
-            </div>
+            <TablePagination
+              page={page}
+              pageSize={pageSize}
+              totalItems={studies.length}
+              itemLabel="registros"
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
           </div>
 
           <div className="space-y-4 xl:hidden">
-            {studies.map((study) => (
+            {paginatedStudies.map((study) => (
               <div
                 key={study.id}
                 className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm"
@@ -499,6 +522,17 @@ export default function EstudiosPage() {
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm xl:hidden">
+            <TablePagination
+              page={page}
+              pageSize={pageSize}
+              totalItems={studies.length}
+              itemLabel="registros"
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
           </div>
         </>
       )}

@@ -89,7 +89,14 @@ const createStudyDetailPayloadSchema = z.object({
   parentId: numericIntFieldSchema.min(1).optional(),
 });
 
-const updateStudyDetailPayloadSchema = createStudyDetailPayloadSchema.partial();
+const updateStudyDetailPayloadSchema = z.object({
+  dataType: studyDetailDataTypeSchema.optional(),
+  name: z.string().min(1).max(150).optional(),
+  sortOrder: numericIntFieldSchema.min(1).optional(),
+  unit: z.string().optional(),
+  referenceValue: z.string().optional(),
+  parentId: z.union([numericIntFieldSchema.min(1), z.null()]).optional(),
+});
 
 const studyMutationResponseSchema = z.object({
   message: z.string(),

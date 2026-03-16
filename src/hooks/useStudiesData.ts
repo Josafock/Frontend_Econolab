@@ -47,7 +47,7 @@ export function useStudiesData(
         setLoading(true);
       }
 
-      const response = await getStudies({ search, limit: 200 });
+      const response = await getStudies({ search, limit: 1000 });
 
       if (!response.ok) {
         if (!options?.silent) {

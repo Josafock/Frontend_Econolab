@@ -169,3 +169,25 @@
   background-color: #ffffff;
   color: #111827;
 }
+
+.scroll-panel {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.9) transparent;
+}
+
+.scroll-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scroll-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scroll-panel::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.9);
+  border-radius: 9999px;
+}
+
+.scroll-panel::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 1);
+}

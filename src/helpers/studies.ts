@@ -10,7 +10,16 @@ export function formatStudyDuration(minutes?: number | null): string {
   const totalMinutes = Math.max(0, Number(minutes ?? 0));
   const hours = Math.floor(totalMinutes / 60);
   const remainingMinutes = totalMinutes % 60;
-  return `${String(hours).padStart(2, "0")}:${String(remainingMinutes).padStart(2, "0")}`;
+
+  if (hours === 0) {
+    return `${remainingMinutes} min`;
+  }
+
+  if (remainingMinutes === 0) {
+    return `${hours} h`;
+  }
+
+  return `${hours} h ${remainingMinutes} min`;
 }
 
 export function minutesToTimeValue(minutes?: number | null): string {

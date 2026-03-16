@@ -20,6 +20,7 @@ import {
   getHistoryDashboard,
   type HistoryDashboardResponse,
 } from '@/actions/history/historyActions';
+import TablePagination from '@/components/ui/TablePagination';
 import { formatDate, formatDateTime } from '@/helpers/date';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
@@ -45,12 +46,65 @@ function money(value: number) {
   }).format(value || 0);
 }
 
+function LoadingCard() {
+  return (
+    <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="animate-pulse">
+        <div className="h-4 w-24 rounded bg-gray-200" />
+        <div className="mt-4 h-8 w-32 rounded bg-gray-200" />
+        <div className="mt-3 h-3 w-20 rounded bg-gray-100" />
+      </div>
+    </div>
+  );
+}
+
+function LoadingPanel({
+  rows = 4,
+  compact = false,
+}: {
+  rows?: number;
+  compact?: boolean;
+}) {
+  return (
+    <div className="rounded-[2rem] border border-gray-200 bg-white shadow-sm">
+      <div className="border-b border-gray-200 px-6 py-5">
+        <div className="animate-pulse">
+          <div className="h-5 w-48 rounded bg-gray-200" />
+          <div className="mt-2 h-4 w-72 rounded bg-gray-100" />
+        </div>
+      </div>
+
+      <div className="space-y-4 p-6">
+        {Array.from({ length: rows }).map((_, index) => (
+          <div
+            key={index}
+            className={`animate-pulse rounded-2xl border border-gray-200 bg-gray-50 ${
+              compact ? 'p-4' : 'p-5'
+            }`}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <div className="h-4 w-32 rounded bg-gray-200" />
+                <div className="mt-3 h-4 w-full rounded bg-gray-100" />
+                <div className="mt-2 h-3 w-40 rounded bg-gray-100" />
+              </div>
+              <div className="h-8 w-20 rounded-full bg-gray-200" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function HistorialPage() {
   const [selectedDate, setSelectedDate] = useState(getTodayInputValue());
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [generatingCut, setGeneratingCut] = useState(false);
   const [dashboard, setDashboard] = useState<HistoryDashboardResponse | null>(null);
+  const [servicesPage, setServicesPage] = useState(1);
+  const [servicesPageSize, setServicesPageSize] = useState(10);
 
   const debouncedSearch = useDebouncedValue(searchTerm.trim(), 350);
 
@@ -103,14 +157,34 @@ export default function HistorialPage() {
   };
 
   const summary = dashboard?.summary;
-  const completedServices = dashboard?.services ?? [];
+  const completedServices = useMemo(() => dashboard?.services ?? [], [dashboard]);
   const savedCut = dashboard?.savedCut;
-  const recentCuts = dashboard?.recentCuts ?? [];
+  const recentCuts = useMemo(() => dashboard?.recentCuts ?? [], [dashboard]);
   const totalSummaryAmount = summary?.totalAmount ?? 0;
 
   const strongestBranch = useMemo(() => {
     return summary?.branchBreakdown?.[0] ?? null;
   }, [summary]);
+
+  useEffect(() => {
+    setServicesPage(1);
+  }, [selectedDate, debouncedSearch]);
+
+  const servicesTotalPages = Math.max(
+    1,
+    Math.ceil(completedServices.length / servicesPageSize),
+  );
+
+  useEffect(() => {
+    if (servicesPage > servicesTotalPages) {
+      setServicesPage(servicesTotalPages);
+    }
+  }, [servicesPage, servicesTotalPages]);
+
+  const paginatedCompletedServices = useMemo(() => {
+    const start = (servicesPage - 1) * servicesPageSize;
+    return completedServices.slice(start, start + servicesPageSize);
+  }, [completedServices, servicesPage, servicesPageSize]);
 
   return (
     <div className="min-w-0">
@@ -280,9 +354,24 @@ export default function HistorialPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center gap-3 rounded-3xl border border-gray-200 bg-white p-10 text-gray-600 shadow-sm">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          Cargando historial del dia...
+        <div className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <LoadingCard key={index} />
+            ))}
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-[1.45fr_0.95fr]">
+            <div className="space-y-6">
+              <LoadingPanel rows={4} />
+              <LoadingPanel rows={3} compact />
+            </div>
+
+            <div className="space-y-6">
+              <LoadingPanel rows={3} compact />
+              <LoadingPanel rows={4} compact />
+            </div>
+          </div>
         </div>
       ) : (
         <div className="grid gap-6 xl:grid-cols-[1.45fr_0.95fr]">
@@ -316,7 +405,7 @@ export default function HistorialPage() {
                     </div>
 
                     <div className="divide-y divide-gray-200">
-                      {completedServices.map((service) => (
+                      {paginatedCompletedServices.map((service) => (
                         <div
                           key={service.id}
                           className="grid grid-cols-[1.7fr_1.9fr_1.8fr_1.2fr_1fr_0.8fr_0.9fr_auto] items-start gap-5 px-6 py-5 hover:bg-gray-50"
@@ -367,7 +456,7 @@ export default function HistorialPage() {
                   </div>
 
                   <div className="space-y-4 p-4 lg:hidden">
-                    {completedServices.map((service) => (
+                    {paginatedCompletedServices.map((service) => (
                       <div
                         key={service.id}
                         className="rounded-3xl border border-gray-200 bg-gray-50 p-4"
@@ -411,6 +500,15 @@ export default function HistorialPage() {
                       </div>
                     ))}
                   </div>
+
+                  <TablePagination
+                    page={servicesPage}
+                    pageSize={servicesPageSize}
+                    totalItems={completedServices.length}
+                    itemLabel="registros"
+                    onPageChange={setServicesPage}
+                    onPageSizeChange={setServicesPageSize}
+                  />
                 </>
               )}
             </div>
@@ -430,7 +528,7 @@ export default function HistorialPage() {
                   Todavia no hay cortes guardados.
                 </div>
               ) : (
-                <div className="divide-y divide-gray-200">
+                <div className="max-h-[24rem] divide-y divide-gray-200 overflow-y-auto scroll-panel">
                   {recentCuts.map((cut) => (
                     <div
                       key={cut.id}

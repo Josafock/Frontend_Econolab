@@ -39,12 +39,14 @@ import {
 import AddStudyDetailModal from '@/components/estudios/AddStudyDetailModal';
 import EditStudyDetailModal from '@/components/estudios/EditStudyDetailModal';
 import StudyFormFields from '@/components/estudios/StudyFormFields';
+import { DetailPageSkeleton } from '@/components/ui/PageSkeletons';
 import {
   createEmptyStudyForm,
   createTouchedStudyForm,
   hasStudyFormErrors,
   mapFormToUpdateStudyPayload,
   mapStudyToForm,
+  updateDurationValue,
   validateStudyForm,
   type StudyFormTouched,
   type StudyFormValues,
@@ -237,6 +239,20 @@ export default function StudyDetailPage() {
     setTouched((current) => ({
       ...current,
       [name]: true,
+    }));
+  };
+
+  const handleDurationChange = (part: 'hours' | 'minutes', value: string) => {
+    setFormData((current) => ({
+      ...current,
+      duracion: updateDurationValue(current.duracion, part, value),
+    }));
+  };
+
+  const handleDurationBlur = () => {
+    setTouched((current) => ({
+      ...current,
+      duracion: true,
     }));
   };
 
@@ -562,9 +578,7 @@ export default function StudyDetailPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center gap-2 rounded-3xl border border-gray-200 bg-white p-10 text-gray-600 shadow-sm">
-          <Loader2 className="h-5 w-5 animate-spin" /> Cargando detalle...
-        </div>
+        <DetailPageSkeleton sections={3} />
       ) : error ? (
         <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-700 shadow-sm">
           {error}
@@ -723,6 +737,8 @@ export default function StudyDetailPage() {
                 touched={touched}
                 onChange={handleChange}
                 onBlur={handleBlur}
+                onDurationChange={handleDurationChange}
+                onDurationBlur={handleDurationBlur}
                 disabled={savingStudy}
               />
             </div>
@@ -734,7 +750,7 @@ export default function StudyDetailPage() {
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">Contenido del paquete</h2>
                   <p className="text-sm text-gray-500">
-                    Un paquete no define parametros propios. Aqui eliges los estudios que lo componen y cada estudio conserva sus categorias y parametros.
+                    Aqui eliges los estudios que forman parte del paquete.
                   </p>
                 </div>
                 <div className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
@@ -745,7 +761,7 @@ export default function StudyDetailPage() {
               <div className="mb-5 rounded-[1.5rem] border border-blue-100 bg-blue-50/80 p-4 text-sm text-blue-900">
                 <p className="font-semibold">Como funciona un paquete</p>
                 <p className="mt-2 text-blue-800">
-                  Cuando el paquete se agrega a un servicio, el sistema lo desglosa en sus estudios reales. Por eso los resultados salen por estudio, no como un solo parametro gigante del paquete.
+                  Al usar un paquete en un servicio, se agregan automaticamente los estudios que lo componen.
                 </p>
               </div>
 
@@ -838,8 +854,7 @@ export default function StudyDetailPage() {
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900">Plantilla del estudio</h2>
                     <p className="text-sm text-gray-500">
-                      Abre un modal segun lo que quieras capturar y administra la
-                      plantilla desde la vista previa.
+                      Agrega categorias y parametros para organizar mejor los resultados del estudio.
                     </p>
                   </div>
 
@@ -866,9 +881,7 @@ export default function StudyDetailPage() {
                 <div className="rounded-[1.5rem] border border-blue-100 bg-blue-50/80 p-4 text-sm text-blue-900">
                   <p className="font-semibold">Como funciona este flujo</p>
                   <p className="mt-2 text-blue-800">
-                    Las categorias organizan la plantilla y los parametros son los
-                    campos que el personal llenara despues en resultados. Las acciones
-                    viven directo en la vista previa.
+                    Las categorias ayudan a ordenar la informacion y los parametros son los datos que despues se capturan en resultados.
                   </p>
                 </div>
               </div>
@@ -880,11 +893,10 @@ export default function StudyDetailPage() {
                   </div>
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900">
-                      Vista previa operativa
+                      Vista previa
                     </h2>
                     <p className="text-sm text-gray-500">
-                      La misma estructura que se define aqui es la que despues se captura
-                      en servicios.
+                      Asi se vera la estructura del estudio al momento de capturar resultados.
                     </p>
                   </div>
                 </div>
@@ -898,7 +910,7 @@ export default function StudyDetailPage() {
                   <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
                     <div className="rounded-[1.5rem] border border-gray-200 bg-gray-50/70 p-4">
                       <p className="text-sm font-semibold text-gray-900">
-                        Vista previa de captura
+                        Parametros del estudio
                       </p>
                       <div className="mt-4 space-y-4">
                         {groupedParameters.map(({ category, parameters }) => (
@@ -1069,16 +1081,13 @@ export default function StudyDetailPage() {
                         <p className="text-sm font-semibold text-gray-900">Notas utiles</p>
                         <ul className="mt-4 space-y-3 text-sm text-gray-600">
                           <li>
-                            Las categorias no se llenan en resultados; solo ordenan la
-                            plantilla.
+                            Las categorias ayudan a separar mejor los grupos de resultados.
                           </li>
                           <li>
-                            Los parametros activos se copian al servicio con su unidad y
-                            referencia.
+                            Los parametros activos quedan disponibles cuando el estudio se usa en un servicio.
                           </li>
                           <li>
-                            Si algo cambia, lo ajustas desde el menu de cada tarjeta sin
-                            bajar a otra seccion.
+                            Puedes editar o desactivar cada elemento desde su tarjeta.
                           </li>
                         </ul>
                       </div>

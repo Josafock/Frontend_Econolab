@@ -15,7 +15,7 @@ export type DashboardLoginItem = {
 export type DashboardOverview = {
   generatedAt: string;
   filters: {
-    range: "today" | "7d" | "30d" | "year";
+    range: "today" | "7d" | "30d" | "90d" | "year" | "custom";
     rangeLabel: string;
     startDate: string;
     endDate: string;
@@ -101,12 +101,16 @@ export type DashboardOverview = {
 };
 
 export async function getDashboardOverview(params?: {
-  range?: "today" | "7d" | "30d" | "year";
+  range?: "today" | "7d" | "30d" | "90d" | "year" | "custom";
   role?: "all" | "admin" | "recepcionista";
+  startDate?: string;
+  endDate?: string;
 }) {
   const query = new URLSearchParams();
   if (params?.range) query.set("range", params.range);
   if (params?.role) query.set("role", params.role);
+  if (params?.startDate) query.set("startDate", params.startDate);
+  if (params?.endDate) query.set("endDate", params.endDate);
   const suffix = query.toString() ? `?${query.toString()}` : "";
   return fetchApi<DashboardOverview>(`/dashboard/overview${suffix}`);
 }

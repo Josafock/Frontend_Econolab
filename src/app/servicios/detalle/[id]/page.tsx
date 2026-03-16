@@ -35,6 +35,7 @@ import { getStudies, getStudyDetails, type Study, type StudyDetail } from '@/act
 import { getPatients, type Patient } from '@/actions/patients/patientsActions';
 import AddServiceModal from '@/components/servicios/AgregarServicioModal';
 import ServiceResultEditor from '@/components/servicios/ServiceResultEditor';
+import { DetailPageSkeleton } from '@/components/ui/PageSkeletons';
 import { mapServiceToForm } from '@/components/servicios/serviceFormUtils';
 import { formatDateTime } from '@/helpers/date';
 
@@ -229,9 +230,7 @@ export default function ServiceDetailPage() {
   if (loading) {
     return (
       <div className="p-8">
-        <div className="flex items-center gap-2 rounded-3xl border border-gray-200 bg-white p-10 text-gray-600 shadow-sm">
-          <Loader2 className="h-5 w-5 animate-spin" /> Cargando detalle del servicio...
-        </div>
+        <DetailPageSkeleton sections={3} />
       </div>
     );
   }

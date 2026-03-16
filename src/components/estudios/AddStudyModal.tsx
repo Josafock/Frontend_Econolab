@@ -10,6 +10,7 @@ import {
   createTouchedStudyForm,
   hasStudyFormErrors,
   mapFormToCreateStudyPayload,
+  updateDurationValue,
   validateStudyForm,
   type StudyFormTouched,
 } from '@/components/estudios/studyFormUtils';
@@ -52,6 +53,20 @@ export default function AddStudyModal({
     setTouched((current) => ({
       ...current,
       [name]: true,
+    }));
+  };
+
+  const handleDurationChange = (part: 'hours' | 'minutes', value: string) => {
+    setFormData((current) => ({
+      ...current,
+      duracion: updateDurationValue(current.duracion, part, value),
+    }));
+  };
+
+  const handleDurationBlur = () => {
+    setTouched((current) => ({
+      ...current,
+      duracion: true,
     }));
   };
 
@@ -113,6 +128,8 @@ export default function AddStudyModal({
               touched={touched}
               onChange={handleChange}
               onBlur={handleBlur}
+              onDurationChange={handleDurationChange}
+              onDurationBlur={handleDurationBlur}
               disabled={isSaving}
               compact
             />

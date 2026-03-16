@@ -80,11 +80,11 @@ export default function EditStudyDetailModal({
   return (
     <AppModal>
       <div className="mx-auto w-full max-w-3xl">
-        <div className="overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-2xl">
-          <div className="border-b border-gray-200 bg-gradient-to-r from-blue-700 via-blue-600 to-blue-500 p-6 text-white">
+        <div className="max-h-[calc(100vh-1.5rem)] overflow-y-auto rounded-[1.5rem] border border-gray-200 bg-white shadow-2xl sm:max-h-[calc(100vh-3rem)] sm:rounded-[2rem]">
+          <div className="border-b border-gray-200 bg-gradient-to-r from-blue-700 via-blue-600 to-blue-500 p-4 text-white sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-2xl font-semibold">Editar elemento</h2>
+                <h2 className="text-xl font-semibold sm:text-2xl">Editar elemento</h2>
                 <p className="mt-1 text-sm text-blue-50">
                   Actualiza categoria, orden, unidad y valores de referencia.
                 </p>
@@ -100,7 +100,7 @@ export default function EditStudyDetailModal({
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6 p-6">
+          <form onSubmit={handleSubmit} className="space-y-6 p-4 sm:p-6">
             <StudyDetailFormFields
               formData={formData}
               errors={errors}

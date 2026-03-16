@@ -1,29 +1,35 @@
 'use client';
 
 import {
+  Camera,
   CheckCircle2,
+  ImageUp,
   KeyRound,
   Loader2,
   Mail,
   ShieldCheck,
-  Sparkles,
   UserRound,
 } from 'lucide-react';
-import { useMemo, useState, useTransition } from 'react';
+import { useMemo, useRef, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
+import { updateProfileImageAction, type ProfileUser } from '@/actions/users/profileActions';
 import { updatePasswordAction } from '@/actions/users/updatePasswordAction';
 import { getPasswordStrength, passwordRules } from '@/helpers/passwordRules';
-import type { User } from '@/schemas';
 
 type PerfilClientProps = {
-  user: User;
+  user: ProfileUser;
 };
 
 type ProfileTab = 'overview' | 'security';
 
 export default function PerfilClient({ user }: PerfilClientProps) {
+  const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [profile, setProfile] = useState<ProfileUser>(user);
   const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
   const [isPending, startTransition] = useTransition();
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
@@ -31,13 +37,13 @@ export default function PerfilClient({ user }: PerfilClientProps) {
   });
 
   const roleLabel =
-    user.rol === 'admin'
+    profile.rol === 'admin'
       ? 'Administrador'
-      : user.rol === 'recepcionista'
+      : profile.rol === 'recepcionista'
         ? 'Recepcionista'
         : 'Sin rol';
 
-  const initials = user.nombre
+  const initials = profile.nombre
     .split(' ')
     .filter(Boolean)
     .slice(0, 2)
@@ -67,84 +73,102 @@ export default function PerfilClient({ user }: PerfilClientProps) {
     });
   };
 
+  const handleSelectImage = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImageChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const image = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!image) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.set('image', image);
+
+    setIsUploadingImage(true);
+    const response = await updateProfileImageAction(formData);
+    setIsUploadingImage(false);
+
+    if (!response.ok) {
+      toast.error(response.errors[0] ?? 'No se pudo actualizar la foto de perfil.');
+      return;
+    }
+
+    setProfile(response.data.user);
+    toast.success(response.data.message ?? 'Foto de perfil actualizada.');
+    router.refresh();
+  };
+
   return (
     <div className="space-y-6">
-      <section className="overflow-hidden rounded-[2.25rem] border border-red-200 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.98),_rgba(255,244,240,0.95)_35%,_rgba(254,226,226,0.92)_100%)] shadow-xl shadow-red-200/40">
-        <div className="grid gap-6 p-6 lg:grid-cols-[1.15fr_0.85fr] lg:p-8">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-white/85 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-red-700">
-              <Sparkles className="h-3.5 w-3.5" />
-              Perfil
+      <section className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="relative">
+              <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-[1.75rem] bg-slate-900 text-2xl font-semibold text-white shadow-lg shadow-slate-200">
+                {profile.profileImageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={profile.profileImageUrl}
+                    alt={`Foto de perfil de ${profile.nombre}`}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  initials || 'U'
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSelectImage}
+                disabled={isUploadingImage}
+                className="absolute -bottom-2 -right-2 inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white bg-red-600 text-white shadow-lg shadow-red-600/20 transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-70"
+                aria-label="Cambiar foto de perfil"
+              >
+                {isUploadingImage ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Camera className="h-4 w-4" />
+                )}
+              </button>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={handleImageChange}
+              />
             </div>
 
-            <h1 className="mt-5 text-3xl font-semibold text-slate-900 md:text-4xl">
-              Tu cuenta ya vive dentro del mismo lenguaje visual del sistema.
-            </h1>
-            <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-700 md:text-base">
-              Revisa tus datos de sesion, valida tu rol y actualiza tu contrasena desde un
-              modulo mas limpio, compacto y consistente con el resto de Econolab.
-            </p>
-
-            <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-3xl border border-white/80 bg-white/90 p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Rol activo</p>
-                <p className="mt-2 text-lg font-semibold text-slate-900">{roleLabel}</p>
-              </div>
-              <div className="rounded-3xl border border-white/80 bg-white/90 p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Correo</p>
-                <p className="mt-2 truncate text-sm font-semibold text-slate-900">{user.email}</p>
-              </div>
-              <div className="rounded-3xl border border-white/80 bg-white/90 p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Sesion</p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">Activa en este equipo</p>
-              </div>
+            <div className="min-w-0">
+              <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Perfil</p>
+              <h1 className="mt-1 truncate text-2xl font-semibold text-gray-900">
+                {profile.nombre}
+              </h1>
+              <p className="mt-1 truncate text-sm text-gray-500">{profile.email}</p>
+              <p className="mt-2 text-xs text-gray-500">
+                {profile.authProvider === 'google'
+                  ? 'Tu cuenta puede usar la foto de Google o la imagen que subas aqui.'
+                  : 'Puedes subir una foto JPG, PNG o WEBP de hasta 2 MB.'}
+              </p>
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-slate-900/10 bg-slate-950 p-6 text-white shadow-lg shadow-slate-900/20">
-            <div className="flex items-center gap-4">
-              <div className="flex h-18 w-18 items-center justify-center rounded-[1.75rem] bg-white/10 text-2xl font-semibold text-white">
-                {initials || 'U'}
-              </div>
-
-              <div className="min-w-0">
-                <p className="text-xs uppercase tracking-[0.22em] text-red-200">Usuario</p>
-                <h2 className="mt-2 truncate text-2xl font-semibold">{user.nombre}</h2>
-                <p className="mt-1 truncate text-sm text-slate-300">{user.email}</p>
-              </div>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3">
+              <p className="text-xs uppercase tracking-[0.18em] text-gray-500">Rol</p>
+              <p className="mt-1 text-sm font-semibold text-gray-900">{roleLabel}</p>
             </div>
-
-            <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-200">
-              <p className="font-semibold text-white">Estado de la cuenta</p>
-              <p className="mt-2">
-                El acceso esta validado y el panel reconoce tu rol actual sin depender de
-                datos de prueba.
-              </p>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setActiveTab('overview')}
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
-                  activeTab === 'overview'
-                    ? 'bg-white text-slate-950'
-                    : 'border border-white/15 bg-white/5 text-slate-200 hover:bg-white/10'
-                }`}
-              >
-                Resumen
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('security')}
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
-                  activeTab === 'security'
-                    ? 'bg-emerald-400 text-slate-950'
-                    : 'border border-white/15 bg-white/5 text-slate-200 hover:bg-white/10'
-                }`}
-              >
-                Seguridad
-              </button>
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+              <p className="text-xs uppercase tracking-[0.18em] text-emerald-700">Estado</p>
+              <div className="mt-1 inline-flex items-center gap-2 text-sm font-semibold text-emerald-800">
+                <CheckCircle2 className="h-4 w-4" />
+                Cuenta activa
+              </div>
             </div>
           </div>
         </div>
@@ -167,7 +191,7 @@ export default function PerfilClient({ user }: PerfilClientProps) {
                 }`}
               >
                 <UserRound className="h-5 w-5" />
-                Datos de la sesion
+                Datos de la cuenta
               </button>
 
               <button
@@ -196,8 +220,7 @@ export default function PerfilClient({ user }: PerfilClientProps) {
                   <div>
                     <p className="text-sm font-semibold text-emerald-900">Sesion estable</p>
                     <p className="mt-1 text-sm text-emerald-800">
-                      La navegacion y el acceso del perfil ya estan integrados con el usuario
-                      autenticado.
+                      Tu cuenta esta lista para usarse y puedes entrar a tus secciones con normalidad.
                     </p>
                   </div>
                 </div>
@@ -208,17 +231,21 @@ export default function PerfilClient({ user }: PerfilClientProps) {
                   <Mail className="mt-0.5 h-5 w-5 text-blue-700" />
                   <div>
                     <p className="text-sm font-semibold text-blue-900">Correo principal</p>
-                    <p className="mt-1 break-all text-sm text-blue-800">{user.email}</p>
+                    <p className="mt-1 break-all text-sm text-blue-800">{profile.email}</p>
                   </div>
                 </div>
               </div>
 
               <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                <p className="text-sm font-semibold text-gray-900">Siguiente paso sugerido</p>
-                <p className="mt-1 text-sm text-gray-600">
-                  Si compartes equipo con otras personas, cambia tu contrasena periodicamente
-                  desde la pestana de seguridad.
-                </p>
+                <div className="flex items-start gap-3">
+                  <ImageUp className="mt-0.5 h-5 w-5 text-gray-700" />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">Foto de perfil</p>
+                    <p className="mt-1 text-sm text-gray-600">
+                      Puedes cambiarla cuando lo necesites desde el boton de la imagen.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -230,8 +257,7 @@ export default function PerfilClient({ user }: PerfilClientProps) {
               <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Resumen</p>
               <h2 className="mt-2 text-2xl font-semibold text-gray-900">Informacion principal</h2>
               <p className="mt-2 text-sm text-gray-600">
-                Este bloque ya usa datos reales de la sesion para mantener el modulo coherente
-                con el resto del sistema.
+                Aqui puedes revisar los datos principales de tu cuenta y actualizar tu foto.
               </p>
 
               <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -239,7 +265,7 @@ export default function PerfilClient({ user }: PerfilClientProps) {
                   <p className="text-xs uppercase tracking-[0.2em] text-gray-500">
                     Nombre visible
                   </p>
-                  <p className="mt-3 text-lg font-semibold text-gray-900">{user.nombre}</p>
+                  <p className="mt-3 text-lg font-semibold text-gray-900">{profile.nombre}</p>
                 </div>
 
                 <div className="rounded-3xl border border-gray-200 bg-gray-50 p-5">
@@ -254,7 +280,7 @@ export default function PerfilClient({ user }: PerfilClientProps) {
                     Correo de acceso
                   </p>
                   <p className="mt-3 break-all text-lg font-semibold text-gray-900">
-                    {user.email}
+                    {profile.email}
                   </p>
                 </div>
 
@@ -263,7 +289,7 @@ export default function PerfilClient({ user }: PerfilClientProps) {
                     Identificador
                   </p>
                   <p className="mt-3 break-all text-sm font-semibold text-gray-900">
-                    {user.id}
+                    {profile.id}
                   </p>
                 </div>
 
@@ -279,13 +305,9 @@ export default function PerfilClient({ user }: PerfilClientProps) {
               </div>
 
               <div className="mt-6 rounded-[1.75rem] border border-amber-200 bg-amber-50 p-5">
-                <p className="text-sm font-semibold text-amber-900">
-                  Edicion de datos personales
-                </p>
+                <p className="text-sm font-semibold text-amber-900">Aviso</p>
                 <p className="mt-2 text-sm leading-6 text-amber-800">
-                  El diseno del perfil ya quedo homologado y la parte critica de seguridad ya
-                  funciona. Si despues quieres, podemos conectar tambien la edicion completa de
-                  nombre y correo al backend.
+                  Si necesitas actualizar tu nombre o tu correo, solicita el cambio con un administrador.
                 </p>
               </div>
             </div>
@@ -294,8 +316,7 @@ export default function PerfilClient({ user }: PerfilClientProps) {
               <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Seguridad</p>
               <h2 className="mt-2 text-2xl font-semibold text-gray-900">Actualiza tu contrasena</h2>
               <p className="mt-2 text-sm text-gray-600">
-                Esta accion ya usa el endpoint real del sistema, asi que no se queda en una
-                simulacion local.
+                Cambia tu contrasena para mantener tu cuenta protegida.
               </p>
 
               <div className="mt-6 grid gap-4">
@@ -408,7 +429,11 @@ export default function PerfilClient({ user }: PerfilClientProps) {
                   disabled={isPending}
                   className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-600/20 transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+                  {isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <KeyRound className="h-4 w-4" />
+                  )}
                   Actualizar contrasena
                 </button>
               </div>

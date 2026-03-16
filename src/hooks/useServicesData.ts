@@ -152,7 +152,7 @@ export function useServicesData(searchTerm: string, filters: ServicesFilters) {
             : undefined,
         fromDate: nextFilters.fromDate || undefined,
         toDate: nextFilters.toDate || undefined,
-        limit: 200,
+        limit: 1000,
       });
 
       if (!response.ok) {

@@ -4,6 +4,7 @@ import {
   ArrowRight,
   BadgeDollarSign,
   BarChart3,
+  CalendarRange,
   CheckCircle2,
   ShieldAlert,
   Sparkles,
@@ -13,15 +14,26 @@ import {
   Wallet,
 } from 'lucide-react';
 import { getDashboardOverview } from '@/actions/dashboard/dashboardActions';
+import {
+  getUnassignedUsersAction,
+  getUsersWithRoleAction,
+} from '@/actions/users/adminUsersActions';
 import { verifySession } from '@/auth/dal';
+import AdminRoleManager from '@/components/home/AdminRoleManager';
 import { formatDate, formatDateTime } from '@/helpers/date';
 
 type HomePageProps = {
   searchParams?: Promise<{
     range?: string;
     role?: string;
+    startDate?: string;
+    endDate?: string;
   }>;
 };
+
+function isDateInput(value?: string): value is string {
+  return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
+}
 
 function money(value: number) {
   return new Intl.NumberFormat('es-MX', {
@@ -35,6 +47,7 @@ const rangeOptions = [
   { value: 'today', label: 'Hoy' },
   { value: '7d', label: '7 días' },
   { value: '30d', label: '1 mes' },
+  { value: '90d', label: '3 meses' },
   { value: 'year', label: '1 año' },
 ] as const;
 
@@ -44,10 +57,16 @@ const roleOptions = [
   { value: 'recepcionista', label: 'Recepcionistas' },
 ] as const;
 
-function buildHref(range: string, role: string) {
+function buildHref(
+  range: string,
+  role: string,
+  options?: { startDate?: string; endDate?: string },
+) {
   const params = new URLSearchParams();
   if (range) params.set('range', range);
   if (role) params.set('role', role);
+  if (options?.startDate) params.set('startDate', options.startDate);
+  if (options?.endDate) params.set('endDate', options.endDate);
   return `/home?${params.toString()}`;
 }
 
@@ -56,6 +75,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const requestedRange =
     resolvedSearchParams?.range === '7d' ||
     resolvedSearchParams?.range === '30d' ||
+    resolvedSearchParams?.range === '90d' ||
+    resolvedSearchParams?.range === 'custom' ||
     resolvedSearchParams?.range === 'year'
       ? resolvedSearchParams.range
       : 'today';
@@ -64,14 +85,27 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     resolvedSearchParams?.role === 'recepcionista'
       ? resolvedSearchParams.role
       : 'all';
+  const requestedStartDate = isDateInput(resolvedSearchParams?.startDate)
+    ? resolvedSearchParams.startDate
+    : undefined;
+  const requestedEndDate = isDateInput(resolvedSearchParams?.endDate)
+    ? resolvedSearchParams.endDate
+    : undefined;
 
   const [{ user }, overviewResponse] = await Promise.all([
     verifySession(),
     getDashboardOverview({
       range: requestedRange,
       role: requestedRole,
+      startDate: requestedStartDate,
+      endDate: requestedEndDate,
     }),
   ]);
+
+  const adminUserResponses =
+    user.rol === 'admin'
+      ? await Promise.all([getUnassignedUsersAction(), getUsersWithRoleAction()])
+      : null;
 
   if (!overviewResponse.ok) {
     return (
@@ -86,6 +120,23 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const savedCut = overview.finance.savedTodayCut;
   const maxTrendRevenue =
     Math.max(...overview.trends.revenueSeries.map((item) => item.revenueTotal), 1) || 1;
+  const pendingUsersResponse = adminUserResponses?.[0];
+  const usersWithRoleResponse = adminUserResponses?.[1];
+  const adminRoleErrors: string[] = [];
+
+  if (pendingUsersResponse && !pendingUsersResponse.ok) {
+    adminRoleErrors.push(pendingUsersResponse.errors[0] ?? 'No se pudo cargar usuarios pendientes.');
+  }
+
+  if (usersWithRoleResponse && !usersWithRoleResponse.ok) {
+    adminRoleErrors.push(usersWithRoleResponse.errors[0] ?? 'No se pudo cargar usuarios con rol.');
+  }
+
+  const adminRoleError = adminRoleErrors.join(' ');
+  const currentStartDate =
+    overview.filters.range === 'custom' ? overview.filters.startDate : requestedStartDate ?? '';
+  const currentEndDate =
+    overview.filters.range === 'custom' ? overview.filters.endDate : requestedEndDate ?? '';
 
   return (
     <div className="space-y-8">
@@ -146,7 +197,65 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                     {option.label}
                   </Link>
                 ))}
+                <Link
+                  href={buildHref('custom', overview.filters.role, {
+                    startDate: currentStartDate || overview.filters.startDate,
+                    endDate: currentEndDate || overview.filters.endDate,
+                  })}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+                    overview.filters.range === 'custom'
+                      ? 'bg-white text-slate-900'
+                      : 'border border-white/15 bg-white/5 text-slate-200 hover:bg-white/10'
+                  }`}
+                >
+                  Personalizado
+                </Link>
               </div>
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
+                <CalendarRange className="h-4 w-4" />
+                Rango personalizado
+              </div>
+              <form action="/home" className="mt-4 grid gap-3">
+                <input type="hidden" name="range" value="custom" />
+                <input type="hidden" name="role" value={overview.filters.role} />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="grid gap-1.5 text-xs text-slate-300">
+                    <span>Desde</span>
+                    <input
+                      type="date"
+                      name="startDate"
+                      defaultValue={currentStartDate}
+                      className="rounded-xl border border-white/15 bg-slate-900/70 px-3 py-2 text-sm text-white outline-none transition-colors focus:border-orange-300"
+                    />
+                  </label>
+                  <label className="grid gap-1.5 text-xs text-slate-300">
+                    <span>Hasta</span>
+                    <input
+                      type="date"
+                      name="endDate"
+                      defaultValue={currentEndDate}
+                      className="rounded-xl border border-white/15 bg-slate-900/70 px-3 py-2 text-sm text-white outline-none transition-colors focus:border-orange-300"
+                    />
+                  </label>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="submit"
+                    className="rounded-xl bg-amber-300 px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-amber-200"
+                  >
+                    Aplicar rango
+                  </button>
+                  <Link
+                    href={buildHref('today', overview.filters.role)}
+                    className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200 transition-colors hover:bg-white/10"
+                  >
+                    Limpiar
+                  </Link>
+                </div>
+              </form>
             </div>
 
             <div className="mt-6">
@@ -157,7 +266,12 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                 {roleOptions.map((option) => (
                   <Link
                     key={option.value}
-                    href={buildHref(overview.filters.range, option.value)}
+                    href={buildHref(overview.filters.range, option.value, {
+                      startDate:
+                        overview.filters.range === 'custom' ? overview.filters.startDate : undefined,
+                      endDate:
+                        overview.filters.range === 'custom' ? overview.filters.endDate : undefined,
+                    })}
                     className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
                       overview.filters.role === option.value
                         ? 'bg-emerald-400 text-slate-950'
@@ -190,6 +304,15 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           </div>
         </div>
       </section>
+
+      {user.rol === 'admin' ? (
+        <AdminRoleManager
+          currentUserId={user.id}
+          initialUnassignedUsers={pendingUsersResponse?.ok ? pendingUsersResponse.data : []}
+          initialUsersWithRole={usersWithRoleResponse?.ok ? usersWithRoleResponse.data : []}
+          initialError={adminRoleError || null}
+        />
+      ) : null}
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <div className="rounded-[2rem] border border-gray-200 bg-white p-5 shadow-sm">
@@ -532,7 +655,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             Últimos movimientos de login
           </h2>
 
-          <div className="mt-5 space-y-3">
+          <div className="mt-5 max-h-[24rem] space-y-3 overflow-y-auto pr-2 scroll-panel">
             {overview.logins.recent.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-5 text-sm text-gray-500">
                 No hay actividad de acceso registrada.
@@ -576,7 +699,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             Últimos servicios concluidos
           </h2>
 
-          <div className="mt-5 space-y-3">
+          <div className="mt-5 max-h-[24rem] space-y-3 overflow-y-auto pr-2 scroll-panel">
             {overview.operations.latestCompletedServices.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-5 text-sm text-gray-500">
                 Todavía no hay cierres en el rango elegido.

@@ -195,7 +195,17 @@ export function mapStudyDetailFormToCreatePayload(
 export function mapStudyDetailFormToUpdatePayload(
   values: StudyDetailFormValues,
 ): UpdateStudyDetailPayload {
-  return mapStudyDetailFormToCreatePayload(values);
+  return {
+    dataType: values.dataType,
+    name: values.name.trim().toUpperCase(),
+    sortOrder: Number(values.sortOrder),
+    unit: values.dataType === "parameter" ? normalizeText(values.unit) : undefined,
+    referenceValue:
+      values.dataType === "parameter"
+        ? normalizeText(values.referenceValue)
+        : undefined,
+    parentId: values.parentId ? Number(values.parentId) : null,
+  };
 }
 
 export function mapStudyDetailToForm(detail: StudyDetail): StudyDetailFormValues {

@@ -12,6 +12,13 @@ export default function GoogleOAuthPage() {
   useEffect(() => {
     const token = params.get("token");
     const message = params.get("message");
+    const error = params.get("error");
+
+    if (error) {
+      toast.error(error);
+      router.replace("/auth/login");
+      return;
+    }
 
     if (message) {
       toast.success(message);

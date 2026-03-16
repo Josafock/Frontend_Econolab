@@ -107,7 +107,7 @@ export default function AddServiceModal({
   isSaving,
   initialValues,
   title = 'Nuevo servicio',
-  description = 'Captura el paciente, arma el servicio y deja listo el flujo operativo.',
+  description = 'Selecciona al paciente, agrega los estudios y completa los datos del servicio.',
   submitLabel = 'Crear servicio',
 }: AddServiceModalProps) {
   const [currentStep, setCurrentStep] = useState(0);

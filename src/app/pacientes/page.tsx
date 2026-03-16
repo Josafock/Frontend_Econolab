@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   BadgeCheck,
   Eye,
@@ -16,7 +16,9 @@ import {
   User,
 } from 'lucide-react';
 import AddPatientModal from '@/components/pacientes/AddPatientModal';
+import { CollectionContentSkeleton } from '@/components/ui/PageSkeletons';
 import EntityActionsMenu from '@/components/ui/EntityActionsMenu';
+import TablePagination from '@/components/ui/TablePagination';
 import { formatDate } from '@/helpers/date';
 import { calcularEdad, usePatientsData } from '@/hooks/usePatientsData';
 import type { PatientStatusFilter } from '@/actions/patients/patientsActions';
@@ -49,6 +51,8 @@ export default function PacientesPage() {
   const [statusFilter, setStatusFilter] = useState<PatientStatusFilter>('all');
   const [showFilters, setShowFilters] = useState(false);
   const [openAddModal, setOpenAddModal] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const {
     patients,
@@ -64,13 +68,30 @@ export default function PacientesPage() {
     togglePatientStatusById,
   } = usePatientsData(searchTerm, statusFilter);
 
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(patients.length / pageSize));
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
+  const paginatedPatients = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return patients.slice(start, start + pageSize);
+  }, [page, pageSize, patients]);
+
   return (
     <div className="min-w-0">
       <div className="mb-8 flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
             <span className="h-2 w-2 rounded-full bg-red-500" />
-            Módulo de pacientes
+            Registro de pacientes
           </div>
           <h1 className="text-3xl font-bold text-gray-900">Pacientes</h1>
           <p className="mt-2 max-w-2xl text-gray-600">
@@ -192,10 +213,7 @@ export default function PacientesPage() {
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center gap-3 rounded-3xl border border-gray-200 bg-white p-10 text-gray-600 shadow-sm">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          Cargando pacientes...
-        </div>
+        <CollectionContentSkeleton statCards={4} rows={5} />
       ) : patients.length === 0 ? (
         <div className="rounded-3xl border border-gray-200 bg-white p-10 text-center text-gray-600 shadow-sm">
           No hay pacientes para el filtro seleccionado.
@@ -214,7 +232,7 @@ export default function PacientesPage() {
             </div>
 
             <div className="divide-y divide-gray-200">
-              {patients.map((paciente) => (
+              {paginatedPatients.map((paciente) => (
                 <div
                   key={paciente.id}
                   className="grid grid-cols-12 gap-4 px-6 py-5 transition-colors hover:bg-gray-50"
@@ -310,13 +328,18 @@ export default function PacientesPage() {
               ))}
             </div>
 
-            <div className="border-t border-gray-200 bg-gray-50 px-6 py-4 text-sm text-gray-600">
-              Mostrando <span className="font-semibold">{patients.length}</span> pacientes
-            </div>
+            <TablePagination
+              page={page}
+              pageSize={pageSize}
+              totalItems={patients.length}
+              itemLabel="registros"
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
           </div>
 
           <div className="space-y-4 xl:hidden">
-            {patients.map((paciente) => (
+            {paginatedPatients.map((paciente) => (
               <div
                 key={paciente.id}
                 className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm"
@@ -401,6 +424,17 @@ export default function PacientesPage() {
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm xl:hidden">
+            <TablePagination
+              page={page}
+              pageSize={pageSize}
+              totalItems={patients.length}
+              itemLabel="registros"
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
           </div>
         </>
       )}

@@ -77,7 +77,7 @@ export default function AddDoctorModal({
                 <div>
                   <h2 className="text-2xl font-semibold">Nuevo médico</h2>
                   <p className="mt-1 text-sm text-red-50">
-                    Registra al personal médico con el mismo flujo del módulo de pacientes.
+                    Agrega los datos del medico para dejarlo disponible en los servicios.
                   </p>
                 </div>
               </div>

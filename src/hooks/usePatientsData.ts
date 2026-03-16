@@ -114,7 +114,7 @@ export function usePatientsData(
         setLoading(true);
       }
 
-      const response = await getPatients({ search, limit: 200, status: 'all' });
+      const response = await getPatients({ search, limit: 1000, status: 'all' });
 
       if (!response.ok) {
         if (!options?.silent) {

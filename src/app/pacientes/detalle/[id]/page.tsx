@@ -19,6 +19,7 @@ import {
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'react-toastify';
+import { DetailPageSkeleton } from '@/components/ui/PageSkeletons';
 import {
   getPatientById,
   updatePatient,
@@ -264,9 +265,7 @@ export default function PatientDetailPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center gap-2 rounded-3xl border border-gray-200 bg-white p-10 text-gray-600 shadow-sm">
-          <Loader2 className="h-5 w-5 animate-spin" /> Cargando detalle...
-        </div>
+        <DetailPageSkeleton sections={3} />
       ) : error ? (
         <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-700 shadow-sm">
           {error}

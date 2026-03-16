@@ -43,7 +43,12 @@ export async function fetchApi<T>(
 
   const url = `${process.env.API_URL}${path}`;
   const headers = new Headers(init?.headers);
-  headers.set("Content-Type", "application/json");
+  const isFormDataBody = init?.body instanceof FormData;
+
+  if (!isFormDataBody && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
   headers.set("Authorization", `Bearer ${token}`);
 
   try {
@@ -63,7 +68,7 @@ export async function fetchApi<T>(
   } catch {
     return {
       ok: false,
-      errors: ["No fue posible conectar con el backend."],
+      errors: ["No fue posible conectar con el sistema en este momento."],
     };
   }
 }

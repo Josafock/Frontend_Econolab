@@ -27,6 +27,7 @@ export type StudyFormValues = {
 export type StudyFormField = keyof StudyFormValues;
 export type StudyFormErrors = Partial<Record<StudyFormField, string>>;
 export type StudyFormTouched = Partial<Record<StudyFormField, boolean>>;
+export type StudyDurationPart = "hours" | "minutes";
 
 export const REQUIRED_STUDY_FIELDS: StudyFormField[] = [
   "nombre",
@@ -47,6 +48,38 @@ function validateMoneyField(value: string, label: string): string | undefined {
 function normalizeText(value: string): string | undefined {
   const normalized = value.trim();
   return normalized ? normalized : undefined;
+}
+
+export function splitDurationValue(value: string): {
+  hours: string;
+  minutes: string;
+} {
+  const [hours = "", minutes = ""] = value.split(":");
+  return {
+    hours: hours.replace(/\D/g, "").slice(0, 3),
+    minutes: minutes.replace(/\D/g, "").slice(0, 2),
+  };
+}
+
+export function updateDurationValue(
+  currentValue: string,
+  part: StudyDurationPart,
+  nextValue: string,
+): string {
+  const current = splitDurationValue(currentValue);
+  const sanitizedValue = nextValue.replace(/\D/g, "");
+
+  if (part === "hours") {
+    return `${sanitizedValue.slice(0, 3)}:${current.minutes}`;
+  }
+
+  const clippedMinutes = sanitizedValue.slice(0, 2);
+  if (!clippedMinutes) {
+    return `${current.hours}:`;
+  }
+
+  const normalizedMinutes = String(Math.min(Number(clippedMinutes), 59));
+  return `${current.hours}:${normalizedMinutes}`;
 }
 
 export function createEmptyStudyForm(initialType: StudyType = "study"): StudyFormValues {

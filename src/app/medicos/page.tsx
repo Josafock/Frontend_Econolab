@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   BadgeCheck,
   Eye,
@@ -17,7 +17,9 @@ import {
   User,
 } from 'lucide-react';
 import AddDoctorModal from '@/components/medicos/AddDoctorModal';
+import { CollectionContentSkeleton } from '@/components/ui/PageSkeletons';
 import EntityActionsMenu from '@/components/ui/EntityActionsMenu';
+import TablePagination from '@/components/ui/TablePagination';
 import { formatDate } from '@/helpers/date';
 import { useDoctorsData } from '@/hooks/useDoctorsData';
 import type { DoctorStatusFilter } from '@/actions/doctors/doctorsActions';
@@ -50,6 +52,8 @@ export default function MedicosPage() {
   const [statusFilter, setStatusFilter] = useState<DoctorStatusFilter>('all');
   const [showFilters, setShowFilters] = useState(false);
   const [openAddModal, setOpenAddModal] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const {
     doctors,
@@ -66,6 +70,23 @@ export default function MedicosPage() {
     toggleDoctorStatusById,
     deleteDoctorById,
   } = useDoctorsData(searchTerm, statusFilter);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(doctors.length / pageSize));
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
+  const paginatedDoctors = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return doctors.slice(start, start + pageSize);
+  }, [doctors, page, pageSize]);
 
   const handleDeleteDoctor = async (doctorId: number) => {
     const doctor = allDoctors.find((item) => item.id === doctorId);
@@ -86,7 +107,7 @@ export default function MedicosPage() {
         <div>
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
             <span className="h-2 w-2 rounded-full bg-red-500" />
-            Módulo de médicos
+            Directorio de médicos
           </div>
           <h1 className="text-3xl font-bold text-gray-900">Médicos</h1>
           <p className="mt-2 max-w-2xl text-gray-600">
@@ -208,10 +229,7 @@ export default function MedicosPage() {
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center gap-3 rounded-3xl border border-gray-200 bg-white p-10 text-gray-600 shadow-sm">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          Cargando médicos...
-        </div>
+        <CollectionContentSkeleton statCards={4} rows={5} />
       ) : doctors.length === 0 ? (
         <div className="rounded-3xl border border-gray-200 bg-white p-10 text-center text-gray-600 shadow-sm">
           No hay médicos para el filtro seleccionado.
@@ -230,7 +248,7 @@ export default function MedicosPage() {
             </div>
 
             <div className="divide-y divide-gray-200">
-              {doctors.map((medico) => (
+              {paginatedDoctors.map((medico) => (
                 <div
                   key={medico.id}
                   className="grid grid-cols-12 gap-4 px-6 py-5 transition-colors hover:bg-gray-50"
@@ -311,13 +329,18 @@ export default function MedicosPage() {
               ))}
             </div>
 
-            <div className="border-t border-gray-200 bg-gray-50 px-6 py-4 text-sm text-gray-600">
-              Mostrando <span className="font-semibold">{doctors.length}</span> médicos
-            </div>
+            <TablePagination
+              page={page}
+              pageSize={pageSize}
+              totalItems={doctors.length}
+              itemLabel="registros"
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
           </div>
 
           <div className="space-y-4 xl:hidden">
-            {doctors.map((medico) => (
+            {paginatedDoctors.map((medico) => (
               <div
                 key={medico.id}
                 className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm"
@@ -394,6 +417,17 @@ export default function MedicosPage() {
               </div>
             ))}
           </div>
+
+          <div className="overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm xl:hidden">
+            <TablePagination
+              page={page}
+              pageSize={pageSize}
+              totalItems={doctors.length}
+              itemLabel="registros"
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          </div>
         </>
       )}
 
@@ -413,3 +447,4 @@ export default function MedicosPage() {
     </div>
   );
 }
+

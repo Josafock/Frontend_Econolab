@@ -135,7 +135,9 @@ export default function RegisterForm() {
                     <h1 className="text-lg font-semibold text-gray-900">
                       Crear Cuenta
                     </h1>
-                    <p className="text-xs text-gray-500">Regístrate para acceder</p>
+                    <p className="text-xs text-gray-500">
+                      Confirma tu correo y espera la asignacion de rol
+                    </p>
                   </div>
                 </div>
               </div>
@@ -331,7 +333,8 @@ export default function RegisterForm() {
           {/* Nota inferior */}
           <div className="mt-6 text-center text-xs text-gray-600">
             <span>
-              Registro seguro • Protección de datos • Acceso inmediato • Soporte
+              Registro seguro • Confirmacion por correo • Activacion por administrador •
+              Soporte
               24/7
             </span>
           </div>

@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import {
   REQUIRED_STUDY_FIELDS,
+  splitDurationValue,
+  type StudyDurationPart,
   type StudyFormErrors,
   type StudyFormField,
   type StudyFormTouched,
@@ -28,6 +30,8 @@ type StudyFormFieldsProps = {
   onBlur?: (
     e: FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
   ) => void;
+  onDurationChange?: (part: StudyDurationPart, value: string) => void;
+  onDurationBlur?: () => void;
   disabled?: boolean;
   compact?: boolean;
 };
@@ -87,6 +91,8 @@ export default function StudyFormFields({
   touched,
   onChange,
   onBlur,
+  onDurationChange,
+  onDurationBlur,
   disabled = false,
   compact = false,
 }: StudyFormFieldsProps) {
@@ -107,6 +113,7 @@ export default function StudyFormFields({
   const descuentoError = getErrorState('descuento', errors, touched);
   const metodoError = getErrorState('metodo', errors, touched);
   const indicadorError = getErrorState('indicador', errors, touched);
+  const durationParts = splitDurationValue(formData.duracion);
 
   return (
     <div className="space-y-4">
@@ -191,17 +198,46 @@ export default function StudyFormFields({
             <FieldLabel required={REQUIRED_STUDY_FIELDS.includes('duracion')}>
               Duracion
             </FieldLabel>
-            <div className="relative">
-              <Clock3 className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <input
-                type="time"
-                name="duracion"
-                value={formData.duracion}
-                onChange={onChange}
-                onBlur={onBlur}
-                className={getInputClass(duracionError.hasError, true)}
-                disabled={disabled}
-              />
+            <div
+              className={`rounded-xl border bg-white p-3 transition-all ${
+                duracionError.hasError
+                  ? 'border-red-300 focus-within:border-red-500 focus-within:ring-2 focus-within:ring-red-500/20'
+                  : 'border-gray-200 focus-within:border-red-500 focus-within:ring-2 focus-within:ring-red-500/20'
+              }`}
+            >
+              <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-gray-500">
+                <Clock3 className="h-4 w-4 text-gray-400" />
+                Duracion estimada
+              </div>
+
+              <div className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={durationParts.hours}
+                  onChange={(event) => onDurationChange?.('hours', event.target.value)}
+                  onBlur={onDurationBlur}
+                  placeholder="1"
+                  className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/20 disabled:bg-gray-100"
+                  disabled={disabled}
+                />
+                <span className="text-sm font-semibold text-gray-600">hrs</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={durationParts.minutes}
+                  onChange={(event) => onDurationChange?.('minutes', event.target.value)}
+                  onBlur={onDurationBlur}
+                  placeholder="30"
+                  className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/20 disabled:bg-gray-100"
+                  disabled={disabled}
+                />
+                <span className="text-sm font-semibold text-gray-600">min</span>
+              </div>
+
+              <p className="mt-2 text-xs text-gray-500">
+                Captura solo la duracion estimada del estudio.
+              </p>
             </div>
             <ErrorText message={duracionError.message} />
           </div>
