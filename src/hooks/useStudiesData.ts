@@ -1,7 +1,20 @@
 'use client';
 
-import { createStudy, getStudies, updateStudyStatus, type CreateStudyPayload, type Study } from '@/actions/studies/studiesActions';
-import { clearQueryCacheByPrefix, getQueryCache, setQueryCache } from '@/hooks/_lib/clientQueryCache';
+import {
+  createStudy,
+  getStudies,
+  removeStudy,
+  updateStudyStatus,
+  type CreateStudyPayload,
+  type Study,
+  type StudyStatusFilter,
+  type StudyTypeFilter,
+} from '@/actions/studies/studiesActions';
+import {
+  clearQueryCacheByPrefix,
+  getQueryCache,
+  setQueryCache,
+} from '@/hooks/_lib/clientQueryCache';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
@@ -12,43 +25,51 @@ function getCacheKey(search: string): string {
   return `${CACHE_KEY_PREFIX}${search}`;
 }
 
-export function useStudiesData(searchTerm: string) {
+export function useStudiesData(
+  searchTerm: string,
+  statusFilter: StudyStatusFilter = 'all',
+  typeFilter: StudyTypeFilter = 'all',
+) {
   const [studies, setStudies] = useState<Study[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
+  const [removingId, setRemovingId] = useState<number | null>(null);
 
   const debouncedSearch = useDebouncedValue(searchTerm.trim(), 350);
 
-  const fetchStudies = useCallback(async (search: string, options?: { silent?: boolean; background?: boolean }) => {
-    if (options?.background) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-
-    const response = await getStudies({ search, limit: 100 });
-
-    if (!response.ok) {
-      if (!options?.silent) {
-        toast.error(response.errors[0] ?? 'No se pudieron cargar estudios.');
+  const fetchStudies = useCallback(
+    async (search: string, options?: { silent?: boolean; background?: boolean }) => {
+      if (options?.background) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
       }
 
-      if (!options?.background) {
-        setStudies([]);
+      const response = await getStudies({ search, limit: 200 });
+
+      if (!response.ok) {
+        if (!options?.silent) {
+          toast.error(response.errors[0] ?? 'No se pudieron cargar estudios.');
+        }
+
+        if (!options?.background) {
+          setStudies([]);
+        }
+
+        setLoading(false);
+        setRefreshing(false);
+        return;
       }
 
+      setStudies(response.data.data);
+      setQueryCache(getCacheKey(search), response.data.data);
       setLoading(false);
       setRefreshing(false);
-      return;
-    }
-
-    setStudies(response.data.data);
-    setQueryCache(getCacheKey(search), response.data.data);
-    setLoading(false);
-    setRefreshing(false);
-  }, []);
+    },
+    [],
+  );
 
   useEffect(() => {
     const cacheKey = getCacheKey(debouncedSearch);
@@ -84,13 +105,6 @@ export function useStudiesData(searchTerm: string) {
     [debouncedSearch, fetchStudies],
   );
 
-  const activos = useMemo(() => studies.filter((s) => s.status === 'active').length, [studies]);
-  const inactivos = useMemo(() => studies.filter((s) => s.status === 'suspended').length, [studies]);
-  const precioPromedio = useMemo(() => {
-    if (!studies.length) return 0;
-    return Math.round(studies.reduce((acc, s) => acc + Number(s.normalPrice), 0) / studies.length);
-  }, [studies]);
-
   const toggleStudyStatus = useCallback(
     async (study: Study) => {
       const nextStatus = study.status === 'active' ? 'suspended' : 'active';
@@ -103,7 +117,7 @@ export function useStudiesData(searchTerm: string) {
         return false;
       }
 
-      toast.success(nextStatus === 'active' ? 'Estudio activado.' : 'Estudio desactivado.');
+      toast.success(nextStatus === 'active' ? 'Estudio activado.' : 'Estudio suspendido.');
       clearQueryCacheByPrefix(CACHE_KEY_PREFIX);
       await fetchStudies(debouncedSearch, { silent: true, background: true });
       setUpdatingStatusId(null);
@@ -112,16 +126,64 @@ export function useStudiesData(searchTerm: string) {
     [debouncedSearch, fetchStudies],
   );
 
+  const deleteStudyById = useCallback(
+    async (study: Study) => {
+      setRemovingId(study.id);
+      const response = await removeStudy(study.id);
+
+      if (!response.ok) {
+        toast.error(response.errors[0] ?? 'No se pudo eliminar el estudio.');
+        setRemovingId(null);
+        return false;
+      }
+
+      toast.success('Estudio eliminado del catalogo.');
+      clearQueryCacheByPrefix(CACHE_KEY_PREFIX);
+      await fetchStudies(debouncedSearch, { silent: true, background: true });
+      setRemovingId(null);
+      return true;
+    },
+    [debouncedSearch, fetchStudies],
+  );
+
+  const visibleStudies = useMemo(() => {
+    return studies.filter((study) => {
+      const matchesStatus =
+        statusFilter === 'all' ? true : study.status === statusFilter;
+      const matchesType = typeFilter === 'all' ? true : study.type === typeFilter;
+      return matchesStatus && matchesType;
+    });
+  }, [studies, statusFilter, typeFilter]);
+
+  const activos = useMemo(
+    () => studies.filter((study) => study.status === 'active').length,
+    [studies],
+  );
+  const suspendidos = useMemo(
+    () => studies.filter((study) => study.status === 'suspended').length,
+    [studies],
+  );
+  const precioPromedio = useMemo(() => {
+    if (!visibleStudies.length) return 0;
+    return Math.round(
+      visibleStudies.reduce((acc, study) => acc + Number(study.normalPrice), 0) /
+        visibleStudies.length,
+    );
+  }, [visibleStudies]);
+
   return {
-    studies,
+    studies: visibleStudies,
+    allStudies: studies,
     loading,
     refreshing,
     saving,
     updatingStatusId,
+    removingId,
     activos,
-    inactivos,
+    suspendidos,
     precioPromedio,
     addStudy,
     toggleStudyStatus,
+    deleteStudyById,
   };
 }

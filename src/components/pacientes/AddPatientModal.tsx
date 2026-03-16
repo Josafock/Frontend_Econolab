@@ -1,8 +1,18 @@
 'use client';
 
-import { useState } from 'react';
-import { X, User, Calendar, Phone, Mail, MapPin, UserPlus } from 'lucide-react';
+import { useMemo, useState, type ChangeEvent, type FocusEvent, type FormEvent } from 'react';
+import { UserPlus, X } from 'lucide-react';
+import { toast } from 'react-toastify';
 import type { CreatePatientPayload } from '@/actions/patients/patientsActions';
+import PatientFormFields from '@/components/pacientes/PatientFormFields';
+import {
+  createEmptyPatientForm,
+  createTouchedPatientForm,
+  hasPatientFormErrors,
+  mapFormToPayload,
+  validatePatientForm,
+  type PatientFormTouched,
+} from '@/components/pacientes/patientFormUtils';
 import AppModal from '@/components/ui/AppModal';
 
 interface AddPatientModalProps {
@@ -11,260 +21,108 @@ interface AddPatientModalProps {
   isSaving: boolean;
 }
 
-const calculateAge = (birthDate: string): number => {
-  if (!birthDate) return 0;
+export default function AddPatientModal({
+  setOpen,
+  addPatient,
+  isSaving,
+}: AddPatientModalProps) {
+  const [formData, setFormData] = useState(createEmptyPatientForm());
+  const [touched, setTouched] = useState<PatientFormTouched>({});
 
-  const today = new Date();
-  const born = new Date(`${birthDate}T00:00:00`);
-  let age = today.getFullYear() - born.getFullYear();
-  const monthDiff = today.getMonth() - born.getMonth();
+  const errors = useMemo(() => validatePatientForm(formData), [formData]);
 
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < born.getDate())) {
-    age -= 1;
-  }
-
-  return Number.isNaN(age) || age < 0 ? 0 : age;
-};
-
-export default function AddPatientModal({ setOpen, addPatient, isSaving }: AddPatientModalProps) {
-  const [formData, setFormData] = useState({
-    nombre: '',
-    apellidoPaterno: '',
-    apellidoMaterno: '',
-    fechaNacimiento: '',
-    genero: '',
-    telefono: '',
-    email: '',
-    colonia: '',
-    ciudad: '',
-  });
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+  const handleChange = (
+    e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
+  ) => {
+    const { name, value } = e.target;
+    setFormData((current) => ({
+      ...current,
+      [name]: value,
+    }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleBlur = (
+    e: FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
+  ) => {
+    const { name } = e.target;
+    setTouched((current) => ({
+      ...current,
+      [name]: true,
+    }));
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    const requiredFields = ['nombre', 'apellidoPaterno', 'fechaNacimiento', 'genero'];
-    const isFormValid = requiredFields.every((field) => formData[field as keyof typeof formData]);
-    const selectedDate = new Date(`${formData.fechaNacimiento}T00:00:00`);
-    const today = new Date();
-    const isFutureDate = Number.isNaN(selectedDate.getTime()) || selectedDate > today;
+    const nextTouched = createTouchedPatientForm();
+    setTouched(nextTouched);
 
-    if (!isFormValid || isFutureDate) {
-      alert('Completa los datos obligatorios del paciente.');
+    if (hasPatientFormErrors(errors)) {
+      toast.error('Revisa los campos obligatorios y corrige los errores.');
       return;
     }
 
-    const newPatient: CreatePatientPayload = {
-      firstName: formData.nombre.trim().toUpperCase(),
-      lastName: formData.apellidoPaterno.trim().toUpperCase(),
-      middleName: formData.apellidoMaterno.trim().toUpperCase() || undefined,
-      birthDate: formData.fechaNacimiento,
-      gender: formData.genero as 'female' | 'male' | 'other',
-      phone: formData.telefono.trim() || undefined,
-      email: formData.email.trim() || undefined,
-      addressLine: formData.colonia.trim() || undefined,
-      addressCity: formData.ciudad.trim() || undefined,
-    };
-
-    await addPatient(newPatient);
+    await addPatient(mapFormToPayload(formData));
   };
 
   return (
     <AppModal>
-      <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-xl">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 bg-red-50">
-              <UserPlus className="h-5 w-5 text-red-600" />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">Nuevo Paciente</h2>
-              <p className="text-sm text-gray-500">Registrar nuevo paciente en el sistema</p>
+      <div className="mx-auto w-full max-w-5xl">
+        <div className="overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-2xl">
+          <div className="border-b border-gray-200 bg-gradient-to-r from-red-600 via-red-500 to-rose-500 p-6 text-white">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/30 bg-white/15">
+                  <UserPlus className="h-6 w-6" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-semibold">Nuevo paciente</h2>
+                  <p className="mt-1 text-sm text-red-50">
+                    Registra el expediente clínico con todos los datos base.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setOpen(false)}
+                className="rounded-xl border border-white/20 bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
+                disabled={isSaving}
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
           </div>
-          <button
-            onClick={() => setOpen(false)}
-            className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-            disabled={isSaving}
-          >
-            <X className="h-5 w-5" />
-          </button>
+
+          <form onSubmit={handleSubmit} className="max-h-[78vh] overflow-y-auto p-6">
+            <PatientFormFields
+              formData={formData}
+              errors={errors}
+              touched={touched}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              disabled={isSaving}
+              compact
+            />
+
+            <div className="mt-6 flex flex-col gap-3 border-t border-gray-200 pt-5 md:flex-row">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition-all hover:bg-gray-50"
+                disabled={isSaving}
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="flex-1 rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-red-700 disabled:opacity-50"
+                disabled={isSaving}
+              >
+                {isSaving ? 'Registrando...' : 'Registrar paciente'}
+              </button>
+            </div>
+          </form>
         </div>
-
-        <form className="p-6 space-y-6" onSubmit={handleSubmit}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">Nombre</label>
-              <div className="relative">
-                <User className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input
-                  type="text"
-                  name="nombre"
-                  value={formData.nombre}
-                  onChange={handleChange}
-                  placeholder="Maria"
-                  className="w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">Apellido paterno</label>
-              <div className="relative">
-                <User className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input
-                  type="text"
-                  name="apellidoPaterno"
-                  value={formData.apellidoPaterno}
-                  onChange={handleChange}
-                  placeholder="Gonzalez"
-                  className="w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">Apellido materno</label>
-              <div className="relative">
-                <User className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input
-                  type="text"
-                  name="apellidoMaterno"
-                  value={formData.apellidoMaterno}
-                  onChange={handleChange}
-                  placeholder="Lopez"
-                  className="w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">Fecha de nacimiento</label>
-              <div className="relative">
-                <Calendar className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input
-                  type="date"
-                  name="fechaNacimiento"
-                  value={formData.fechaNacimiento}
-                  onChange={handleChange}
-                  max={new Date().toISOString().split('T')[0]}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
-                />
-              </div>
-              {formData.fechaNacimiento && (
-                <p className="mt-2 text-xs text-gray-500">
-                  Edad calculada: {calculateAge(formData.fechaNacimiento)} años
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">Genero</label>
-              <div className="relative">
-                <User className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <select
-                  name="genero"
-                  value={formData.genero}
-                  onChange={handleChange}
-                  className="modal-select w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1 appearance-none"
-                >
-                  <option className="bg-white text-gray-900" value="">Seleccionar genero...</option>
-                  <option className="bg-white text-gray-900" value="female">Femenino</option>
-                  <option className="bg-white text-gray-900" value="male">Masculino</option>
-                  <option className="bg-white text-gray-900" value="other">Otro</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">Telefono</label>
-              <div className="relative">
-                <Phone className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input
-                  type="tel"
-                  name="telefono"
-                  value={formData.telefono}
-                  onChange={handleChange}
-                  placeholder="7711234567"
-                  className="w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">Correo Electronico</label>
-              <div className="relative">
-                <Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  placeholder="paciente@ejemplo.com"
-                  className="w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">Ciudad</label>
-              <div className="relative">
-                <MapPin className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input
-                  type="text"
-                  name="ciudad"
-                  value={formData.ciudad}
-                  onChange={handleChange}
-                  placeholder="Pachuca"
-                  className="w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">Colonia</label>
-              <div className="relative">
-                <MapPin className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input
-                  type="text"
-                  name="colonia"
-                  value={formData.colonia}
-                  onChange={handleChange}
-                  placeholder="Centro"
-                  className="w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="flex gap-3 pt-4 border-t border-gray-200">
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-              disabled={isSaving}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="flex-1 rounded-lg bg-white px-4 py-3 text-sm font-semibold border border-red-500 text-red-500 shadow-sm transition-all hover:bg-red-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50"
-              disabled={isSaving}
-            >
-              {isSaving ? 'Registrando...' : 'Registrar Paciente'}
-            </button>
-          </div>
-        </form>
       </div>
     </AppModal>
   );

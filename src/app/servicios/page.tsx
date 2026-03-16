@@ -1,338 +1,462 @@
 'use client';
 
+import { useState } from 'react';
+import {
+  Activity,
+  BadgeCheck,
+  Clock3,
+  Eye,
+  Filter,
+  Loader2,
+  Plus,
+  Search,
+  Ticket,
+  TimerReset,
+  TriangleAlert,
+  XCircle,
+} from 'lucide-react';
 import AddServiceModal from '@/components/servicios/AgregarServicioModal';
 import EntityActionsMenu from '@/components/ui/EntityActionsMenu';
-import { useServicesData } from '@/hooks/useServicesData';
-import { Search, Plus, Filter, FileText, Calendar, Loader2 } from 'lucide-react';
-import { useState } from 'react';
+import { SERVICE_BRANCH_OPTIONS } from '@/components/servicios/serviceFormUtils';
+import { useServicesData, type ServicesFilters } from '@/hooks/useServicesData';
+import type { ServiceStatus } from '@/actions/services/servicesActions';
 
-const getStatusColor = (status: 'pending' | 'in_progress' | 'delayed' | 'completed' | 'cancelled'): string => {
+const statusOptions: Array<{ value: ServicesFilters['status']; label: string }> = [
+  { value: 'all', label: 'Todos' },
+  { value: 'pending', label: 'Pendientes' },
+  { value: 'in_progress', label: 'En curso' },
+  { value: 'delayed', label: 'Retrasados' },
+  { value: 'completed', label: 'Concluidos' },
+  { value: 'cancelled', label: 'Cancelados' },
+];
+
+const getStatusColor = (status: ServiceStatus): string => {
   const colors = {
-    pending: 'bg-blue-100 text-blue-800 border-blue-200',
-    in_progress: 'bg-orange-100 text-orange-800 border-orange-200',
-    delayed: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-    completed: 'bg-green-100 text-green-800 border-green-200',
-    cancelled: 'bg-red-100 text-red-800 border-red-200',
+    pending: 'border-blue-200 bg-blue-50 text-blue-700',
+    in_progress: 'border-orange-200 bg-orange-50 text-orange-700',
+    delayed: 'border-amber-200 bg-amber-50 text-amber-700',
+    completed: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    cancelled: 'border-red-200 bg-red-50 text-red-700',
   } as const;
-  return colors[status] || 'bg-gray-100 text-gray-800 border-gray-200';
+  return colors[status] || 'border-gray-200 bg-gray-50 text-gray-700';
 };
 
-const statusLabel = (status: 'pending' | 'in_progress' | 'delayed' | 'completed' | 'cancelled') => {
+const statusLabel = (status: ServiceStatus) => {
   const labels = {
-    pending: 'PENDIENTE',
-    in_progress: 'EN CURSO',
-    delayed: 'RETRASADO',
-    completed: 'CONCLUIDO',
-    cancelled: 'CANCELADO',
+    pending: 'Pendiente',
+    in_progress: 'En curso',
+    delayed: 'Retrasado',
+    completed: 'Concluido',
+    cancelled: 'Cancelado',
   } as const;
   return labels[status] || status;
 };
 
 export default function ServiciosPage() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
   const [openServiceModal, setOpenServiceModal] = useState(false);
+  const [filters, setFilters] = useState<ServicesFilters>({
+    status: 'all',
+    branchName: 'all',
+    fromDate: '',
+    toDate: '',
+  });
 
-  const { services, loading, refreshing, saving, updatingStatusId, stats, catalogs, catalogsLoading, addService, changeServiceStatus } = useServicesData(searchTerm);
-  const buildServiceActions = (servicio: { id: number; status: 'pending' | 'in_progress' | 'delayed' | 'completed' | 'cancelled' }) => [
+  const {
+    services,
+    loading,
+    refreshing,
+    saving,
+    updatingStatusId,
+    stats,
+    catalogs,
+    catalogsLoading,
+    saveService,
+    changeServiceStatus,
+  } = useServicesData(searchTerm, filters);
+
+  const buildServiceActions = (service: { id: number; status: ServiceStatus }) => [
     {
-      label: 'En curso',
-      onClick: () => void changeServiceStatus(servicio.id, 'in_progress'),
-      disabled: servicio.status === 'in_progress' || updatingStatusId === servicio.id,
-      hint: updatingStatusId === servicio.id ? 'Actualizando...' : 'Cambiar estatus',
+      label: 'Ver detalle',
+      href: `/servicios/detalle/${service.id}`,
+      hint: 'Disponible',
+      icon: <Eye size={16} />,
     },
     {
-      label: 'Concluido',
-      onClick: () => void changeServiceStatus(servicio.id, 'completed'),
-      disabled: servicio.status === 'completed' || updatingStatusId === servicio.id,
-      hint: updatingStatusId === servicio.id ? 'Actualizando...' : 'Cambiar estatus',
+      label: 'Capturar resultados',
+      href: `/servicios/detalle/${service.id}#resultados`,
+      hint: 'Disponible',
+      icon: <Activity size={16} />,
     },
     {
-      label: 'Retrasado',
-      onClick: () => void changeServiceStatus(servicio.id, 'delayed'),
-      disabled: servicio.status === 'delayed' || updatingStatusId === servicio.id,
-      hint: updatingStatusId === servicio.id ? 'Actualizando...' : 'Cambiar estatus',
+      label: 'Marcar en curso',
+      onClick: () => void changeServiceStatus(service.id, 'in_progress'),
+      disabled: service.status === 'in_progress' || updatingStatusId === service.id,
+      hint: updatingStatusId === service.id ? 'Actualizando...' : 'Disponible',
+      icon: <Clock3 size={16} />,
     },
     {
-      label: 'Cancelar',
-      onClick: () => void changeServiceStatus(servicio.id, 'cancelled'),
-      disabled: servicio.status === 'cancelled' || updatingStatusId === servicio.id,
+      label: 'Marcar concluido',
+      onClick: () => void changeServiceStatus(service.id, 'completed'),
+      disabled: service.status === 'completed' || updatingStatusId === service.id,
+      hint: updatingStatusId === service.id ? 'Actualizando...' : 'Disponible',
+      icon: <BadgeCheck size={16} />,
+    },
+    {
+      label: 'Marcar retrasado',
+      onClick: () => void changeServiceStatus(service.id, 'delayed'),
+      disabled: service.status === 'delayed' || updatingStatusId === service.id,
+      hint: updatingStatusId === service.id ? 'Actualizando...' : 'Disponible',
+      icon: <TriangleAlert size={16} />,
+    },
+    {
+      label: 'Cancelar servicio',
+      onClick: () => void changeServiceStatus(service.id, 'cancelled'),
+      disabled: service.status === 'cancelled' || updatingStatusId === service.id,
       destructive: true,
-      hint: updatingStatusId === servicio.id ? 'Actualizando...' : 'Cambiar estatus',
+      hint: updatingStatusId === service.id ? 'Actualizando...' : 'Disponible',
+      icon: <XCircle size={16} />,
     },
     {
-      label: 'Codigo Barras',
-      href: `/api/services/${servicio.id}/labels`,
+      label: 'Etiquetas',
+      href: `/api/services/${service.id}/labels`,
       newTab: true,
-      hint: 'PDF etiquetas',
+      hint: 'PDF',
+      icon: <Ticket size={16} />,
     },
     {
       label: 'Recibo',
-      href: `/api/services/${servicio.id}/receipt`,
+      href: `/api/services/${service.id}/receipt`,
       newTab: true,
-      hint: 'PDF recibo',
+      hint: 'PDF',
+      icon: <Ticket size={16} />,
     },
     {
-      label: 'Tiket',
-      href: `/api/services/${servicio.id}/ticket`,
+      label: 'Ticket',
+      href: `/api/services/${service.id}/ticket`,
       newTab: true,
-      hint: 'PDF ticket',
+      hint: 'PDF',
+      icon: <Ticket size={16} />,
     },
     {
-      label: 'Resultados',
-      href: `/api/services/${servicio.id}/results`,
+      label: 'Resultados PDF',
+      href: `/api/services/${service.id}/results`,
       newTab: true,
-      hint: 'PDF resultado',
-    },
-    {
-      label: 'Ver detalle del servicio',
-      href: `/servicios/detalle/${servicio.id}`,
-      hint: 'Disponible',
+      hint: 'PDF',
+      icon: <Activity size={16} />,
     },
   ];
 
   return (
-    <div className="p-8">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-8">
+    <div className="min-w-0">
+      <div className="mb-8 flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Servicios</h1>
-          <p className="text-gray-600">Gestion y administracion de servicios medicos</p>
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
+            <span className="h-2 w-2 rounded-full bg-red-500" />
+            Modulo de servicios
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900">Servicios</h1>
+          <p className="mt-2 max-w-2xl text-gray-600">
+            Crea servicios completos, controla su estatus y captura resultados operativos por estudio.
+          </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 mt-2 lg:mt-0">
-          <button className="flex bg-white items-center text-sm border gap-2 border-green-600 text-green-700 hover:text-white hover:bg-green-600 px-6 py-3 rounded-lg font-medium transition-colors">
-            <FileText size={20} />
-            Generar Corte del Dia
-          </button>
-
-          <button
-            className="flex rounded-lg bg-white px-4 py-3 text-sm font-medium border border-red-500 text-red-500 shadow-sm transition-all hover:bg-red-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-            onClick={() => setOpenServiceModal(true)}
-          >
-            <Plus size={20} />
-            Nuevo Servicio
-          </button>
-        </div>
+        <button
+          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-red-600/20 transition-all hover:bg-red-700"
+          onClick={() => setOpenServiceModal(true)}
+        >
+          <Plus size={20} />
+          Nuevo servicio
+        </button>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6 shadow-sm">
-        <div className="flex flex-col lg:flex-row gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-            <input
-              type="text"
-              placeholder="Buscar por folio, estudio, paciente..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
-            />
-          </div>
+      <div className="mb-6 overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm">
+        <div className="border-b border-gray-100 bg-gradient-to-r from-white via-red-50/60 to-white px-6 py-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Buscar por folio, paciente o estudio..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full rounded-2xl border border-gray-200 bg-white px-12 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+              />
+            </div>
 
-          <div className="flex gap-3">
-            <button className="flex items-center gap-2 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+            <button
+              type="button"
+              onClick={() => setShowFilters((current) => !current)}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-200 px-4 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            >
               <Filter size={18} />
               Filtros
             </button>
           </div>
         </div>
+
+        {showFilters ? (
+          <div className="space-y-4 px-6 py-4">
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Estatus</p>
+              <div className="flex flex-wrap gap-2">
+                {statusOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() =>
+                      setFilters((current) => ({
+                        ...current,
+                        status: option.value,
+                      }))
+                    }
+                    className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
+                      filters.status === option.value
+                        ? 'bg-red-600 text-white shadow-md shadow-red-600/20'
+                        : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Sucursal
+                </label>
+                <select
+                  value={filters.branchName}
+                  onChange={(e) =>
+                    setFilters((current) => ({ ...current, branchName: e.target.value }))
+                  }
+                  className="modal-select w-full appearance-none rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                >
+                  <option value="all">Todas</option>
+                  {SERVICE_BRANCH_OPTIONS.map((branch) => (
+                    <option key={branch} value={branch}>
+                      {branch}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Desde
+                </label>
+                <input
+                  type="date"
+                  value={filters.fromDate}
+                  onChange={(e) =>
+                    setFilters((current) => ({ ...current, fromDate: e.target.value }))
+                  }
+                  className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Hasta
+                </label>
+                <input
+                  type="date"
+                  value={filters.toDate}
+                  onChange={(e) =>
+                    setFilters((current) => ({ ...current, toDate: e.target.value }))
+                  }
+                  className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                />
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Servicios</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">{stats.total}</p>
             </div>
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Calendar size={20} className="text-blue-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Completados</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.completed}</p>
-            </div>
-            <div className="p-2 bg-green-100 rounded-lg">
-              <FileText size={20} className="text-green-600" />
+            <div className="rounded-2xl bg-blue-100 p-3">
+              <Ticket className="h-5 w-5 text-blue-600" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+        <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">En Proceso</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.inProgress}</p>
+              <p className="text-sm font-medium text-gray-600">Concluidos</p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">{stats.completed}</p>
             </div>
-            <div className="p-2 bg-orange-100 rounded-lg">
-              <FileText size={20} className="text-orange-600" />
+            <div className="rounded-2xl bg-emerald-100 p-3">
+              <BadgeCheck className="h-5 w-5 text-emerald-600" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+        <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Ingreso</p>
-              <p className="text-2xl font-bold text-gray-900">${stats.income.toFixed(2)}</p>
+              <p className="text-sm font-medium text-gray-600">En curso</p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">{stats.inProgress}</p>
             </div>
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <FileText size={20} className="text-purple-600" />
+            <div className="rounded-2xl bg-orange-100 p-3">
+              <TimerReset className="h-5 w-5 text-orange-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Ingreso estimado</p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">${stats.income.toFixed(2)}</p>
+            </div>
+            <div className="rounded-2xl bg-rose-100 p-3">
+              <Activity className="h-5 w-5 text-rose-600" />
             </div>
           </div>
         </div>
       </div>
 
-      {refreshing && !loading && (
-        <div className="mb-3 text-xs text-gray-500 flex items-center gap-2">
+      {refreshing && !loading ? (
+        <div className="mb-3 flex items-center gap-2 text-xs text-gray-500">
           <Loader2 className="h-4 w-4 animate-spin" />
           Actualizando servicios...
         </div>
-      )}
+      ) : null}
 
       {loading ? (
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-10 flex items-center justify-center gap-3 text-gray-600">
+        <div className="flex items-center justify-center gap-3 rounded-3xl border border-gray-200 bg-white p-10 text-gray-600 shadow-sm">
           <Loader2 className="h-5 w-5 animate-spin" />
           Cargando servicios...
         </div>
       ) : services.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-10 text-center text-gray-600">
-          No hay servicios registrados.
+        <div className="rounded-3xl border border-gray-200 bg-white p-10 text-center text-gray-600 shadow-sm">
+          No hay servicios para el filtro seleccionado.
         </div>
       ) : (
         <>
-          <div className="hidden lg:block bg-white border border-gray-200 rounded-lg shadow-sm overflow-visible">
-            <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-gray-50 border-b border-gray-200 text-sm font-semibold text-gray-700">
-              <div className="col-span-1">Folio</div>
-              <div className="col-span-2">Estudio</div>
-              <div className="col-span-2">Paciente</div>
-              <div className="col-span-1">Sucursal</div>
-              <div className="col-span-2">Fecha Creacion</div>
-              <div className="col-span-1">Fecha Entrega</div>
-              <div className="col-span-1">Costo</div>
-              <div className="col-span-1">Status</div>
-              <div className="col-span-1">Acciones</div>
+          <div className="hidden overflow-visible rounded-[2rem] border border-gray-200 bg-white shadow-sm xl:block">
+            <div className="grid grid-cols-[1.45fr_2.2fr_2fr_1fr_1.7fr_1fr_0.8fr_1fr_1fr] gap-4 border-b border-gray-200 bg-gray-50 px-6 py-4 text-sm font-semibold text-gray-700">
+              <div>Folio</div>
+              <div>Estudios</div>
+              <div>Paciente</div>
+              <div>Sucursal</div>
+              <div>Creacion</div>
+              <div>Entrega</div>
+              <div>Total</div>
+              <div>Estatus</div>
+              <div className="text-right">Acciones</div>
             </div>
 
             <div className="divide-y divide-gray-200">
-              {services.map((servicio) => (
-                <div key={servicio.folio} className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-gray-50 transition-colors">
-                  <div className="col-span-1">
-                    <span className="font-mono text-sm font-medium text-gray-900 bg-gray-100 px-2 py-1 rounded">
-                      {servicio.folio}
+              {services.map((service) => (
+                <div
+                  key={service.id}
+                  className="grid grid-cols-[1.45fr_2.2fr_2fr_1fr_1.7fr_1fr_0.8fr_1fr_1fr] items-start gap-4 px-6 py-5 transition-colors hover:bg-gray-50"
+                >
+                  <div className="min-w-0">
+                    <span className="inline-flex max-w-full items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+                      {service.folio}
                     </span>
                   </div>
 
-                  <div className="col-span-2">
-                    <h3 className="font-medium text-gray-900 text-sm line-clamp-3">{servicio.estudio}</h3>
+                  <div className="min-w-0">
+                    <h3 className="break-words text-sm font-semibold text-gray-900">{service.estudio}</h3>
                   </div>
 
-                  <div className="col-span-2">
-                    <p className="text-sm text-gray-900 font-medium mb-1">{servicio.paciente}</p>
-                    {servicio.telefono && <p className="text-xs text-gray-500">Tel: {servicio.telefono}</p>}
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-semibold text-gray-900">{service.paciente}</p>
+                    <p className="mt-1 text-xs text-gray-500">Tel. {service.telefono}</p>
                   </div>
 
-                  <div className="col-span-1">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      {servicio.sucursal}
+                  <div className="min-w-0">
+                    <span className="inline-flex max-w-full rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700">
+                      {service.sucursal}
                     </span>
                   </div>
 
-                  <div className="col-span-2">
-                    <p className="text-sm text-gray-900">{servicio.creador}</p>
-                  </div>
+                  <div className="min-w-0 text-sm text-gray-700">{service.fechaCreacion}</div>
 
-                  <div className="col-span-1">
-                    <p className="text-sm text-gray-900">{servicio.fechaEntrega}</p>
-                  </div>
+                  <div className="min-w-0 text-sm text-gray-700">{service.fechaEntrega}</div>
 
-                  <div className="col-span-1">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      ${servicio.costo}
+                  <div className="min-w-0">
+                    <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                      ${service.costo}
                     </span>
                   </div>
 
-                  <div className="col-span-1">
-                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(servicio.status)}`}>
-                      {statusLabel(servicio.status)}
+                  <div className="min-w-0">
+                    <span
+                      className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getStatusColor(service.status)}`}
+                    >
+                      {statusLabel(service.status)}
                     </span>
                   </div>
 
-                  <div className="col-span-1">
-                    <div className="flex justify-end">
-                      <EntityActionsMenu
-                        buttonLabel="Acciones"
-                        items={buildServiceActions(servicio)}
-                      />
-                    </div>
+                  <div className="flex justify-end">
+                    <EntityActionsMenu
+                      buttonLabel="Acciones"
+                      items={buildServiceActions(service)}
+                    />
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
-              <p className="text-sm text-gray-600">
-                Mostrando <span className="font-medium">{services.length}</span> servicios
-              </p>
+            <div className="border-t border-gray-200 bg-gray-50 px-6 py-4 text-sm text-gray-600">
+              Mostrando <span className="font-semibold">{services.length}</span> servicios
             </div>
           </div>
 
-          <div className="lg:hidden space-y-4">
-            {services.map((servicio) => (
-              <div key={servicio.folio} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-                <div className="flex justify-between items-start mb-3">
-                  <span className="font-mono text-sm font-medium text-gray-900 bg-gray-100 px-2 py-1 rounded">
-                    {servicio.folio}
+          <div className="space-y-4 xl:hidden">
+            {services.map((service) => (
+              <div key={service.id} className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900">{service.estudio}</h3>
+                    <p className="mt-1 text-xs text-gray-500">{service.folio}</p>
+                  </div>
+                  <span
+                    className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getStatusColor(service.status)}`}
+                  >
+                    {statusLabel(service.status)}
                   </span>
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(servicio.status)}`}>
-                    {statusLabel(servicio.status)}
-                  </span>
                 </div>
 
-                <div className="mb-3">
-                  <h3 className="font-medium text-gray-900 text-sm mb-2">Estudio:</h3>
-                  <p className="text-sm text-gray-700">{servicio.estudio}</p>
-                </div>
-
-                <div className="mb-3">
-                  <h3 className="font-medium text-gray-900 text-sm mb-1">Paciente:</h3>
-                  <p className="text-sm text-gray-700">{servicio.paciente}</p>
-                  {servicio.telefono && <p className="text-xs text-gray-500 mt-1">Tel: {servicio.telefono}</p>}
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 text-sm mb-3">
-                  <div>
-                    <p className="text-gray-500 text-xs">Sucursal</p>
-                    <p className="text-gray-900 font-medium">{servicio.sucursal}</p>
+                <div className="mb-4 grid grid-cols-2 gap-3 text-sm">
+                  <div className="rounded-2xl bg-gray-50 p-3">
+                    <p className="text-xs text-gray-500">Paciente</p>
+                    <p className="mt-1 font-semibold text-gray-900">{service.paciente}</p>
                   </div>
-                  <div>
-                    <p className="text-gray-500 text-xs">Costo</p>
-                    <p className="text-gray-900 font-medium">${servicio.costo}</p>
+                  <div className="rounded-2xl bg-gray-50 p-3">
+                    <p className="text-xs text-gray-500">Sucursal</p>
+                    <p className="mt-1 font-semibold text-gray-900">{service.sucursal}</p>
+                  </div>
+                  <div className="rounded-2xl bg-gray-50 p-3">
+                    <p className="text-xs text-gray-500">Creacion</p>
+                    <p className="mt-1 font-semibold text-gray-900">{service.fechaCreacion}</p>
+                  </div>
+                  <div className="rounded-2xl bg-gray-50 p-3">
+                    <p className="text-xs text-gray-500">Total</p>
+                    <p className="mt-1 font-semibold text-gray-900">${service.costo}</p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 text-sm mb-3">
-                  <div>
-                    <p className="text-gray-500 text-xs">Creado</p>
-                    <p className="text-gray-900 text-xs">{servicio.creador}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500 text-xs">Entrega</p>
-                    <p className="text-gray-900 text-xs">{servicio.fechaEntrega}</p>
-                  </div>
-                </div>
-
-                <div className="flex justify-between items-center pt-3 border-t border-gray-200">
-                  <div className="text-xs text-gray-500">Ultima actualizacion</div>
-                  <div>
-                    <EntityActionsMenu
-                      buttonLabel="Acciones"
-                      items={buildServiceActions(servicio)}
-                    />
-                  </div>
+                <div className="flex items-center justify-between border-t border-gray-200 pt-4">
+                  <div className="text-xs text-gray-500">Entrega: {service.fechaEntrega}</div>
+                  <EntityActionsMenu
+                    buttonLabel="Acciones"
+                    items={buildServiceActions(service)}
+                  />
                 </div>
               </div>
             ))}
@@ -340,21 +464,16 @@ export default function ServiciosPage() {
         </>
       )}
 
-      {openServiceModal && (
+      {openServiceModal ? (
         <AddServiceModal
           setOpen={setOpenServiceModal}
-          addService={async (payload) => {
-            const ok = await addService(payload);
-            if (ok) {
-              setOpenServiceModal(false);
-            }
-          }}
+          saveService={saveService}
           patients={catalogs.patients}
           doctors={catalogs.doctors}
           studies={catalogs.studies}
           isSaving={saving || catalogsLoading}
         />
-      )}
+      ) : null}
     </div>
   );
 }

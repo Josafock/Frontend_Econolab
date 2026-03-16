@@ -5,12 +5,16 @@ import { z } from "zod";
 
 export type StudyType = "study" | "package" | "other";
 export type StudyStatus = "active" | "suspended";
+export type StudyStatusFilter = StudyStatus | "all";
+export type StudyTypeFilter = StudyType | "all";
+export type StudyDetailDataType = "category" | "parameter";
 
 const numericIntFieldSchema = z.coerce.number().int();
 const nonNegativeNumericFieldSchema = z.coerce.number().min(0);
 
 const studyTypeSchema = z.enum(["study", "package", "other"]);
 const studyStatusSchema = z.enum(["active", "suspended"]);
+const studyDetailDataTypeSchema = z.enum(["category", "parameter"]);
 
 const studySchema = z.object({
   id: numericIntFieldSchema,
@@ -27,7 +31,24 @@ const studySchema = z.object({
   defaultDiscountPercent: nonNegativeNumericFieldSchema,
   method: z.string().nullable().optional(),
   indicator: z.string().nullable().optional(),
+  packageStudyIds: z.array(numericIntFieldSchema).optional().default([]),
   status: studyStatusSchema,
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+});
+
+const studyDetailSchema = z.object({
+  id: numericIntFieldSchema,
+  studyId: numericIntFieldSchema,
+  parentId: numericIntFieldSchema.nullish(),
+  dataType: studyDetailDataTypeSchema,
+  name: z.string(),
+  sortOrder: numericIntFieldSchema,
+  unit: z.string().nullable().optional(),
+  referenceValue: z.string().nullable().optional(),
+  isActive: z.boolean().optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
 });
 
 const studiesSearchResponseSchema = z.object({
@@ -37,16 +58,6 @@ const studiesSearchResponseSchema = z.object({
     limit: numericIntFieldSchema,
     total: numericIntFieldSchema,
   }),
-});
-
-const createStudyResponseSchema = z.object({
-  message: z.string(),
-  data: studySchema,
-});
-
-const updateStudyResponseSchema = z.object({
-  message: z.string(),
-  data: studySchema,
 });
 
 const createStudyPayloadSchema = z.object({
@@ -63,16 +74,48 @@ const createStudyPayloadSchema = z.object({
   defaultDiscountPercent: nonNegativeNumericFieldSchema,
   method: z.string().optional(),
   indicator: z.string().optional(),
+  packageStudyIds: z.array(numericIntFieldSchema).optional(),
   status: studyStatusSchema.optional(),
 });
 
+const updateStudyPayloadSchema = createStudyPayloadSchema.partial();
+
+const createStudyDetailPayloadSchema = z.object({
+  dataType: studyDetailDataTypeSchema,
+  name: z.string().min(1).max(150),
+  sortOrder: numericIntFieldSchema.min(1),
+  unit: z.string().optional(),
+  referenceValue: z.string().optional(),
+  parentId: numericIntFieldSchema.min(1).optional(),
+});
+
+const updateStudyDetailPayloadSchema = createStudyDetailPayloadSchema.partial();
+
+const studyMutationResponseSchema = z.object({
+  message: z.string(),
+  data: studySchema,
+});
+
+const studyDetailMutationResponseSchema = z.object({
+  message: z.string(),
+  data: studyDetailSchema,
+});
+
+const messageResponseSchema = z.object({
+  message: z.string(),
+});
+
 export type Study = z.infer<typeof studySchema>;
+export type StudyDetail = z.infer<typeof studyDetailSchema>;
+export type CreateStudyPayload = z.infer<typeof createStudyPayloadSchema>;
+export type UpdateStudyPayload = z.infer<typeof updateStudyPayloadSchema>;
+export type CreateStudyDetailPayload = z.infer<typeof createStudyDetailPayloadSchema>;
+export type UpdateStudyDetailPayload = z.infer<typeof updateStudyDetailPayloadSchema>;
 
 type StudiesSearchResponse = z.infer<typeof studiesSearchResponseSchema>;
-type CreateStudyResponse = z.infer<typeof createStudyResponseSchema>;
-type UpdateStudyResponse = z.infer<typeof updateStudyResponseSchema>;
-export type CreateStudyPayload = z.infer<typeof createStudyPayloadSchema>;
-export type UpdateStudyPayload = z.infer<typeof createStudyPayloadSchema>;
+type StudyMutationResponse = z.infer<typeof studyMutationResponseSchema>;
+type StudyDetailMutationResponse = z.infer<typeof studyDetailMutationResponseSchema>;
+type MessageResponse = z.infer<typeof messageResponseSchema>;
 
 export async function getStudies(params?: {
   search?: string;
@@ -100,21 +143,24 @@ export async function getStudies(params?: {
   return { ok: true, data: parsed.data };
 }
 
-export async function createStudy(payload: CreateStudyPayload): Promise<ApiResult<CreateStudyResponse>> {
+export async function createStudy(
+  payload: CreateStudyPayload,
+): Promise<ApiResult<StudyMutationResponse>> {
   const parsedPayload = createStudyPayloadSchema.safeParse(payload);
   if (!parsedPayload.success) {
-    const firstError = parsedPayload.error.issues[0]?.message ?? "Datos de estudio invalidos.";
+    const firstError =
+      parsedPayload.error.issues[0]?.message ?? "Datos de estudio invalidos.";
     return { ok: false, errors: [firstError] };
   }
 
-  const response = await fetchApi<CreateStudyResponse>("/studies", {
+  const response = await fetchApi<StudyMutationResponse>("/studies", {
     method: "POST",
     body: JSON.stringify(parsedPayload.data),
   });
 
   if (!response.ok) return response;
 
-  const parsed = createStudyResponseSchema.safeParse(response.data);
+  const parsed = studyMutationResponseSchema.safeParse(response.data);
   if (!parsed.success) {
     return { ok: false, errors: ["La respuesta al crear estudio es invalida."] };
   }
@@ -134,21 +180,25 @@ export async function getStudyById(id: number): Promise<ApiResult<Study>> {
   return { ok: true, data: parsed.data };
 }
 
-export async function updateStudy(id: number, payload: UpdateStudyPayload): Promise<ApiResult<UpdateStudyResponse>> {
-  const parsedPayload = createStudyPayloadSchema.safeParse(payload);
+export async function updateStudy(
+  id: number,
+  payload: UpdateStudyPayload,
+): Promise<ApiResult<StudyMutationResponse>> {
+  const parsedPayload = updateStudyPayloadSchema.safeParse(payload);
   if (!parsedPayload.success) {
-    const firstError = parsedPayload.error.issues[0]?.message ?? "Datos de estudio invalidos.";
+    const firstError =
+      parsedPayload.error.issues[0]?.message ?? "Datos de estudio invalidos.";
     return { ok: false, errors: [firstError] };
   }
 
-  const response = await fetchApi<UpdateStudyResponse>(`/studies/${id}`, {
+  const response = await fetchApi<StudyMutationResponse>(`/studies/${id}`, {
     method: "PUT",
     body: JSON.stringify(parsedPayload.data),
   });
 
   if (!response.ok) return response;
 
-  const parsed = updateStudyResponseSchema.safeParse(response.data);
+  const parsed = studyMutationResponseSchema.safeParse(response.data);
   if (!parsed.success) {
     return { ok: false, errors: ["La respuesta al actualizar estudio es invalida."] };
   }
@@ -156,17 +206,132 @@ export async function updateStudy(id: number, payload: UpdateStudyPayload): Prom
   return { ok: true, data: parsed.data };
 }
 
-export async function updateStudyStatus(id: number, status: StudyStatus): Promise<ApiResult<UpdateStudyResponse>> {
-  const response = await fetchApi<UpdateStudyResponse>(`/studies/${id}`, {
-    method: "PUT",
-    body: JSON.stringify({ status }),
+export async function updateStudyStatus(
+  id: number,
+  status: StudyStatus,
+): Promise<ApiResult<StudyMutationResponse>> {
+  return updateStudy(id, { status });
+}
+
+export async function removeStudy(id: number): Promise<ApiResult<MessageResponse>> {
+  const response = await fetchApi<MessageResponse>(`/studies/${id}`, {
+    method: "DELETE",
   });
+  if (!response.ok) return response;
+
+  const parsed = messageResponseSchema.safeParse(response.data);
+  if (!parsed.success) {
+    return { ok: false, errors: ["La respuesta al eliminar estudio es invalida."] };
+  }
+
+  return { ok: true, data: parsed.data };
+}
+
+export async function getStudyDetails(
+  id: number,
+): Promise<ApiResult<StudyDetail[]>> {
+  const response = await fetchApi<StudyDetail[]>(`/studies/${id}/details`);
+  if (!response.ok) return response;
+
+  const parsed = z.array(studyDetailSchema).safeParse(response.data);
+  if (!parsed.success) {
+    return { ok: false, errors: ["La respuesta de detalle configurado es invalida."] };
+  }
+
+  return { ok: true, data: parsed.data };
+}
+
+export async function createStudyDetail(
+  studyId: number,
+  payload: CreateStudyDetailPayload,
+): Promise<ApiResult<StudyDetailMutationResponse>> {
+  const parsedPayload = createStudyDetailPayloadSchema.safeParse(payload);
+  if (!parsedPayload.success) {
+    const firstError =
+      parsedPayload.error.issues[0]?.message ?? "Datos de detalle invalidos.";
+    return { ok: false, errors: [firstError] };
+  }
+
+  const response = await fetchApi<StudyDetailMutationResponse>(
+    `/studies/${studyId}/details`,
+    {
+      method: "POST",
+      body: JSON.stringify(parsedPayload.data),
+    },
+  );
 
   if (!response.ok) return response;
 
-  const parsed = updateStudyResponseSchema.safeParse(response.data);
+  const parsed = studyDetailMutationResponseSchema.safeParse(response.data);
   if (!parsed.success) {
-    return { ok: false, errors: ["La respuesta al cambiar estatus de estudio es invalida."] };
+    return { ok: false, errors: ["La respuesta al crear detalle es invalida."] };
+  }
+
+  return { ok: true, data: parsed.data };
+}
+
+export async function updateStudyDetail(
+  detailId: number,
+  payload: UpdateStudyDetailPayload,
+): Promise<ApiResult<StudyDetailMutationResponse>> {
+  const parsedPayload = updateStudyDetailPayloadSchema.safeParse(payload);
+  if (!parsedPayload.success) {
+    const firstError =
+      parsedPayload.error.issues[0]?.message ?? "Datos de detalle invalidos.";
+    return { ok: false, errors: [firstError] };
+  }
+
+  const response = await fetchApi<StudyDetailMutationResponse>(
+    `/studies/details/${detailId}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(parsedPayload.data),
+    },
+  );
+
+  if (!response.ok) return response;
+
+  const parsed = studyDetailMutationResponseSchema.safeParse(response.data);
+  if (!parsed.success) {
+    return { ok: false, errors: ["La respuesta al actualizar detalle es invalida."] };
+  }
+
+  return { ok: true, data: parsed.data };
+}
+
+export async function updateStudyDetailStatus(
+  detailId: number,
+  isActive: boolean,
+): Promise<ApiResult<StudyDetailMutationResponse>> {
+  const response = await fetchApi<StudyDetailMutationResponse>(
+    `/studies/details/${detailId}/status`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ isActive }),
+    },
+  );
+
+  if (!response.ok) return response;
+
+  const parsed = studyDetailMutationResponseSchema.safeParse(response.data);
+  if (!parsed.success) {
+    return { ok: false, errors: ["La respuesta al cambiar estatus del detalle es invalida."] };
+  }
+
+  return { ok: true, data: parsed.data };
+}
+
+export async function removeStudyDetail(
+  detailId: number,
+): Promise<ApiResult<MessageResponse>> {
+  const response = await fetchApi<MessageResponse>(`/studies/details/${detailId}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) return response;
+
+  const parsed = messageResponseSchema.safeParse(response.data);
+  if (!parsed.success) {
+    return { ok: false, errors: ["La respuesta al eliminar detalle es invalida."] };
   }
 
   return { ok: true, data: parsed.data };

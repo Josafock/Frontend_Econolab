@@ -1,7 +1,18 @@
 'use client';
 
-import { createPatient, deactivatePatient, getPatients, type CreatePatientPayload, type Patient } from '@/actions/patients/patientsActions';
-import { clearQueryCacheByPrefix, getQueryCache, setQueryCache } from '@/hooks/_lib/clientQueryCache';
+import {
+  createPatient,
+  getPatients,
+  updatePatientStatus,
+  type CreatePatientPayload,
+  type Patient,
+  type PatientStatusFilter,
+} from '@/actions/patients/patientsActions';
+import {
+  clearQueryCacheByPrefix,
+  getQueryCache,
+  setQueryCache,
+} from '@/hooks/_lib/clientQueryCache';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
@@ -11,30 +22,57 @@ export type UiPatient = {
   nombre: string;
   apellidoPaterno: string;
   apellidoMaterno: string;
+  nombreCompleto: string;
   fechaNacimiento: string;
   genero: 'Femenino' | 'Masculino' | 'Otro';
   telefono: string;
   email: string;
-  colonia: string;
+  direccion: string;
+  entreCalles: string;
   ciudad: string;
+  estado: string;
+  codigoPostal: string;
+  documento: string;
   fechaRegistro: string;
+  estatus: 'Activo' | 'Inactivo';
+  isActive: boolean;
 };
 
 const CACHE_KEY_PREFIX = 'patients:list:';
 
 function toUiPatient(patient: Patient): UiPatient {
+  const nombre = (patient.firstName ?? '').toUpperCase();
+  const apellidoPaterno = (patient.lastName ?? '').toUpperCase();
+  const apellidoMaterno = (patient.middleName ?? '').toUpperCase();
+  const documentLabel =
+    patient.documentType && patient.documentNumber
+      ? `${patient.documentType}: ${patient.documentNumber}`
+      : 'Sin documento';
+
   return {
     id: patient.id,
-    nombre: (patient.firstName ?? '').toUpperCase(),
-    apellidoPaterno: (patient.lastName ?? '').toUpperCase(),
-    apellidoMaterno: (patient.middleName ?? '').toUpperCase(),
+    nombre,
+    apellidoPaterno,
+    apellidoMaterno,
+    nombreCompleto: [nombre, apellidoPaterno, apellidoMaterno].filter(Boolean).join(' '),
     fechaNacimiento: patient.birthDate,
-    genero: patient.gender === 'female' ? 'Femenino' : patient.gender === 'male' ? 'Masculino' : 'Otro',
+    genero:
+      patient.gender === 'female'
+        ? 'Femenino'
+        : patient.gender === 'male'
+          ? 'Masculino'
+          : 'Otro',
     telefono: patient.phone ?? '-',
     email: patient.email ?? '-',
-    colonia: patient.addressLine ?? '-',
+    direccion: patient.addressLine ?? '-',
+    entreCalles: patient.addressBetween ?? '-',
     ciudad: patient.addressCity ?? '-',
+    estado: patient.addressState ?? '-',
+    codigoPostal: patient.addressZip ?? '-',
+    documento: documentLabel,
     fechaRegistro: patient.createdAt ?? '',
+    estatus: patient.isActive === false ? 'Inactivo' : 'Activo',
+    isActive: patient.isActive !== false,
   };
 }
 
@@ -45,7 +83,7 @@ function getCacheKey(search: string): string {
 export function calcularEdad(fechaNacimiento: string): number {
   if (!fechaNacimiento) return 0;
   const hoy = new Date();
-  const nacimiento = new Date(fechaNacimiento);
+  const nacimiento = new Date(`${fechaNacimiento}T00:00:00`);
   let edad = hoy.getFullYear() - nacimiento.getFullYear();
   const mes = hoy.getMonth() - nacimiento.getMonth();
 
@@ -56,7 +94,10 @@ export function calcularEdad(fechaNacimiento: string): number {
   return Number.isNaN(edad) ? 0 : edad;
 }
 
-export function usePatientsData(searchTerm: string) {
+export function usePatientsData(
+  searchTerm: string,
+  statusFilter: PatientStatusFilter = 'all',
+) {
   const [patients, setPatients] = useState<UiPatient[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -73,7 +114,7 @@ export function usePatientsData(searchTerm: string) {
         setLoading(true);
       }
 
-      const response = await getPatients({ search, limit: 100 });
+      const response = await getPatients({ search, limit: 200, status: 'all' });
 
       if (!response.ok) {
         if (!options?.silent) {
@@ -132,23 +173,18 @@ export function usePatientsData(searchTerm: string) {
     [debouncedSearch, fetchPatients],
   );
 
-  const promedioEdad = useMemo(() => {
-    if (!patients.length) return 0;
-    return Math.round(patients.reduce((acc, p) => acc + calcularEdad(p.fechaNacimiento), 0) / patients.length);
-  }, [patients]);
-
-  const deactivatePatientById = useCallback(
+  const togglePatientStatusById = useCallback(
     async (patient: UiPatient) => {
       setUpdatingStatusId(patient.id);
 
-      const response = await deactivatePatient(patient.id);
+      const response = await updatePatientStatus(patient.id, !patient.isActive);
       if (!response.ok) {
-        toast.error(response.errors[0] ?? 'No se pudo desactivar el paciente.');
+        toast.error(response.errors[0] ?? 'No se pudo actualizar el estatus del paciente.');
         setUpdatingStatusId(null);
         return false;
       }
 
-      toast.success('Paciente desactivado.');
+      toast.success(patient.isActive ? 'Paciente suspendido.' : 'Paciente reactivado.');
       clearQueryCacheByPrefix(CACHE_KEY_PREFIX);
       await fetchPatients(debouncedSearch, { silent: true, background: true });
       setUpdatingStatusId(null);
@@ -157,14 +193,44 @@ export function usePatientsData(searchTerm: string) {
     [debouncedSearch, fetchPatients],
   );
 
+  const visiblePatients = useMemo(() => {
+    if (statusFilter === 'all') {
+      return patients;
+    }
+
+    return patients.filter((patient) =>
+      statusFilter === 'active' ? patient.isActive : !patient.isActive,
+    );
+  }, [patients, statusFilter]);
+
+  const promedioEdad = useMemo(() => {
+    if (!visiblePatients.length) return 0;
+    return Math.round(
+      visiblePatients.reduce((acc, patient) => acc + calcularEdad(patient.fechaNacimiento), 0) /
+        visiblePatients.length,
+    );
+  }, [visiblePatients]);
+
+  const activos = useMemo(
+    () => patients.filter((patient) => patient.isActive).length,
+    [patients],
+  );
+  const inactivos = useMemo(
+    () => patients.filter((patient) => !patient.isActive).length,
+    [patients],
+  );
+
   return {
-    patients,
+    patients: visiblePatients,
+    allPatients: patients,
     loading,
     refreshing,
     saving,
     updatingStatusId,
     promedioEdad,
+    activos,
+    inactivos,
     addPatient,
-    deactivatePatientById,
+    togglePatientStatusById,
   };
 }

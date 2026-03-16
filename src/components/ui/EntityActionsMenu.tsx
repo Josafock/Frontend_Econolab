@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Settings2 } from 'lucide-react';
 
@@ -11,6 +12,7 @@ type MenuItem = {
   disabled?: boolean;
   destructive?: boolean;
   hint?: string;
+  icon?: ReactNode;
 };
 
 type EntityActionsMenuProps = {
@@ -18,53 +20,121 @@ type EntityActionsMenuProps = {
   buttonLabel?: string;
 };
 
-export default function EntityActionsMenu({ items, buttonLabel = 'Opciones' }: EntityActionsMenuProps) {
+const OPEN_MENU_EVENT = 'entity-actions-menu:open';
+
+export default function EntityActionsMenu({
+  items,
+  buttonLabel = 'Opciones',
+}: EntityActionsMenuProps) {
+  const menuId = useId();
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    const handleOpenMenu = (event: Event) => {
+      const customEvent = event as CustomEvent<string>;
+      if (customEvent.detail !== menuId) {
+        setIsOpen(false);
+      }
+    };
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
+
+    window.addEventListener(OPEN_MENU_EVENT, handleOpenMenu as EventListener);
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      window.removeEventListener(OPEN_MENU_EVENT, handleOpenMenu as EventListener);
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [menuId]);
+
+  const toggleMenu = () => {
+    const nextOpen = !isOpen;
+    if (nextOpen) {
+      window.dispatchEvent(new CustomEvent(OPEN_MENU_EVENT, { detail: menuId }));
+    }
+    setIsOpen(nextOpen);
+  };
+
   return (
-    <details className="relative group">
-      <summary className="list-none cursor-pointer inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50">
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={toggleMenu}
+        aria-expanded={isOpen}
+        className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+      >
         <Settings2 size={14} />
         {buttonLabel}
-      </summary>
+      </button>
 
-      <div className="absolute right-0 z-20 mt-2 w-56 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
-        <ul className="py-1">
-          {items.map((item) => {
-            const baseClassName = `block w-full px-3 py-2 text-left text-sm ${
-              item.disabled
-                ? 'cursor-not-allowed text-gray-400'
-                : item.destructive
-                  ? 'text-red-600 hover:bg-red-50'
-                  : 'text-gray-700 hover:bg-gray-50'
-            }`;
+      {isOpen ? (
+        <div className="absolute right-0 z-20 mt-2 w-64 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
+          <ul className="py-1.5">
+            {items.map((item) => {
+              const baseClassName = `block w-full px-4 py-3 text-left text-sm ${
+                item.disabled
+                  ? 'cursor-not-allowed text-gray-400'
+                  : item.destructive
+                    ? 'text-red-600 hover:bg-red-50'
+                    : 'text-gray-700 hover:bg-gray-50'
+              }`;
 
-            return (
-              <li key={item.label}>
-                {item.href && !item.disabled ? (
-                  <Link
-                    href={item.href}
-                    className={baseClassName}
-                    target={item.newTab ? '_blank' : undefined}
-                    rel={item.newTab ? 'noopener noreferrer' : undefined}
-                  >
-                    <div>{item.label}</div>
-                    {item.hint && <div className="text-xs text-gray-500">{item.hint}</div>}
-                  </Link>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={item.disabled}
-                    onClick={item.onClick}
-                    className={baseClassName}
-                  >
-                    <div>{item.label}</div>
-                    {item.hint && <div className="text-xs text-gray-500">{item.hint}</div>}
-                  </button>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-    </details>
+              const content = (
+                <div className="flex items-start gap-3">
+                  {item.icon ? (
+                    <span className="mt-0.5 shrink-0 text-gray-400">{item.icon}</span>
+                  ) : null}
+                  <div>
+                    <div className="font-medium">{item.label}</div>
+                  </div>
+                </div>
+              );
+
+              return (
+                <li key={item.label}>
+                  {item.href && !item.disabled ? (
+                    <Link
+                      href={item.href}
+                      className={baseClassName}
+                      target={item.newTab ? '_blank' : undefined}
+                      rel={item.newTab ? 'noopener noreferrer' : undefined}
+                      onClick={() => setIsOpen(false)}
+                    >
+                      {content}
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={item.disabled}
+                      onClick={() => {
+                        item.onClick?.();
+                        setIsOpen(false);
+                      }}
+                      className={baseClassName}
+                    >
+                      {content}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
+    </div>
   );
 }

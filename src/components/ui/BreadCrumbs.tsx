@@ -1,48 +1,77 @@
 "use client";
 
-import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+
+const LABELS: Record<string, string> = {
+  pacientes: "Pacientes",
+  medicos: "Medicos",
+  estudios: "Estudios",
+  servicios: "Servicios",
+  historial: "Historial",
+  perfil: "Perfil",
+  home: "Inicio",
+  detalle: "Detalle",
+  auth: "Acceso",
+  login: "Iniciar sesion",
+  register: "Registro",
+  "forgot-password": "Recuperar contrasena",
+  "new-password": "Nueva contrasena",
+  "confirm-account": "Confirmar cuenta",
+  google: "Google",
+};
+
+function formatLabel(segment: string): string {
+  if (LABELS[segment]) {
+    return LABELS[segment];
+  }
+
+  if (/^\d+$/.test(segment)) {
+    return segment;
+  }
+
+  const normalized = segment.replace(/-/g, " ");
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
 
 const Breadcrumbs = () => {
   const pathname = usePathname();
   const paths = pathname.split("/").filter(Boolean);
+  const normalizedPaths = paths[0] === "home" ? paths.slice(1) : paths;
 
   return (
-    <nav aria-label="Breadcrumb" className="mb-4">
-      <ol className="flex items-center text-sm text-gray-500">
-        {/* Inicio */}
+    <nav aria-label="Breadcrumb">
+      <ol className="flex flex-wrap items-center gap-y-2 text-sm text-gray-500">
         <li>
-          <Link
-            href="/"
-            className="hover:text-red-500 transition-colors"
-          >
+          <Link href="/home" className="font-medium transition-colors hover:text-red-500">
             Inicio
           </Link>
         </li>
 
-        {paths.map((path, index) => {
-          const href = "/" + paths.slice(0, index + 1).join("/");
-          const label =
-            path.charAt(0).toUpperCase() + path.slice(1);
-          const isLast = index === paths.length - 1;
+        {normalizedPaths.map((path, index) => {
+          const href =
+            "/" +
+            (paths[0] === "home"
+              ? ["home", ...normalizedPaths.slice(0, index + 1)].join("/")
+              : normalizedPaths.slice(0, index + 1).join("/"));
+          const label = formatLabel(path);
+          const isLast = index === normalizedPaths.length - 1;
+          const nextPath = normalizedPaths[index + 1];
+          const isDetailParent = path === "detalle" && Boolean(nextPath);
+          const isClickable = !isLast && !isDetailParent;
 
           return (
             <li key={href} className="flex items-center">
-              {/* Separador */}
-              <span className="mx-2 text-gray-400">›</span>
+              <span className="mx-2 text-gray-300">/</span>
 
-              {isLast ? (
-                <span className="font-medium text-gray-900">
-                  {label}
-                </span>
-              ) : (
-                <Link
-                  href={href}
-                  className="hover:text-red-500 transition-colors"
-                >
+              {isClickable ? (
+                <Link href={href} className="transition-colors hover:text-red-500">
                   {label}
                 </Link>
+              ) : (
+                <span className={isLast ? "font-medium text-gray-900" : "text-gray-500"}>
+                  {label}
+                </span>
               )}
             </li>
           );

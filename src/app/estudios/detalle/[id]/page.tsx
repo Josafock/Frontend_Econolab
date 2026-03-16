@@ -1,18 +1,161 @@
 'use client';
 
-import { getStudyById, type Study } from '@/actions/studies/studiesActions';
-import { ArrowLeft, Clock3, DollarSign, Hash, Loader2, Tag } from 'lucide-react';
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ChangeEvent,
+  type FocusEvent,
+} from 'react';
+import {
+  ArrowLeft,
+  BadgeCheck,
+  FileText,
+  FlaskConical,
+  Loader2,
+  Plus,
+  PencilLine,
+  Save,
+  ShieldX,
+  Trash2,
+} from 'lucide-react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { toast } from 'react-toastify';
+import {
+  createStudyDetail,
+  getStudyById,
+  getStudyDetails,
+  getStudies,
+  removeStudy,
+  removeStudyDetail,
+  updateStudy,
+  updateStudyDetail,
+  updateStudyDetailStatus,
+  updateStudyStatus,
+  type Study,
+  type StudyDetail,
+} from '@/actions/studies/studiesActions';
+import AddStudyDetailModal from '@/components/estudios/AddStudyDetailModal';
+import EditStudyDetailModal from '@/components/estudios/EditStudyDetailModal';
+import StudyFormFields from '@/components/estudios/StudyFormFields';
+import {
+  createEmptyStudyForm,
+  createTouchedStudyForm,
+  hasStudyFormErrors,
+  mapFormToUpdateStudyPayload,
+  mapStudyToForm,
+  validateStudyForm,
+  type StudyFormTouched,
+  type StudyFormValues,
+} from '@/components/estudios/studyFormUtils';
+import EntityActionsMenu from '@/components/ui/EntityActionsMenu';
+import {
+  formatStudyDuration,
+  getStudyDetailTypeLabel,
+  getStudyStatusColor,
+  getStudyStatusLabel,
+  getStudyTypeColor,
+  getStudyTypeLabel,
+  sortStudyDetails,
+} from '@/helpers/studies';
 
 export default function StudyDetailPage() {
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const id = Number(params.id);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [study, setStudy] = useState<Study | null>(null);
+  const [details, setDetails] = useState<StudyDetail[]>([]);
+  const entityLabel = study?.type === 'package' ? 'paquete' : 'estudio';
+
+  const [formData, setFormData] = useState<StudyFormValues>(createEmptyStudyForm());
+  const [touched, setTouched] = useState<StudyFormTouched>({});
+  const [isEditing, setIsEditing] = useState(searchParams.get('modo') === 'editar');
+  const [savingStudy, setSavingStudy] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [deletingStudy, setDeletingStudy] = useState(false);
+
+  const [savingDetail, setSavingDetail] = useState(false);
+  const [updatingDetailId, setUpdatingDetailId] = useState<number | null>(null);
+  const [updatingDetailStatusId, setUpdatingDetailStatusId] = useState<number | null>(null);
+  const [removingDetailId, setRemovingDetailId] = useState<number | null>(null);
+  const [editingDetail, setEditingDetail] = useState<StudyDetail | null>(null);
+  const [creatingDetailType, setCreatingDetailType] = useState<'category' | 'parameter' | null>(
+    null,
+  );
+  const [availableStudies, setAvailableStudies] = useState<Study[]>([]);
+  const [packageStudyIds, setPackageStudyIds] = useState<number[]>([]);
+  const [selectedPackageStudyId, setSelectedPackageStudyId] = useState('');
+  const [savingPackageStudies, setSavingPackageStudies] = useState(false);
+
+  const formErrors = useMemo(() => validateStudyForm(formData), [formData]);
+
+  const categories = useMemo(
+    () => sortStudyDetails(details.filter((detail) => detail.dataType === 'category')),
+    [details],
+  );
+  const activeCategories = useMemo(
+    () => categories.filter((category) => category.isActive !== false),
+    [categories],
+  );
+  const activeCategoryIds = useMemo(
+    () => new Set(activeCategories.map((category) => category.id)),
+    [activeCategories],
+  );
+  const activeParameters = useMemo(
+    () =>
+      sortStudyDetails(
+        details.filter(
+          (detail) => detail.dataType === 'parameter' && detail.isActive !== false,
+        ),
+      ),
+    [details],
+  );
+  const groupedParameters = useMemo(
+    () =>
+      activeCategories
+        .map((category) => ({
+          category,
+          parameters: activeParameters.filter((parameter) => parameter.parentId === category.id),
+        }))
+        .filter((group) => group.parameters.length > 0),
+    [activeCategories, activeParameters],
+  );
+  const standaloneParameters = useMemo(
+    () =>
+      activeParameters.filter(
+        (parameter) => !parameter.parentId || !activeCategoryIds.has(parameter.parentId),
+      ),
+    [activeCategoryIds, activeParameters],
+  );
+  const emptyCategories = useMemo(
+    () =>
+      activeCategories.filter(
+        (category) =>
+          !activeParameters.some((parameter) => parameter.parentId === category.id),
+      ),
+    [activeCategories, activeParameters],
+  );
+  const selectedPackageStudies = useMemo(
+    () =>
+      packageStudyIds
+        .map((packageStudyId) =>
+          availableStudies.find((candidate) => candidate.id === packageStudyId),
+        )
+        .filter((candidate): candidate is Study => Boolean(candidate)),
+    [availableStudies, packageStudyIds],
+  );
+  const packageCandidateStudies = useMemo(
+    () =>
+      availableStudies.filter(
+        (candidate) => !packageStudyIds.includes(candidate.id) && candidate.type === 'study',
+      ),
+    [availableStudies, packageStudyIds],
+  );
 
   useEffect(() => {
     if (Number.isNaN(id)) {
@@ -22,47 +165,951 @@ export default function StudyDetailPage() {
     }
 
     const load = async () => {
-      const response = await getStudyById(id);
-      if (!response.ok) {
-        setError(response.errors[0] ?? 'No se pudo cargar el estudio.');
+      const [studyResponse, detailsResponse, studiesCatalogResponse] = await Promise.all([
+        getStudyById(id),
+        getStudyDetails(id),
+        getStudies({ limit: 500, type: 'study' }),
+      ]);
+
+      if (!studyResponse.ok) {
+        setError(studyResponse.errors[0] ?? 'No se pudo cargar el estudio.');
         setLoading(false);
         return;
       }
 
-      setStudy(response.data);
+      if (!detailsResponse.ok) {
+        setError(detailsResponse.errors[0] ?? 'No se pudo cargar la configuracion del estudio.');
+        setLoading(false);
+        return;
+      }
+
+      if (!studiesCatalogResponse.ok) {
+        setError(studiesCatalogResponse.errors[0] ?? 'No se pudo cargar el catalogo de estudios.');
+        setLoading(false);
+        return;
+      }
+
+      setStudy(studyResponse.data);
+      setFormData(mapStudyToForm(studyResponse.data));
+      setTouched({});
+      setAvailableStudies(
+        studiesCatalogResponse.data.data.filter((candidate) => candidate.id !== studyResponse.data.id),
+      );
+      setPackageStudyIds(studyResponse.data.packageStudyIds ?? []);
+      setSelectedPackageStudyId('');
+      setDetails(detailsResponse.data);
       setLoading(false);
     };
 
     void load();
   }, [id]);
 
+  useEffect(() => {
+    setIsEditing(searchParams.get('modo') === 'editar');
+  }, [searchParams]);
+
+  const refreshDetails = async (silent = false) => {
+    const response = await getStudyDetails(id);
+    if (!response.ok) {
+      if (!silent) {
+        toast.error(response.errors[0] ?? 'No se pudo refrescar la configuracion.');
+      }
+      return false;
+    }
+
+    setDetails(response.data);
+    return true;
+  };
+
+  const handleChange = (
+    e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
+  ) => {
+    setFormData((current) => ({
+      ...current,
+      [e.target.name]: e.target.value,
+    }));
+  };
+
+  const handleBlur = (
+    e: FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
+  ) => {
+    const { name } = e.target;
+    setTouched((current) => ({
+      ...current,
+      [name]: true,
+    }));
+  };
+
+  const handleAddPackageStudy = () => {
+    const parsedId = Number(selectedPackageStudyId);
+    if (!Number.isInteger(parsedId) || parsedId <= 0) {
+      toast.error('Selecciona un estudio para agregar al paquete.');
+      return;
+    }
+
+    setPackageStudyIds((current) =>
+      current.includes(parsedId) ? current : [...current, parsedId],
+    );
+    setSelectedPackageStudyId('');
+  };
+
+  const handleRemovePackageStudy = (studyId: number) => {
+    setPackageStudyIds((current) => current.filter((currentId) => currentId !== studyId));
+  };
+
+  const handleSavePackageStudies = async () => {
+    if (!study) return;
+
+    setSavingPackageStudies(true);
+    const response = await updateStudy(study.id, { packageStudyIds });
+    if (!response.ok) {
+      toast.error(response.errors[0] ?? 'No se pudo guardar el contenido del paquete.');
+      setSavingPackageStudies(false);
+      return;
+    }
+
+    setStudy(response.data.data);
+    setPackageStudyIds(response.data.data.packageStudyIds ?? []);
+    toast.success('Contenido del paquete actualizado con exito.');
+    setSavingPackageStudies(false);
+  };
+
+  const handleSaveStudy = async () => {
+    if (!study) return;
+
+    setTouched(createTouchedStudyForm());
+
+    if (hasStudyFormErrors(formErrors)) {
+      toast.error('Revisa los campos obligatorios y corrige los errores del estudio.');
+      return;
+    }
+
+    setSavingStudy(true);
+    const response = await updateStudy(study.id, mapFormToUpdateStudyPayload(formData));
+    if (!response.ok) {
+      toast.error(response.errors[0] ?? 'No se pudo actualizar el estudio.');
+      setSavingStudy(false);
+      return;
+    }
+
+    setStudy(response.data.data);
+    setPackageStudyIds(response.data.data.packageStudyIds ?? []);
+    setFormData(mapStudyToForm(response.data.data));
+    setTouched({});
+    setIsEditing(false);
+    toast.success('Estudio actualizado con exito.');
+    router.replace(`/estudios/detalle/${study.id}`);
+    setSavingStudy(false);
+  };
+
+  const handleToggleStatus = async () => {
+    if (!study) return;
+
+    setUpdatingStatus(true);
+    const nextStatus = study.status === 'active' ? 'suspended' : 'active';
+    const response = await updateStudyStatus(study.id, nextStatus);
+    if (!response.ok) {
+      toast.error(response.errors[0] ?? 'No se pudo actualizar el estatus del estudio.');
+      setUpdatingStatus(false);
+      return;
+    }
+
+    setStudy(response.data.data);
+    setFormData(mapStudyToForm(response.data.data));
+    toast.success(nextStatus === 'active' ? 'Estudio reactivado.' : 'Estudio suspendido.');
+    setUpdatingStatus(false);
+  };
+
+  const handleDeleteStudy = async () => {
+    if (!study) return;
+
+    const confirmed = window.confirm(
+      `Se eliminara "${study.name}" del catalogo. Esta accion ocultara el registro. ¿Deseas continuar?`,
+    );
+    if (!confirmed) return;
+
+    setDeletingStudy(true);
+    const response = await removeStudy(study.id);
+    if (!response.ok) {
+      toast.error(response.errors[0] ?? 'No se pudo eliminar el estudio.');
+      setDeletingStudy(false);
+      return;
+    }
+
+    toast.success('Estudio eliminado del catalogo.');
+    router.push('/estudios');
+  };
+
+  const handleCancelEdit = () => {
+    if (study) {
+      setFormData(mapStudyToForm(study));
+    }
+    setTouched({});
+    setIsEditing(false);
+    router.replace(`/estudios/detalle/${id}`);
+  };
+
+  const handleCreateDetail = async (
+    payloads: Parameters<typeof createStudyDetail>[1][],
+  ) => {
+    if (!study) return false;
+
+    setSavingDetail(true);
+
+    for (const payload of payloads) {
+      const response = await createStudyDetail(study.id, payload);
+      if (!response.ok) {
+        toast.error(response.errors[0] ?? 'No se pudo crear el lote del estudio.');
+        setSavingDetail(false);
+        return false;
+      }
+    }
+
+    toast.success(
+      payloads.length === 1
+        ? 'Elemento agregado correctamente.'
+        : `${payloads.length} elementos agregados correctamente.`,
+    );
+    await refreshDetails(true);
+    setSavingDetail(false);
+    return true;
+  };
+
+  const handleSaveDetailEdition = async (
+    detailId: number,
+    payload: Parameters<typeof updateStudyDetail>[1],
+  ) => {
+    setUpdatingDetailId(detailId);
+    const response = await updateStudyDetail(detailId, payload);
+    if (!response.ok) {
+      toast.error(response.errors[0] ?? 'No se pudo actualizar el elemento.');
+      setUpdatingDetailId(null);
+      return false;
+    }
+
+    toast.success('Elemento actualizado con exito.');
+    await refreshDetails(true);
+    setUpdatingDetailId(null);
+    return true;
+  };
+
+  const handleToggleDetailStatus = async (detail: StudyDetail) => {
+    setUpdatingDetailStatusId(detail.id);
+    const nextStatus = !(detail.isActive !== false);
+    const response = await updateStudyDetailStatus(detail.id, nextStatus);
+    if (!response.ok) {
+      toast.error(response.errors[0] ?? 'No se pudo actualizar el estatus del elemento.');
+      setUpdatingDetailStatusId(null);
+      return;
+    }
+
+    toast.success(nextStatus ? 'Elemento reactivado.' : 'Elemento suspendido.');
+    await refreshDetails(true);
+    setUpdatingDetailStatusId(null);
+  };
+
+  const handleDeleteDetail = async (detail: StudyDetail) => {
+    const confirmed = window.confirm(
+      `Se eliminara el elemento "${detail.name}". Esta accion lo retirara de la configuracion del estudio. ¿Deseas continuar?`,
+    );
+    if (!confirmed) return;
+
+    setRemovingDetailId(detail.id);
+    const response = await removeStudyDetail(detail.id);
+    if (!response.ok) {
+      toast.error(response.errors[0] ?? 'No se pudo eliminar el elemento.');
+      setRemovingDetailId(null);
+      return;
+    }
+
+    toast.success('Elemento eliminado del estudio.');
+    await refreshDetails(true);
+    setRemovingDetailId(null);
+  };
+
+  const buildDetailActions = (detail: StudyDetail) => {
+    const isActive = detail.isActive !== false;
+
+    return [
+      {
+        label: 'Editar elemento',
+        onClick: () => setEditingDetail(detail),
+        hint: 'Disponible',
+        icon: <PencilLine size={16} />,
+      },
+      {
+        label: isActive ? 'Suspender elemento' : 'Reactivar elemento',
+        onClick: () => void handleToggleDetailStatus(detail),
+        hint:
+          updatingDetailStatusId === detail.id ? 'Actualizando...' : 'Disponible',
+        icon: isActive ? <ShieldX size={16} /> : <BadgeCheck size={16} />,
+      },
+      {
+        label: 'Eliminar elemento',
+        onClick: () => void handleDeleteDetail(detail),
+        hint:
+          removingDetailId === detail.id ? 'Eliminando...' : 'Disponible',
+        destructive: true,
+        icon: <Trash2 size={16} />,
+      },
+    ];
+  };
+
   return (
     <div className="p-8">
-      <div className="mb-6">
-        <Link href="/estudios" className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900">
-          <ArrowLeft size={16} /> Regresar a estudios
-        </Link>
+      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <Link
+            href="/estudios"
+            className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
+          >
+            <ArrowLeft size={16} /> Regresar a estudios
+          </Link>
+          <h1 className="mt-4 text-3xl font-bold text-gray-900">
+            Detalle de {entityLabel}
+          </h1>
+          <p className="mt-2 text-gray-600">
+            Consulta el catalogo, edita su configuracion y define la plantilla de parametros que despues se llenara en servicios.
+          </p>
+        </div>
+
+        {!loading && study ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <span
+              className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold ${getStudyStatusColor(study.status)}`}
+            >
+              {study.status === 'active' ? (
+                <BadgeCheck className="h-4 w-4" />
+              ) : (
+                <ShieldX className="h-4 w-4" />
+              )}
+              {getStudyStatusLabel(study.status)}
+            </span>
+
+            {isEditing ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  className="rounded-2xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+                  disabled={savingStudy}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleSaveStudy()}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                  disabled={savingStudy}
+                >
+                  {savingStudy ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  Guardar cambios
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditing(true);
+                    router.replace(`/estudios/detalle/${id}?modo=editar`);
+                  }}
+                  className="inline-flex items-center gap-2 rounded-2xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+                >
+                  <PencilLine className="h-4 w-4" />
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleToggleStatus()}
+                  className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold text-white transition-colors ${
+                    study.status === 'active'
+                      ? 'bg-amber-600 hover:bg-amber-700'
+                      : 'bg-emerald-600 hover:bg-emerald-700'
+                  } disabled:opacity-50`}
+                  disabled={updatingStatus}
+                >
+                  {updatingStatus ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : study.status === 'active' ? (
+                    <ShieldX className="h-4 w-4" />
+                  ) : (
+                    <BadgeCheck className="h-4 w-4" />
+                  )}
+                  {study.status === 'active' ? 'Suspender estudio' : 'Reactivar estudio'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteStudy()}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                  disabled={deletingStudy}
+                >
+                  {deletingStudy ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                  Eliminar
+                </button>
+              </>
+            )}
+          </div>
+        ) : null}
       </div>
 
       {loading ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-10 text-gray-600 flex items-center gap-2">
+        <div className="flex items-center gap-2 rounded-3xl border border-gray-200 bg-white p-10 text-gray-600 shadow-sm">
           <Loader2 className="h-5 w-5 animate-spin" /> Cargando detalle...
         </div>
       ) : error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-red-700">{error}</div>
-      ) : study ? (
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-6 space-y-5">
-          <h1 className="text-2xl font-bold text-gray-900">Detalle de estudio</h1>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <div><span className="text-gray-500">Nombre:</span> <span className="font-medium">{study.name}</span></div>
-            <div className="inline-flex items-center gap-2"><Hash size={14} className="text-gray-500" />{study.code}</div>
-            <div className="inline-flex items-center gap-2"><Tag size={14} className="text-gray-500" />{study.type}</div>
-            <div><span className="text-gray-500">Estatus:</span> <span className="font-medium">{study.status}</span></div>
-            <div className="inline-flex items-center gap-2"><Clock3 size={14} className="text-gray-500" />{study.durationMinutes} min</div>
-            <div className="inline-flex items-center gap-2"><DollarSign size={14} className="text-gray-500" />{Number(study.normalPrice).toFixed(2)} MXN</div>
-            <div className="md:col-span-2"><span className="text-gray-500">Descripcion:</span> <span className="font-medium">{study.description || '-'}</span></div>
-          </div>
+        <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-700 shadow-sm">
+          {error}
         </div>
+      ) : study ? (
+        <div className="space-y-6">
+          <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+            <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="rounded-2xl bg-red-50 p-3 text-red-600">
+                  <FileText className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Resumen del {entityLabel}
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    Vista rapida del registro y su configuracion comercial.
+                  </p>
+                </div>
+              </div>
+
+              <div
+                className={`grid grid-cols-1 gap-4 md:grid-cols-2 ${
+                  study.type === 'package' ? 'xl:grid-cols-2' : ''
+                }`}
+              >
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Nombre</p>
+                  <p className="mt-2 text-base font-semibold text-gray-900">{study.name}</p>
+                </div>
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Clave</p>
+                  <p className="mt-2 text-base font-semibold text-gray-900">{study.code}</p>
+                </div>
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Tipo</p>
+                  <p className="mt-2 text-base font-semibold text-gray-900">
+                    {getStudyTypeLabel(study.type)}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Duracion</p>
+                  <p className="mt-2 text-base font-semibold text-gray-900">
+                    {formatStudyDuration(study.durationMinutes)}
+                  </p>
+                </div>
+                {study.type !== 'package' ? (
+                  <>
+                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                      <p className="text-xs uppercase tracking-wide text-gray-500">Metodo</p>
+                      <p className="mt-2 text-base font-semibold text-gray-900">
+                        {study.method ?? 'Sin metodo'}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                      <p className="text-xs uppercase tracking-wide text-gray-500">Indicador</p>
+                      <p className="mt-2 text-base font-semibold text-gray-900">
+                        {study.indicator ?? 'Sin indicador'}
+                      </p>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            </div>
+
+            <div
+              className={`rounded-[2rem] border border-gray-200 p-6 text-white shadow-lg ${
+                study.type === 'package'
+                  ? 'bg-gradient-to-br from-sky-700 via-sky-600 to-cyan-500 shadow-sky-600/20'
+                  : 'bg-gradient-to-br from-red-600 via-red-500 to-rose-500 shadow-red-600/20'
+              }`}
+            >
+              <p
+                className={`text-sm uppercase tracking-[0.2em] ${
+                  study.type === 'package' ? 'text-sky-100' : 'text-red-100'
+                }`}
+              >
+                Ficha rapida
+              </p>
+              <h2 className="mt-3 text-2xl font-semibold">{study.code}</h2>
+              <p className={`mt-2 text-sm ${study.type === 'package' ? 'text-sky-50' : 'text-red-50'}`}>
+                {study.description || 'Sin descripcion configurada.'}
+              </p>
+
+              <div className="mt-6 space-y-4 rounded-[1.5rem] bg-white/10 p-5 backdrop-blur-sm">
+                <div>
+                  <p
+                    className={`text-xs uppercase tracking-wide ${
+                      study.type === 'package' ? 'text-sky-100' : 'text-red-100'
+                    }`}
+                  >
+                    Precio normal
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-white">
+                    ${Number(study.normalPrice).toFixed(2)}
+                  </p>
+                </div>
+                <div>
+                  <p
+                    className={`text-xs uppercase tracking-wide ${
+                      study.type === 'package' ? 'text-sky-100' : 'text-red-100'
+                    }`}
+                  >
+                    Precio DIF
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-white">
+                    ${Number(study.difPrice).toFixed(2)}
+                  </p>
+                </div>
+                <div>
+                  <p
+                    className={`text-xs uppercase tracking-wide ${
+                      study.type === 'package' ? 'text-sky-100' : 'text-red-100'
+                    }`}
+                  >
+                    Descuento sugerido
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-white">
+                    {Number(study.defaultDiscountPercent).toFixed(2)}%
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {isEditing ? (
+            <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+              <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Editar {entityLabel}
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    Actualiza los datos generales del registro. La plantilla se
+                    administra aparte para que la captura sea mas comoda.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span
+                    className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStudyTypeColor(study.type)}`}
+                  >
+                    {getStudyTypeLabel(study.type)}
+                  </span>
+                  <span
+                    className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${getStudyStatusColor(study.status)}`}
+                  >
+                    {getStudyStatusLabel(study.status)}
+                  </span>
+                </div>
+              </div>
+
+              <StudyFormFields
+                formData={formData}
+                errors={formErrors}
+                touched={touched}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                disabled={savingStudy}
+              />
+            </div>
+          ) : null}
+
+          {study.type === 'package' ? (
+            <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+              <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Contenido del paquete</h2>
+                  <p className="text-sm text-gray-500">
+                    Un paquete no define parametros propios. Aqui eliges los estudios que lo componen y cada estudio conserva sus categorias y parametros.
+                  </p>
+                </div>
+                <div className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
+                  Estudios incluidos: {packageStudyIds.length}
+                </div>
+              </div>
+
+              <div className="mb-5 rounded-[1.5rem] border border-blue-100 bg-blue-50/80 p-4 text-sm text-blue-900">
+                <p className="font-semibold">Como funciona un paquete</p>
+                <p className="mt-2 text-blue-800">
+                  Cuando el paquete se agrega a un servicio, el sistema lo desglosa en sus estudios reales. Por eso los resultados salen por estudio, no como un solo parametro gigante del paquete.
+                </p>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+                <div className="rounded-[1.5rem] border border-gray-200 bg-gray-50/70 p-4">
+                  <p className="text-sm font-semibold text-gray-900">Agregar estudio al paquete</p>
+                  <div className="mt-4 flex flex-col gap-3 md:flex-row">
+                    <select
+                      value={selectedPackageStudyId}
+                      onChange={(e) => setSelectedPackageStudyId(e.target.value)}
+                      className="modal-select w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                      disabled={savingPackageStudies}
+                    >
+                      <option value="">Selecciona un estudio</option>
+                      {packageCandidateStudies.map((candidate) => (
+                        <option key={candidate.id} value={candidate.id}>
+                          {candidate.name}
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      type="button"
+                      onClick={handleAddPackageStudy}
+                      className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition-all hover:bg-gray-50 disabled:opacity-50"
+                      disabled={savingPackageStudies || packageCandidateStudies.length === 0}
+                    >
+                      Agregar
+                    </button>
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between border-t border-gray-200 pt-4">
+                    <p className="text-xs text-gray-500">
+                      Solo se pueden agregar estudios individuales activos.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void handleSavePackageStudies()}
+                      className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-blue-700 disabled:opacity-50"
+                      disabled={savingPackageStudies}
+                    >
+                      {savingPackageStudies ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
+                      Guardar paquete
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-[1.5rem] border border-gray-200 bg-white p-4">
+                  <p className="text-sm font-semibold text-gray-900">Estudios seleccionados</p>
+                  {selectedPackageStudies.length === 0 ? (
+                    <div className="mt-4 rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center text-sm text-gray-500">
+                      Este paquete aun no contiene estudios.
+                    </div>
+                  ) : (
+                    <div className="mt-4 space-y-3">
+                      {selectedPackageStudies.map((packageStudy) => (
+                        <div
+                          key={packageStudy.id}
+                          className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-4 md:flex-row md:items-center md:justify-between"
+                        >
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900">{packageStudy.name}</p>
+                            <p className="mt-1 text-xs text-gray-500">
+                              {packageStudy.code} · {formatStudyDuration(packageStudy.durationMinutes)}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePackageStudy(packageStudy.id)}
+                            className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-600 transition-all hover:bg-red-50"
+                            disabled={savingPackageStudies}
+                          >
+                            Quitar
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+                <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">Plantilla del estudio</h2>
+                    <p className="text-sm text-gray-500">
+                      Abre un modal segun lo que quieras capturar y administra la
+                      plantilla desde la vista previa.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setCreatingDetailType('category')}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 transition-all hover:bg-blue-100"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Nueva categoria
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCreatingDetailType('parameter')}
+                      className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-emerald-700"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Nuevo parametro
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-[1.5rem] border border-blue-100 bg-blue-50/80 p-4 text-sm text-blue-900">
+                  <p className="font-semibold">Como funciona este flujo</p>
+                  <p className="mt-2 text-blue-800">
+                    Las categorias organizan la plantilla y los parametros son los
+                    campos que el personal llenara despues en resultados. Las acciones
+                    viven directo en la vista previa.
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+                <div className="mb-5 flex items-center gap-3">
+                  <div className="rounded-2xl bg-emerald-50 p-3 text-emerald-600">
+                    <FlaskConical className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">
+                      Vista previa operativa
+                    </h2>
+                    <p className="text-sm text-gray-500">
+                      La misma estructura que se define aqui es la que despues se captura
+                      en servicios.
+                    </p>
+                  </div>
+                </div>
+
+                {details.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-10 text-center text-sm text-gray-500">
+                    Este estudio aun no tiene plantilla. Crea una categoria o un
+                    parametro para empezar.
+                  </div>
+                ) : (
+                  <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+                    <div className="rounded-[1.5rem] border border-gray-200 bg-gray-50/70 p-4">
+                      <p className="text-sm font-semibold text-gray-900">
+                        Vista previa de captura
+                      </p>
+                      <div className="mt-4 space-y-4">
+                        {groupedParameters.map(({ category, parameters }) => (
+                          <div
+                            key={category.id}
+                            className="rounded-2xl border border-gray-200 bg-white p-4"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold uppercase tracking-wide text-gray-900">
+                                  {category.name}
+                                </p>
+                                <p className="mt-1 text-xs text-gray-500">
+                                  Categoria | Orden {category.sortOrder}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+                                  {parameters.length} parametro
+                                  {parameters.length === 1 ? '' : 's'}
+                                </span>
+                                <EntityActionsMenu
+                                  buttonLabel="Gestionar"
+                                  items={buildDetailActions(category)}
+                                />
+                              </div>
+                            </div>
+                            <div className="mt-3 space-y-2">
+                              {parameters.map((parameter) => (
+                                <div
+                                  key={parameter.id}
+                                  className="grid gap-3 rounded-xl border border-gray-100 bg-gray-50 px-3 py-3 md:grid-cols-[1.2fr_0.7fr_0.85fr_auto]"
+                                >
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-900">
+                                      {parameter.name}
+                                    </p>
+                                    <p className="mt-1 text-xs text-gray-500">
+                                      {getStudyDetailTypeLabel(parameter)} | Orden{' '}
+                                      {parameter.sortOrder}
+                                    </p>
+                                  </div>
+                                  <div className="text-sm text-gray-700">
+                                    {parameter.unit || 'Sin unidad'}
+                                  </div>
+                                  <div className="text-sm text-gray-700">
+                                    {parameter.referenceValue || 'Sin referencia'}
+                                  </div>
+                                  <div className="flex justify-end">
+                                    <EntityActionsMenu
+                                      buttonLabel="Gestionar"
+                                      items={buildDetailActions(parameter)}
+                                    />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+
+                        {standaloneParameters.length > 0 ? (
+                          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm font-semibold text-amber-900">
+                                Parametros sin categoria
+                              </p>
+                              <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-amber-700">
+                                {standaloneParameters.length} independiente
+                                {standaloneParameters.length === 1 ? '' : 's'}
+                              </span>
+                            </div>
+                            <div className="mt-3 space-y-2">
+                              {standaloneParameters.map((parameter) => (
+                                <div
+                                  key={parameter.id}
+                                  className="grid gap-3 rounded-xl border border-amber-100 bg-white px-3 py-3 md:grid-cols-[1.2fr_0.7fr_0.85fr_auto]"
+                                >
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-900">
+                                      {parameter.name}
+                                    </p>
+                                    <p className="mt-1 text-xs text-gray-500">
+                                      {getStudyDetailTypeLabel(parameter)} | Orden{' '}
+                                      {parameter.sortOrder}
+                                    </p>
+                                  </div>
+                                  <div className="text-sm text-gray-700">
+                                    {parameter.unit || 'Sin unidad'}
+                                  </div>
+                                  <div className="text-sm text-gray-700">
+                                    {parameter.referenceValue || 'Sin referencia'}
+                                  </div>
+                                  <div className="flex justify-end">
+                                    <EntityActionsMenu
+                                      buttonLabel="Gestionar"
+                                      items={buildDetailActions(parameter)}
+                                    />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="rounded-[1.5rem] border border-gray-200 bg-white p-5">
+                        <p className="text-sm font-semibold text-gray-900">
+                          Resumen de plantilla
+                        </p>
+                        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                            <p className="text-xs uppercase tracking-wide text-gray-500">
+                              Parametros
+                            </p>
+                            <p className="mt-2 text-2xl font-semibold text-gray-900">
+                              {activeParameters.length}
+                            </p>
+                          </div>
+                          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                            <p className="text-xs uppercase tracking-wide text-gray-500">
+                              Categorias
+                            </p>
+                            <p className="mt-2 text-2xl font-semibold text-gray-900">
+                              {activeCategories.length}
+                            </p>
+                          </div>
+                          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                            <p className="text-xs uppercase tracking-wide text-gray-500">
+                              Sin categoria
+                            </p>
+                            <p className="mt-2 text-2xl font-semibold text-gray-900">
+                              {standaloneParameters.length}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {emptyCategories.length > 0 ? (
+                        <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
+                          <p className="font-semibold">Categorias aun sin parametros</p>
+                          <div className="mt-3 space-y-2">
+                            {emptyCategories.map((category) => (
+                              <div
+                                key={category.id}
+                                className="flex items-center justify-between gap-3 rounded-xl border border-amber-100 bg-white px-3 py-3"
+                              >
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900">
+                                    {category.name}
+                                  </p>
+                                  <p className="mt-1 text-xs text-gray-500">
+                                    Categoria | Orden {category.sortOrder}
+                                  </p>
+                                </div>
+                                <EntityActionsMenu
+                                  buttonLabel="Gestionar"
+                                  items={buildDetailActions(category)}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      <div className="rounded-[1.5rem] border border-gray-200 bg-white p-5">
+                        <p className="text-sm font-semibold text-gray-900">Notas utiles</p>
+                        <ul className="mt-4 space-y-3 text-sm text-gray-600">
+                          <li>
+                            Las categorias no se llenan en resultados; solo ordenan la
+                            plantilla.
+                          </li>
+                          <li>
+                            Los parametros activos se copian al servicio con su unidad y
+                            referencia.
+                          </li>
+                          <li>
+                            Si algo cambia, lo ajustas desde el menu de cada tarjeta sin
+                            bajar a otra seccion.
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      ) : null}
+
+      {editingDetail ? (
+        <EditStudyDetailModal
+          detail={editingDetail}
+          categories={activeCategories}
+          saving={updatingDetailId === editingDetail.id}
+          onClose={() => setEditingDetail(null)}
+          onSave={(payload) => handleSaveDetailEdition(editingDetail.id, payload)}
+        />
+      ) : null}
+
+      {creatingDetailType ? (
+        <AddStudyDetailModal
+          mode={creatingDetailType}
+          categories={activeCategories}
+          saving={savingDetail}
+          defaultSortOrder={details.length + 1}
+          onClose={() => setCreatingDetailType(null)}
+          onSave={handleCreateDetail}
+        />
       ) : null}
     </div>
   );

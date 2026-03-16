@@ -5,10 +5,6 @@ type RouteContext = {
   params: { id: string } | Promise<{ id: string }>;
 };
 
-type ServiceItemLike = { id: number };
-type ServiceLike = { items?: ServiceItemLike[] };
-type ResultLike = { id?: number };
-
 async function readErrorMessage(response: Response, fallback: string): Promise<string> {
   const payload = await response.text().catch(() => '');
   if (!payload) return fallback;
@@ -42,51 +38,7 @@ export async function GET(_: Request, context: RouteContext) {
   }
 
   const authHeaders = { Authorization: `Bearer ${token}` };
-  const serviceUrl = `${process.env.API_URL}/services/${id}`;
-  const serviceRes = await fetch(serviceUrl, {
-    headers: authHeaders,
-    cache: 'no-store',
-  });
-
-  if (!serviceRes.ok) {
-    return NextResponse.json(
-      { message: await readErrorMessage(serviceRes, 'No se pudo obtener el servicio.') },
-      { status: serviceRes.status },
-    );
-  }
-
-  const service = (await serviceRes.json()) as ServiceLike;
-  const firstItemId = service.items?.[0]?.id;
-
-  if (!firstItemId) {
-    return NextResponse.json(
-      { message: 'Este servicio no tiene estudios asociados para generar resultados.' },
-      { status: 400 },
-    );
-  }
-
-  const resultByItemUrl = `${process.env.API_URL}/results/service-item/${firstItemId}`;
-  const resultByItemRes = await fetch(resultByItemUrl, {
-    headers: authHeaders,
-    cache: 'no-store',
-  });
-
-  if (!resultByItemRes.ok) {
-    return NextResponse.json(
-      { message: await readErrorMessage(resultByItemRes, 'No se pudo obtener el resultado del servicio.') },
-      { status: resultByItemRes.status },
-    );
-  }
-
-  const result = (await resultByItemRes.json()) as ResultLike;
-  if (!result.id) {
-    return NextResponse.json(
-      { message: 'No se pudo identificar el resultado para este servicio.' },
-      { status: 400 },
-    );
-  }
-
-  const pdfUrl = `${process.env.API_URL}/results/${result.id}/pdf`;
+  const pdfUrl = `${process.env.API_URL}/results/service-order/${id}/pdf`;
   const pdfRes = await fetch(pdfUrl, {
     headers: authHeaders,
     cache: 'no-store',

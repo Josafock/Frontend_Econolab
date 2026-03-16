@@ -20,6 +20,8 @@ export type ServiceItem = {
   id: number;
   studyId: number;
   studyNameSnapshot: string;
+  sourcePackageId?: number | null;
+  sourcePackageNameSnapshot?: string | null;
   priceType: ServiceItemPriceType;
   unitPrice: number;
   quantity: number;
@@ -35,6 +37,7 @@ export type ServiceOrder = {
   branchName?: string | null;
   sampleAt?: string | null;
   deliveryAt?: string | null;
+  completedAt?: string | null;
   status: ServiceStatus;
   subtotalAmount: number;
   courtesyPercent: number;
@@ -91,9 +94,12 @@ export type CreateServicePayload = {
   }[];
 };
 
+export type UpdateServicePayload = Partial<CreateServicePayload>;
+
 export async function getServices(params?: {
   search?: string;
   status?: ServiceStatus;
+  branchName?: string;
   fromDate?: string;
   toDate?: string;
   page?: number;
@@ -102,6 +108,7 @@ export async function getServices(params?: {
   const query = new URLSearchParams();
   if (params?.search) query.set("search", params.search);
   if (params?.status) query.set("status", params.status);
+  if (params?.branchName) query.set("branchName", params.branchName);
   if (params?.fromDate) query.set("fromDate", params.fromDate);
   if (params?.toDate) query.set("toDate", params.toDate);
   if (params?.page) query.set("page", String(params.page));
@@ -120,6 +127,13 @@ export async function createService(payload: CreateServicePayload) {
 
 export async function getServiceById(id: number) {
   return fetchApi<ServiceOrder>(`/services/${id}`);
+}
+
+export async function updateService(id: number, payload: UpdateServicePayload) {
+  return fetchApi<UpdateServiceResponse>(`/services/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function updateServiceStatus(id: number, status: ServiceStatus) {

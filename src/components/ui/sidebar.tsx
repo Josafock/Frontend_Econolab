@@ -1,52 +1,65 @@
 'use client';
 
-import { 
-  Home, 
-  History, 
-  User, 
-  BookOpen, 
-  Users, 
-  Stethoscope,
+import {
+  ClipboardList,
+  FlaskConical,
+  History,
+  LayoutDashboard,
   LogOut,
   Menu,
+  Stethoscope,
+  UserRound,
+  Users,
   X,
-  Monitor
+  type LucideIcon,
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { User as UserType } from '@/schemas';
 import { logout } from '@/actions/auth/logoutAction';
-import { toast } from 'react-toastify';
+import { User as UserType } from '@/schemas';
+
+type MenuItem = {
+  name: string;
+  icon: LucideIcon;
+  path: string;
+};
 
 export function Sidebar(user: UserType) {
   const [isOpen, setIsOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const rol = user.rol === 'admin' ? "Administrador" : "Recepcionista";
 
-  const menuItems = [
-    { name: 'Tablero', icon: <Home size={20} />, path: '/home' },
-    { name: 'Servicios', icon: <Monitor size={20} />, path: '/servicios' },
-    { name: 'Historial', icon: <History size={20} />, path: '/historial' },
-    { name: 'Mi perfil', icon: <User size={20} />, path: '/perfil' },
-    { name: 'Estudios', icon: <BookOpen size={20} />, path: '/estudios' },
-    { name: 'Pacientes', icon: <Users size={20} />, path: '/pacientes' },
-    { name: 'Medicos', icon: <Stethoscope size={20} />, path: '/medicos' },
+  const rol =
+    user.rol === 'admin'
+      ? 'Administrador'
+      : user.rol === 'recepcionista'
+        ? 'Recepcionista'
+        : 'Sin rol';
+
+  const menuItems: MenuItem[] = [
+    { name: 'Inicio', icon: LayoutDashboard, path: '/home' },
+    { name: 'Servicios', icon: ClipboardList, path: '/servicios' },
+    { name: 'Historial', icon: History, path: '/historial' },
+    { name: 'Mi perfil', icon: UserRound, path: '/perfil' },
+    { name: 'Estudios', icon: FlaskConical, path: '/estudios' },
+    { name: 'Pacientes', icon: Users, path: '/pacientes' },
+    { name: 'Medicos', icon: Stethoscope, path: '/medicos' },
   ];
 
   useEffect(() => {
     const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-      setIsOpen(window.innerWidth >= 768);
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      setIsOpen(!mobile);
     };
-    
+
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const toggleSidebar = () => setIsOpen(o => !o);
+  const toggleSidebar = () => setIsOpen((current) => !current);
 
   const handleNavigation = (path: string) => {
     router.push(path);
@@ -56,97 +69,114 @@ export function Sidebar(user: UserType) {
   };
 
   const handleLogout = () => {
-    logout();
-    toast.success('Sesión cerrada correctamente');
+    void logout();
+  };
+
+  const isItemActive = (path: string) => {
+    if (path === '/home') {
+      return pathname === '/home' || pathname === '/';
+    }
+
+    return pathname === path || pathname.startsWith(`${path}/`);
   };
 
   return (
     <>
-      {/* Mobile Menu Button */}
       <button
         onClick={toggleSidebar}
-        className="md:hidden fixed top-4 left-4 z-50 bg-red-600 text-white p-2 rounded-lg shadow-lg hover:bg-red-700 transition-colors"
+        className="fixed left-4 top-4 z-[70] rounded-2xl border border-red-200 bg-white p-3 text-red-600 shadow-lg shadow-red-200/40 transition-colors hover:bg-red-50 md:hidden"
+        aria-label={isOpen ? 'Cerrar menu lateral' : 'Abrir menu lateral'}
       >
         {isOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
 
-      {/* Overlay */}
-      {isOpen && isMobile && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 md:hidden" 
-          onClick={toggleSidebar} 
+      {isOpen && isMobile ? (
+        <div
+          className="fixed inset-0 z-40 bg-slate-950/45 backdrop-blur-[2px] md:hidden"
+          onClick={toggleSidebar}
         />
-      )}
+      ) : null}
 
-      {/* Sidebar */}
       <aside
         className={`${isOpen ? 'translate-x-0' : '-translate-x-full'}
-          md:translate-x-0 transform transition-transform duration-300 ease-in-out
-          w-64 min-h-screen fixed md:relative z-40 border-r border-red-200 bg-white shadow-xl`}
+          fixed inset-y-0 left-0 z-50 w-[17rem] transform border-r border-red-100 bg-white/95 shadow-2xl shadow-red-200/30 backdrop-blur transition-transform duration-300 ease-in-out
+          md:sticky md:top-0 md:h-screen md:translate-x-0 md:shadow-xl md:shadow-slate-200/40`}
       >
-        {/* Logo */}
-        <div className="p-6 text-center border-b border-red-100">
-          <div className="flex items-center justify-center space-x-3">
-            <div className="w-10 h-10 bg-red-600 rounded-lg flex items-center justify-center">
-              <Stethoscope size={28} className="text-white" />
-            </div>
-            <div className="text-left">
-              <h1 className="text-2xl font-bold text-gray-900"><span className='text-red-600'>ECONO</span>LAB</h1>
-              <p className="text-xs text-gray-500">Sistema de Laboratorios</p>
+        <div className="flex h-full flex-col">
+          <div className="border-b border-red-100 px-6 py-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-red-600 shadow-lg shadow-red-600/20">
+                <Stethoscope size={26} className="text-white" />
+              </div>
+
+              <div className="min-w-0">
+                <h1 className="text-2xl font-bold text-gray-900">
+                  <span className="text-red-600">ECONO</span>LAB
+                </h1>
+                <p className="text-xs text-gray-500">Sistema de laboratorios</p>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Navigation */}
-        <nav className="px-4 py-6 space-y-2">
-          {menuItems.map((item) => {
-            const isActive = pathname === item.path;
-            return (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <nav className="flex-1 space-y-2 overflow-y-auto px-4 py-6">
+              {menuItems.map((item) => {
+                const isActive = isItemActive(item.path);
+                const Icon = item.icon;
+
+                return (
+                  <button
+                    key={item.path}
+                    onClick={() => handleNavigation(item.path)}
+                    className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium transition-all ${
+                      isActive
+                        ? 'border border-red-200 bg-red-50 text-red-700 shadow-sm'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    <span
+                      className={`flex h-9 w-9 items-center justify-center rounded-xl ${
+                        isActive ? 'bg-white text-red-600' : 'bg-gray-100 text-gray-500'
+                      }`}
+                    >
+                      <Icon size={18} />
+                    </span>
+                    <span className="truncate">{item.name}</span>
+                    {isActive ? <span className="ml-auto h-2 w-2 rounded-full bg-red-600" /> : null}
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className="border-t border-red-100 bg-white px-4 pb-4 pt-4">
+              <div className="mb-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-red-100">
+                    <UserRound size={18} className="text-red-600" />
+                  </div>
+
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-gray-900">{user.nombre}</p>
+                    <p className="truncate text-xs text-gray-500">{user.email}</p>
+                  </div>
+                </div>
+
+                <div className="mt-3 inline-flex rounded-full bg-white px-3 py-1 text-xs font-semibold text-gray-600">
+                  {rol}
+                </div>
+              </div>
+
               <button
-                key={item.path}
-                onClick={() => handleNavigation(item.path)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all w-full text-left ${
-                  isActive
-                    ? 'bg-red-50 text-red-700 border border-red-200 shadow-sm'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                }`}
+                onClick={handleLogout}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 hover:text-gray-900"
               >
-                <span className={`${isActive ? 'text-red-600' : 'text-gray-400'}`}>
-                  {item.icon}
-                </span>
-                <span>{item.name}</span>
-                {isActive && (
-                  <div className="ml-auto w-2 h-2 bg-red-600 rounded-full"></div>
-                )}
+                <LogOut size={16} />
+                Cerrar sesion
               </button>
-            );
-          })}
-        </nav>
-
-        {/* User Info & Logout */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-red-100 bg-white">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
-                <User size={16} className="text-red-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-900">{user.nombre}</p>
-                <p className="text-xs text-gray-500">{rol}</p>
-              </div>
             </div>
           </div>
-          
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium w-full
-              text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
-          >
-            <LogOut size={16} />
-            Cerrar sesión
-          </button>
         </div>
       </aside>
     </>
   );
-};
+}

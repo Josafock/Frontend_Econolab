@@ -1,177 +1,145 @@
 'use client';
 
-import { useState } from 'react';
-import { X, Plus, Hash, Clock3, DollarSign, AlignLeft } from 'lucide-react';
-import type { CreateStudyPayload, StudyStatus, StudyType } from '@/actions/studies/studiesActions';
+import { useMemo, useState, type ChangeEvent, type FocusEvent, type FormEvent } from 'react';
+import { Microscope, X } from 'lucide-react';
+import { toast } from 'react-toastify';
+import type { CreateStudyPayload, StudyType } from '@/actions/studies/studiesActions';
+import StudyFormFields from '@/components/estudios/StudyFormFields';
+import {
+  createEmptyStudyForm,
+  createTouchedStudyForm,
+  hasStudyFormErrors,
+  mapFormToCreateStudyPayload,
+  validateStudyForm,
+  type StudyFormTouched,
+} from '@/components/estudios/studyFormUtils';
 import AppModal from '@/components/ui/AppModal';
 
 interface AddStudyModalProps {
   setOpen: (open: boolean) => void;
-  addStudy: (payload: CreateStudyPayload) => Promise<void>;
+  addStudy: (payload: CreateStudyPayload) => Promise<boolean>;
   isSaving: boolean;
+  initialType?: StudyType;
 }
 
-export default function AddStudyModal({ setOpen, addStudy, isSaving }: AddStudyModalProps) {
-  const [formData, setFormData] = useState({
-    name: '',
-    code: '',
-    description: '',
-    durationMinutes: '60',
-    type: 'study' as StudyType,
-    normalPrice: '0',
-    difPrice: '0',
-    specialPrice: '0',
-    hospitalPrice: '0',
-    otherPrice: '0',
-    defaultDiscountPercent: '0',
-    status: 'active' as StudyStatus,
-  });
+export default function AddStudyModal({
+  setOpen,
+  addStudy,
+  isSaving,
+  initialType = 'study',
+}: AddStudyModalProps) {
+  const [formData, setFormData] = useState(() => createEmptyStudyForm(initialType));
+  const [touched, setTouched] = useState<StudyFormTouched>({});
+  const entityLabel = initialType === 'package' ? 'paquete' : 'estudio';
+  const isPackage = initialType === 'package';
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  const errors = useMemo(() => validateStudyForm(formData), [formData]);
+
+  const handleChange = (
+    e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
+  ) => {
+    const { name, value } = e.target;
+    setFormData((current) => ({
+      ...current,
+      [name]: value,
+    }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleBlur = (
+    e: FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
+  ) => {
+    const { name } = e.target;
+    setTouched((current) => ({
+      ...current,
+      [name]: true,
+    }));
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name.trim() || !formData.code.trim()) {
-      alert('Nombre y clave son obligatorios.');
+    setTouched(createTouchedStudyForm());
+
+    if (hasStudyFormErrors(errors)) {
+      toast.error('Revisa los campos obligatorios y corrige los errores del estudio.');
       return;
     }
 
-    await addStudy({
-      name: formData.name.trim().toUpperCase(),
-      code: formData.code.trim().toUpperCase(),
-      description: formData.description.trim() || undefined,
-      durationMinutes: Number(formData.durationMinutes),
-      type: formData.type,
-      normalPrice: Number(formData.normalPrice),
-      difPrice: Number(formData.difPrice),
-      specialPrice: Number(formData.specialPrice),
-      hospitalPrice: Number(formData.hospitalPrice),
-      otherPrice: Number(formData.otherPrice),
-      defaultDiscountPercent: Number(formData.defaultDiscountPercent),
-      status: formData.status,
-    });
+    await addStudy(mapFormToCreateStudyPayload(formData));
   };
 
   return (
     <AppModal>
-      <div className="relative w-full max-w-3xl bg-white rounded-2xl shadow-xl">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 bg-red-50">
-              <Plus className="h-5 w-5 text-red-600" />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">Nuevo Estudio</h2>
-              <p className="text-sm text-gray-500">Registrar estudio en el catalogo</p>
-            </div>
-          </div>
-          <button
-            onClick={() => setOpen(false)}
-            className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-            disabled={isSaving}
+      <div className="mx-auto w-full max-w-6xl">
+        <div className="overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-2xl">
+          <div
+            className={`border-b border-gray-200 p-6 text-white ${
+              isPackage
+                ? 'bg-gradient-to-r from-sky-700 via-sky-600 to-cyan-500'
+                : 'bg-gradient-to-r from-red-600 via-red-500 to-rose-500'
+            }`}
           >
-            <X className="h-5 w-5" />
-          </button>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/30 bg-white/15">
+                  <Microscope className="h-6 w-6" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-semibold">
+                    {isPackage ? 'Nuevo paquete' : 'Nuevo estudio'}
+                  </h2>
+                  <p className={`mt-1 text-sm ${isPackage ? 'text-sky-50' : 'text-red-50'}`}>
+                    {isPackage
+                      ? 'Registra un paquete y despues configura los estudios que lo componen.'
+                      : 'Registra el estudio con catalogo completo, precios y configuracion base.'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setOpen(false)}
+                className="rounded-xl border border-white/20 bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
+                disabled={isSaving}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit} className="max-h-[78vh] overflow-y-auto p-6">
+            <StudyFormFields
+              formData={formData}
+              errors={errors}
+              touched={touched}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              disabled={isSaving}
+              compact
+            />
+
+            <div className="mt-6 flex flex-col gap-3 border-t border-gray-200 pt-5 md:flex-row">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition-all hover:bg-gray-50"
+                disabled={isSaving}
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold text-white transition-all disabled:opacity-50 ${
+                  isPackage
+                    ? 'bg-sky-600 hover:bg-sky-700'
+                    : 'bg-red-600 hover:bg-red-700'
+                }`}
+                disabled={isSaving}
+              >
+                {isSaving ? 'Registrando...' : `Registrar ${entityLabel}`}
+              </button>
+            </div>
+          </form>
         </div>
-
-        <form className="p-6 space-y-6" onSubmit={handleSubmit}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">Nombre</label>
-              <div className="relative">
-                <AlignLeft className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input name="name" value={formData.name} onChange={handleChange} className="w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500" />
-              </div>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">Clave</label>
-              <div className="relative">
-                <Hash className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input name="code" value={formData.code} onChange={handleChange} className="w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500" />
-              </div>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">Duracion (min)</label>
-              <div className="relative">
-                <Clock3 className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input type="number" min="1" name="durationMinutes" value={formData.durationMinutes} onChange={handleChange} className="w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500" />
-              </div>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">Tipo</label>
-              <select name="type" value={formData.type} onChange={handleChange} className="modal-select w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500">
-                <option className="bg-white text-gray-900" value="study">Estudio</option>
-                <option className="bg-white text-gray-900" value="package">Paquete</option>
-                <option className="bg-white text-gray-900" value="other">Otro</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">Precio normal</label>
-              <div className="relative">
-                <DollarSign className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input type="number" step="0.01" min="0" name="normalPrice" value={formData.normalPrice} onChange={handleChange} className="w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500" />
-              </div>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">Precio DIF</label>
-              <input type="number" step="0.01" min="0" name="difPrice" value={formData.difPrice} onChange={handleChange} className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500" />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">Precio especial</label>
-              <input type="number" step="0.01" min="0" name="specialPrice" value={formData.specialPrice} onChange={handleChange} className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500" />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">Precio hospital</label>
-              <input type="number" step="0.01" min="0" name="hospitalPrice" value={formData.hospitalPrice} onChange={handleChange} className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500" />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">Precio otro</label>
-              <input type="number" step="0.01" min="0" name="otherPrice" value={formData.otherPrice} onChange={handleChange} className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500" />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">Descuento %</label>
-              <input type="number" step="0.01" min="0" name="defaultDiscountPercent" value={formData.defaultDiscountPercent} onChange={handleChange} className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">Estatus</label>
-              <select name="status" value={formData.status} onChange={handleChange} className="modal-select w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500">
-                <option className="bg-white text-gray-900" value="active">Activo</option>
-                <option className="bg-white text-gray-900" value="suspended">Suspendido</option>
-              </select>
-            </div>
-            <div className="md:col-span-1">
-              <label className="mb-2 block text-sm font-medium text-gray-700">Descripcion</label>
-              <textarea name="description" value={formData.description} onChange={handleChange} rows={3} className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500" />
-            </div>
-          </div>
-
-          <div className="flex gap-3 pt-4 border-t border-gray-200">
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
-              disabled={isSaving}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="flex-1 rounded-lg bg-white px-4 py-3 text-sm font-semibold border border-red-500 text-red-500 shadow-sm hover:bg-red-500 hover:text-white disabled:opacity-50"
-              disabled={isSaving}
-            >
-              {isSaving ? 'Guardando...' : 'Registrar Estudio'}
-            </button>
-          </div>
-        </form>
       </div>
     </AppModal>
   );

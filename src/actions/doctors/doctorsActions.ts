@@ -2,6 +2,8 @@
 
 import { fetchApi } from "@/actions/_lib/api";
 
+export type DoctorStatusFilter = "all" | "active" | "inactive";
+
 export type Doctor = {
   id: number;
   firstName: string;
@@ -11,6 +13,10 @@ export type Doctor = {
   phone?: string | null;
   specialty?: string | null;
   licenseNumber?: string | null;
+  notes?: string | null;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 type DoctorsSearchResponse = {
@@ -47,11 +53,13 @@ export async function getDoctors(params?: {
   search?: string;
   page?: number;
   limit?: number;
+  status?: DoctorStatusFilter;
 }) {
   const query = new URLSearchParams();
   if (params?.search) query.set("search", params.search);
   if (params?.page) query.set("page", String(params.page));
   if (params?.limit) query.set("limit", String(params.limit));
+  if (params?.status) query.set("status", params.status);
 
   const suffix = query.toString() ? `?${query.toString()}` : "";
   return fetchApi<DoctorsSearchResponse>(`/doctors${suffix}`);
@@ -75,8 +83,21 @@ export async function updateDoctor(id: number, payload: UpdateDoctorPayload) {
   });
 }
 
+export async function updateDoctorStatus(id: number, isActive: boolean) {
+  return fetchApi<UpdateDoctorResponse>(`/doctors/${id}/status`, {
+    method: "PUT",
+    body: JSON.stringify({ isActive }),
+  });
+}
+
 export async function deactivateDoctor(id: number) {
   return fetchApi<{ message: string }>(`/doctors/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function hardDeleteDoctor(id: number) {
+  return fetchApi<{ message: string }>(`/doctors/${id}/hard`, {
     method: "DELETE",
   });
 }
