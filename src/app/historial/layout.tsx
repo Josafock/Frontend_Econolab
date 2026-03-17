@@ -6,5 +6,5 @@ export const metadata: Metadata = {
 };
 
 export default function HistorialLayout({ children }: { children: React.ReactNode }) {
-    return <ProtectedAppLayout>{children}</ProtectedAppLayout>;
+    return <ProtectedAppLayout allowedRoles={["admin"]}>{children}</ProtectedAppLayout>;
 }

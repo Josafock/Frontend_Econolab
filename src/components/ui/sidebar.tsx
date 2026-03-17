@@ -40,12 +40,20 @@ export function Sidebar(user: UserType) {
   const menuItems: MenuItem[] = [
     { name: 'Inicio', icon: LayoutDashboard, path: '/home' },
     { name: 'Servicios', icon: ClipboardList, path: '/servicios' },
-    { name: 'Historial', icon: History, path: '/historial' },
     { name: 'Mi perfil', icon: UserRound, path: '/perfil' },
     { name: 'Estudios', icon: FlaskConical, path: '/estudios' },
     { name: 'Pacientes', icon: Users, path: '/pacientes' },
     { name: 'Medicos', icon: Stethoscope, path: '/medicos' },
   ];
+  const visibleMenuItems =
+    user.rol === 'admin'
+      ? [
+          menuItems[0],
+          menuItems[1],
+          { name: 'Historial', icon: History, path: '/historial' },
+          ...menuItems.slice(2),
+        ]
+      : menuItems;
 
   useEffect(() => {
     const handleResize = () => {
@@ -120,7 +128,7 @@ export function Sidebar(user: UserType) {
 
           <div className="flex min-h-0 flex-1 flex-col">
             <nav className="flex-1 space-y-2 overflow-y-auto px-4 py-6">
-              {menuItems.map((item) => {
+              {visibleMenuItems.map((item) => {
                 const isActive = isItemActive(item.path);
                 const Icon = item.icon;
 

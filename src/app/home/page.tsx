@@ -57,6 +57,34 @@ const roleOptions = [
   { value: 'recepcionista', label: 'Recepcionistas' },
 ] as const;
 
+const receptionistShortcuts = [
+  {
+    href: '/servicios',
+    title: 'Servicios',
+    description: 'Registra servicios, da seguimiento y captura resultados.',
+  },
+  {
+    href: '/pacientes',
+    title: 'Pacientes',
+    description: 'Consulta expedientes y registra nuevos pacientes.',
+  },
+  {
+    href: '/medicos',
+    title: 'Medicos',
+    description: 'Busca medicos tratantes y actualiza sus datos.',
+  },
+  {
+    href: '/estudios',
+    title: 'Estudios',
+    description: 'Revisa el catalogo disponible para nuevos servicios.',
+  },
+  {
+    href: '/perfil',
+    title: 'Mi perfil',
+    description: 'Consulta tu informacion y cambia tu contrasena si hace falta.',
+  },
+] as const;
+
 function buildHref(
   range: string,
   role: string,
@@ -71,6 +99,78 @@ function buildHref(
 }
 
 export default async function HomePage({ searchParams }: HomePageProps) {
+  const { user } = await verifySession();
+
+  if (user.rol !== 'admin') {
+    return (
+      <div className="space-y-8">
+        <section className="overflow-hidden rounded-[2.25rem] border border-red-200 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.98),_rgba(255,245,235,0.95)_38%,_rgba(254,215,170,0.95)_100%)] shadow-xl shadow-orange-200/40">
+          <div className="grid gap-6 p-8 lg:grid-cols-[1.15fr_0.85fr] lg:p-10">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-red-700">
+                <Sparkles className="h-3.5 w-3.5" />
+                Inicio
+              </div>
+              <h1 className="mt-5 max-w-3xl font-serif text-4xl font-semibold tracking-tight text-slate-900 md:text-5xl">
+                Bienvenido, {user.nombre}. Tu panel esta listo para operar el dia.
+              </h1>
+              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-700">
+                Desde aqui puedes entrar directo a servicios, pacientes, medicos y estudios. El historial,
+                los cortes del dia, las graficas y los logins quedan reservados para administracion.
+              </p>
+            </div>
+
+            <div className="rounded-[2rem] border border-slate-900/10 bg-slate-950 p-6 text-white shadow-lg shadow-slate-900/20">
+              <p className="text-xs uppercase tracking-[0.25em] text-orange-200">Acceso de recepcion</p>
+              <div className="mt-5 space-y-4">
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="flex items-start gap-3">
+                    <CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-300" />
+                    <div>
+                      <p className="text-sm font-semibold text-white">Operacion completa</p>
+                      <p className="mt-1 text-sm text-slate-300">
+                        Puedes trabajar servicios, pacientes, medicos, estudios y resultados sin problema.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="flex items-start gap-3">
+                    <ShieldAlert className="mt-0.5 h-5 w-5 text-amber-300" />
+                    <div>
+                      <p className="text-sm font-semibold text-white">Secciones restringidas</p>
+                      <p className="mt-1 text-sm text-slate-300">
+                        No se muestran historial, cortes del dia, graficas, logins ni asignacion de roles.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {receptionistShortcuts.map((shortcut) => (
+            <Link
+              key={shortcut.href}
+              href={shortcut.href}
+              className="group rounded-[1.75rem] border border-gray-200 bg-white p-6 shadow-sm transition-all hover:-translate-y-0.5 hover:border-red-200 hover:shadow-lg hover:shadow-red-100/60"
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Acceso rapido</p>
+              <h2 className="mt-3 text-xl font-semibold text-slate-900">{shortcut.title}</h2>
+              <p className="mt-3 text-sm leading-6 text-slate-600">{shortcut.description}</p>
+              <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-red-600">
+                Abrir modulo
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </span>
+            </Link>
+          ))}
+        </section>
+      </div>
+    );
+  }
+
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const requestedRange =
     resolvedSearchParams?.range === '7d' ||
@@ -92,15 +192,12 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     ? resolvedSearchParams.endDate
     : undefined;
 
-  const [{ user }, overviewResponse] = await Promise.all([
-    verifySession(),
-    getDashboardOverview({
-      range: requestedRange,
-      role: requestedRole,
-      startDate: requestedStartDate,
-      endDate: requestedEndDate,
-    }),
-  ]);
+  const overviewResponse = await getDashboardOverview({
+    range: requestedRange,
+    role: requestedRole,
+    startDate: requestedStartDate,
+    endDate: requestedEndDate,
+  });
 
   const adminUserResponses =
     user.rol === 'admin'

@@ -1,16 +1,24 @@
+import { redirect } from "next/navigation";
 import { verifySession } from "@/auth/dal";
 import Breadcrumbs from "@/components/ui/BreadCrumbs";
 import { Sidebar } from "@/components/ui/sidebar";
 import ToastNotification from "@/components/ui/ToastNotification";
+import type { User } from "@/schemas";
 
 type ProtectedAppLayoutProps = {
   children: React.ReactNode;
+  allowedRoles?: User["rol"][];
 };
 
 export default async function ProtectedAppLayout({
   children,
+  allowedRoles,
 }: ProtectedAppLayoutProps) {
   const { user } = await verifySession();
+
+  if (allowedRoles && !allowedRoles.includes(user.rol)) {
+    redirect("/home");
+  }
 
   return (
     <div className="min-h-screen bg-slate-100 text-gray-900">

@@ -30,6 +30,7 @@ import {
 import AddDoctorModal from '@/components/medicos/AddDoctorModal';
 import AddPatientModal from '@/components/pacientes/AddPatientModal';
 import AppModal from '@/components/ui/AppModal';
+import { matchesNormalizedSearch, normalizeSearchText } from '@/helpers/search';
 import {
   SERVICE_BRANCH_OPTIONS,
   calculateServiceTotals,
@@ -64,6 +65,14 @@ const stepTitles = [
   'Estudios y precios',
   'Logistica y cierre',
 ] as const;
+
+function getPatientLabel(patient: Patient) {
+  return `${patient.firstName} ${patient.lastName} ${patient.middleName ?? ''}`.trim();
+}
+
+function getDoctorLabel(doctor: Doctor) {
+  return `${doctor.firstName} ${doctor.lastName} ${doctor.middleName ?? ''}`.trim();
+}
 
 function StepBadge({
   label,
@@ -112,6 +121,8 @@ export default function AddServiceModal({
 }: AddServiceModalProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [studySearch, setStudySearch] = useState('');
+  const [patientSearch, setPatientSearch] = useState('');
+  const [doctorSearch, setDoctorSearch] = useState('');
   const [localPatients, setLocalPatients] = useState(patients);
   const [localDoctors, setLocalDoctors] = useState(doctors);
   const [openPatientModal, setOpenPatientModal] = useState(false);
@@ -151,26 +162,64 @@ export default function AddServiceModal({
   );
 
   const filteredStudies = useMemo(() => {
-    const normalizedSearch = studySearch.trim().toLowerCase();
+    const normalizedSearch = normalizeSearchText(studySearch);
     const baseStudies = studies.filter((study) => study.status === 'active');
 
     if (!normalizedSearch) {
       return baseStudies;
     }
 
-    return baseStudies.filter((study) => {
-      const haystack = [
-        study.name,
-        study.code,
-        study.description ?? '',
-        study.type,
-      ]
-        .join(' ')
-        .toLowerCase();
-
-      return haystack.includes(normalizedSearch);
-    });
+    return baseStudies.filter((study) =>
+      matchesNormalizedSearch(
+        [
+          study.name,
+          study.code,
+          study.description ?? '',
+          study.type,
+        ],
+        normalizedSearch,
+      ),
+    );
   }, [studies, studySearch]);
+
+  const filteredPatients = useMemo(() => {
+    if (!patientSearch.trim()) {
+      return localPatients;
+    }
+
+    return localPatients.filter((patient) =>
+      matchesNormalizedSearch(
+        [
+          getPatientLabel(patient),
+          patient.phone ?? '',
+          patient.email ?? '',
+          patient.documentType ?? '',
+          patient.documentNumber ?? '',
+          patient.addressLine ?? '',
+        ],
+        patientSearch,
+      ),
+    );
+  }, [localPatients, patientSearch]);
+
+  const filteredDoctors = useMemo(() => {
+    if (!doctorSearch.trim()) {
+      return localDoctors;
+    }
+
+    return localDoctors.filter((doctor) =>
+      matchesNormalizedSearch(
+        [
+          getDoctorLabel(doctor),
+          doctor.specialty ?? '',
+          doctor.licenseNumber ?? '',
+          doctor.phone ?? '',
+          doctor.email ?? '',
+        ],
+        doctorSearch,
+      ),
+    );
+  }, [doctorSearch, localDoctors]);
 
   const selectedPatient = useMemo(
     () => localPatients.find((patient) => String(patient.id) === formData.patientId) ?? null,
@@ -453,21 +502,79 @@ export default function AddServiceModal({
                     <div className="grid gap-4">
                       <div>
                         <label className="mb-2 block text-sm font-medium text-gray-700">Paciente</label>
-                        <select
-                          value={formData.patientId}
-                          onChange={(e) =>
-                            setFormData((current) => ({ ...current, patientId: e.target.value }))
-                          }
-                          className="modal-select w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
-                          disabled={isSaving}
-                        >
-                          <option value="">Selecciona un paciente</option>
-                          {localPatients.map((patient) => (
-                            <option key={patient.id} value={patient.id}>
-                              {patient.firstName} {patient.lastName} {patient.middleName ?? ''}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="rounded-2xl border border-gray-200 bg-gray-50/70 p-3">
+                          <div className="relative">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                            <input
+                              value={patientSearch}
+                              onChange={(e) => setPatientSearch(e.target.value)}
+                              placeholder="Buscar por nombre, telefono, documento o correo..."
+                              className="w-full rounded-xl border border-gray-200 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                              disabled={isSaving}
+                            />
+                          </div>
+
+                          <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
+                            {filteredPatients.length ? (
+                              filteredPatients.map((patient) => {
+                                const isSelected = formData.patientId === String(patient.id);
+                                const patientName = getPatientLabel(patient);
+                                const secondaryInfo = [
+                                  patient.documentType && patient.documentNumber
+                                    ? `${patient.documentType}: ${patient.documentNumber}`
+                                    : null,
+                                  patient.phone ?? null,
+                                  patient.email ?? null,
+                                ]
+                                  .filter(Boolean)
+                                  .join(' | ');
+
+                                return (
+                                  <button
+                                    key={patient.id}
+                                    type="button"
+                                    onClick={() =>
+                                      setFormData((current) => ({
+                                        ...current,
+                                        patientId: String(patient.id),
+                                      }))
+                                    }
+                                    className={`w-full rounded-2xl border px-4 py-3 text-left transition-all ${
+                                      isSelected
+                                        ? 'border-red-300 bg-red-50 shadow-sm'
+                                        : 'border-gray-200 bg-white hover:border-red-200 hover:bg-red-50/40'
+                                    }`}
+                                    disabled={isSaving}
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <p className="truncate text-sm font-semibold text-gray-900">
+                                          {patientName}
+                                        </p>
+                                        <p className="mt-1 text-xs text-gray-500">
+                                          {secondaryInfo || 'Sin datos adicionales'}
+                                        </p>
+                                      </div>
+                                      <span
+                                        className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                                          patient.isActive === false
+                                            ? 'bg-red-100 text-red-700'
+                                            : 'bg-emerald-100 text-emerald-700'
+                                        }`}
+                                      >
+                                        {patient.isActive === false ? 'Inactivo' : 'Activo'}
+                                      </span>
+                                    </div>
+                                  </button>
+                                );
+                              })
+                            ) : (
+                              <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-4 py-6 text-center text-sm text-gray-500">
+                                No se encontraron pacientes con esa busqueda.
+                              </div>
+                            )}
+                          </div>
+                        </div>
                         {errors.patientId ? (
                           <p className="mt-1.5 text-xs font-medium text-red-600">{errors.patientId}</p>
                         ) : null}
@@ -485,21 +592,99 @@ export default function AddServiceModal({
 
                       <div>
                         <label className="mb-2 block text-sm font-medium text-gray-700">Medico tratante</label>
-                        <select
-                          value={formData.doctorId}
-                          onChange={(e) =>
-                            setFormData((current) => ({ ...current, doctorId: e.target.value }))
-                          }
-                          className="modal-select w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
-                          disabled={isSaving}
-                        >
-                          <option value="">Sin medico asignado</option>
-                          {localDoctors.map((doctor) => (
-                            <option key={doctor.id} value={doctor.id}>
-                              {doctor.firstName} {doctor.lastName} {doctor.middleName ?? ''}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="rounded-2xl border border-gray-200 bg-gray-50/70 p-3">
+                          <div className="relative">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                            <input
+                              value={doctorSearch}
+                              onChange={(e) => setDoctorSearch(e.target.value)}
+                              placeholder="Buscar por nombre, especialidad, cedula o correo..."
+                              className="w-full rounded-xl border border-gray-200 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                              disabled={isSaving}
+                            />
+                          </div>
+
+                          <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setFormData((current) => ({
+                                  ...current,
+                                  doctorId: '',
+                                }))
+                              }
+                              className={`w-full rounded-2xl border px-4 py-3 text-left transition-all ${
+                                !formData.doctorId
+                                  ? 'border-red-300 bg-red-50 shadow-sm'
+                                  : 'border-gray-200 bg-white hover:border-red-200 hover:bg-red-50/40'
+                              }`}
+                              disabled={isSaving}
+                            >
+                              <p className="text-sm font-semibold text-gray-900">Sin medico asignado</p>
+                              <p className="mt-1 text-xs text-gray-500">
+                                Usa esta opcion si el servicio no lleva medico tratante.
+                              </p>
+                            </button>
+
+                            {filteredDoctors.length ? (
+                              filteredDoctors.map((doctor) => {
+                                const isSelected = formData.doctorId === String(doctor.id);
+                                const doctorName = getDoctorLabel(doctor);
+                                const secondaryInfo = [
+                                  doctor.specialty ?? null,
+                                  doctor.licenseNumber ? `Cedula ${doctor.licenseNumber}` : null,
+                                  doctor.phone ?? null,
+                                  doctor.email ?? null,
+                                ]
+                                  .filter(Boolean)
+                                  .join(' | ');
+
+                                return (
+                                  <button
+                                    key={doctor.id}
+                                    type="button"
+                                    onClick={() =>
+                                      setFormData((current) => ({
+                                        ...current,
+                                        doctorId: String(doctor.id),
+                                      }))
+                                    }
+                                    className={`w-full rounded-2xl border px-4 py-3 text-left transition-all ${
+                                      isSelected
+                                        ? 'border-red-300 bg-red-50 shadow-sm'
+                                        : 'border-gray-200 bg-white hover:border-red-200 hover:bg-red-50/40'
+                                    }`}
+                                    disabled={isSaving}
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <p className="truncate text-sm font-semibold text-gray-900">
+                                          {doctorName}
+                                        </p>
+                                        <p className="mt-1 text-xs text-gray-500">
+                                          {secondaryInfo || 'Sin datos adicionales'}
+                                        </p>
+                                      </div>
+                                      <span
+                                        className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                                          doctor.isActive === false
+                                            ? 'bg-red-100 text-red-700'
+                                            : 'bg-emerald-100 text-emerald-700'
+                                        }`}
+                                      >
+                                        {doctor.isActive === false ? 'Inactivo' : 'Activo'}
+                                      </span>
+                                    </div>
+                                  </button>
+                                );
+                              })
+                            ) : (
+                              <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-4 py-6 text-center text-sm text-gray-500">
+                                No se encontraron medicos con esa busqueda.
+                              </div>
+                            )}
+                          </div>
+                        </div>
                         <div className="mt-2 text-right">
                           <button
                             type="button"
@@ -538,17 +723,13 @@ export default function AddServiceModal({
                       <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
                         <p className="text-xs uppercase tracking-wide text-gray-500">Paciente</p>
                         <p className="mt-2 font-semibold text-gray-900">
-                          {selectedPatient
-                            ? `${selectedPatient.firstName} ${selectedPatient.lastName} ${selectedPatient.middleName ?? ''}`.trim()
-                            : 'Sin seleccionar'}
+                          {selectedPatient ? getPatientLabel(selectedPatient) : 'Sin seleccionar'}
                         </p>
                       </div>
                       <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
                         <p className="text-xs uppercase tracking-wide text-gray-500">Medico</p>
                         <p className="mt-2 font-semibold text-gray-900">
-                          {selectedDoctor
-                            ? `${selectedDoctor.firstName} ${selectedDoctor.lastName} ${selectedDoctor.middleName ?? ''}`.trim()
-                            : 'Sin medico'}
+                          {selectedDoctor ? getDoctorLabel(selectedDoctor) : 'Sin medico'}
                         </p>
                       </div>
                       <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">

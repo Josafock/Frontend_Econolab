@@ -7,13 +7,19 @@ import {
   KeyRound,
   Loader2,
   Mail,
+  Save,
   ShieldCheck,
   UserRound,
 } from 'lucide-react';
 import { useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
-import { updateProfileImageAction, type ProfileUser } from '@/actions/users/profileActions';
+import {
+  updateProfileAction,
+  updateProfileImageAction,
+  type ProfileUser,
+} from '@/actions/users/profileActions';
+import { formatDate } from '@/helpers/date';
 import { updatePasswordAction } from '@/actions/users/updatePasswordAction';
 import { getPasswordStrength, passwordRules } from '@/helpers/passwordRules';
 
@@ -27,7 +33,12 @@ export default function PerfilClient({ user }: PerfilClientProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [profile, setProfile] = useState<ProfileUser>(user);
+  const [profileForm, setProfileForm] = useState({
+    nombre: user.nombre,
+    email: user.email,
+  });
   const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
+  const [isSavingProfile, startProfileTransition] = useTransition();
   const [isPending, startTransition] = useTransition();
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [passwordData, setPasswordData] = useState({
@@ -42,6 +53,8 @@ export default function PerfilClient({ user }: PerfilClientProps) {
       : profile.rol === 'recepcionista'
         ? 'Recepcionista'
         : 'Sin rol';
+  const providerLabel = profile.authProvider === 'google' ? 'Google' : 'Correo y contrasena';
+  const canEditEmail = profile.authProvider !== 'google';
 
   const initials = profile.nombre
     .split(' ')
@@ -54,6 +67,28 @@ export default function PerfilClient({ user }: PerfilClientProps) {
     () => getPasswordStrength(passwordData.newPassword),
     [passwordData.newPassword],
   );
+  const hasProfileChanges =
+    profileForm.nombre.trim() !== profile.nombre ||
+    profileForm.email.trim().toLowerCase() !== profile.email;
+
+  const handleProfileSave = () => {
+    startProfileTransition(async () => {
+      const response = await updateProfileAction(profileForm);
+
+      if (!response.ok) {
+        toast.error(response.errors[0] ?? 'No se pudo actualizar la informacion del perfil.');
+        return;
+      }
+
+      setProfile(response.data.user);
+      setProfileForm({
+        nombre: response.data.user.nombre,
+        email: response.data.user.email,
+      });
+      toast.success(response.data.message ?? 'Perfil actualizado.');
+      router.refresh();
+    });
+  };
 
   const handlePasswordChange = () => {
     startTransition(async () => {
@@ -257,8 +292,106 @@ export default function PerfilClient({ user }: PerfilClientProps) {
               <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Resumen</p>
               <h2 className="mt-2 text-2xl font-semibold text-gray-900">Informacion principal</h2>
               <p className="mt-2 text-sm text-gray-600">
-                Aqui puedes revisar los datos principales de tu cuenta y actualizar tu foto.
+                Aqui puedes actualizar tu nombre, tu correo y revisar los datos principales de tu cuenta.
               </p>
+
+              <div className="mt-6 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+                <div className="rounded-[1.75rem] border border-gray-200 bg-gray-50 p-5">
+                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">
+                    Editar perfil
+                  </p>
+
+                  <div className="mt-5 grid gap-4">
+                    <label className="grid gap-2">
+                      <span className="text-sm font-semibold text-gray-700">Nombre visible</span>
+                      <input
+                        type="text"
+                        value={profileForm.nombre}
+                        onChange={(event) =>
+                          setProfileForm((current) => ({
+                            ...current,
+                            nombre: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                        placeholder="Escribe tu nombre"
+                      />
+                    </label>
+
+                    <label className="grid gap-2">
+                      <span className="text-sm font-semibold text-gray-700">Correo de acceso</span>
+                      <input
+                        type="email"
+                        value={profileForm.email}
+                        onChange={(event) =>
+                          setProfileForm((current) => ({
+                            ...current,
+                            email: event.target.value,
+                          }))
+                        }
+                        disabled={!canEditEmail}
+                        className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/20 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
+                        placeholder="correo@dominio.com"
+                      />
+                    </label>
+
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                      <p className="text-sm font-semibold text-amber-900">Aviso</p>
+                      <p className="mt-1 text-sm leading-6 text-amber-800">
+                        {canEditEmail
+                          ? 'Los cambios de nombre y correo se aplican en cuanto guardas.'
+                          : 'En cuentas con Google el correo lo controla el proveedor, pero si puedes cambiar el nombre visible.'}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm text-gray-500">
+                        Tu sesion se actualiza automaticamente con los nuevos datos.
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={handleProfileSave}
+                        disabled={isSavingProfile || !hasProfileChanges}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-red-600/20 transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-70"
+                      >
+                        {isSavingProfile ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Save className="h-4 w-4" />
+                        )}
+                        Guardar cambios
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-4">
+                  <div className="rounded-3xl border border-gray-200 bg-gray-50 p-5">
+                    <p className="text-xs uppercase tracking-[0.2em] text-gray-500">
+                      Rol operativo
+                    </p>
+                    <p className="mt-3 text-lg font-semibold text-gray-900">{roleLabel}</p>
+                  </div>
+
+                  <div className="rounded-3xl border border-gray-200 bg-gray-50 p-5">
+                    <p className="text-xs uppercase tracking-[0.2em] text-gray-500">
+                      Metodo de acceso
+                    </p>
+                    <p className="mt-3 text-lg font-semibold text-gray-900">{providerLabel}</p>
+                  </div>
+
+                  <div className="rounded-3xl border border-gray-200 bg-gray-50 p-5">
+                    <p className="text-xs uppercase tracking-[0.2em] text-gray-500">
+                      Estado
+                    </p>
+                    <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-700">
+                      <CheckCircle2 className="h-4 w-4" />
+                      Cuenta activa
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               <div className="mt-6 grid gap-4 md:grid-cols-2">
                 <div className="rounded-3xl border border-gray-200 bg-gray-50 p-5">
@@ -302,13 +435,24 @@ export default function PerfilClient({ user }: PerfilClientProps) {
                     Cuenta activa
                   </div>
                 </div>
-              </div>
 
-              <div className="mt-6 rounded-[1.75rem] border border-amber-200 bg-amber-50 p-5">
-                <p className="text-sm font-semibold text-amber-900">Aviso</p>
-                <p className="mt-2 text-sm leading-6 text-amber-800">
-                  Si necesitas actualizar tu nombre o tu correo, solicita el cambio con un administrador.
-                </p>
+                <div className="rounded-3xl border border-gray-200 bg-gray-50 p-5">
+                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">
+                    Creado
+                  </p>
+                  <p className="mt-3 text-sm font-semibold text-gray-900">
+                    {formatDate(profile.createdAt)}
+                  </p>
+                </div>
+
+                <div className="rounded-3xl border border-gray-200 bg-gray-50 p-5">
+                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">
+                    Ultima actualizacion
+                  </p>
+                  <p className="mt-3 text-sm font-semibold text-gray-900">
+                    {formatDate(profile.updatedAt)}
+                  </p>
+                </div>
               </div>
             </div>
           ) : (
