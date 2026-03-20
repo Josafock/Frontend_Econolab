@@ -232,5 +232,6 @@ export function usePatientsData(
     inactivos,
     addPatient,
     togglePatientStatusById,
+    reloadPatients: () => fetchPatients(debouncedSearch, { silent: true, background: true }),
   };
 }

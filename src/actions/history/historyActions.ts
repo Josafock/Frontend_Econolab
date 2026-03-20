@@ -108,3 +108,7 @@ export async function generateDailyCut(date?: string) {
     body: JSON.stringify({ date }),
   });
 }
+
+export async function getDailyCutById(id: number) {
+  return fetchApi<DailyCutRecord>(`/history/daily-cuts/${id}`);
+}

@@ -3,6 +3,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ChangeEvent,
   type FocusEvent,
@@ -10,6 +11,7 @@ import {
 import {
   ArrowLeft,
   BadgeCheck,
+  FileSpreadsheet,
   FileText,
   FlaskConical,
   Loader2,
@@ -39,6 +41,9 @@ import {
 import AddStudyDetailModal from '@/components/estudios/AddStudyDetailModal';
 import EditStudyDetailModal from '@/components/estudios/EditStudyDetailModal';
 import StudyFormFields from '@/components/estudios/StudyFormFields';
+import CatalogExcelManager from '@/components/ui/CatalogExcelManager';
+import CatalogExcelModal from '@/components/ui/CatalogExcelModal';
+import { useConfirmDialog } from '@/components/ui/ConfirmDialogProvider';
 import { DetailPageSkeleton } from '@/components/ui/PageSkeletons';
 import {
   createEmptyStudyForm,
@@ -51,7 +56,14 @@ import {
   type StudyFormTouched,
   type StudyFormValues,
 } from '@/components/estudios/studyFormUtils';
+import {
+  createEmptyStudyDetailExcelRow,
+  mapStudyDetailToExcelRow,
+  validateStudyDetailExcelRow,
+  type StudyDetailExcelRow,
+} from '@/components/estudios/studyDetailFormUtils';
 import EntityActionsMenu from '@/components/ui/EntityActionsMenu';
+import type { ExcelColumn } from '@/helpers/excel';
 import {
   formatStudyDuration,
   getStudyDetailTypeLabel,
@@ -62,7 +74,62 @@ import {
   sortStudyDetails,
 } from '@/helpers/studies';
 
+const studyDetailExcelColumns: ExcelColumn<StudyDetailExcelRow>[] = [
+  {
+    key: 'tipo',
+    label: 'Tipo',
+    required: true,
+    description: 'Define si la fila es categoria o parametro.',
+    inputType: 'select',
+    options: [
+      { label: 'Categoria', value: 'category' },
+      { label: 'Parametro', value: 'parameter' },
+    ],
+    example: 'parameter',
+    width: 16,
+  },
+  {
+    key: 'categoriaPadre',
+    label: 'Categoria padre',
+    description: 'Nombre de la categoria contenedora. Dejalo vacio para nivel raiz.',
+    example: 'QUIMICA SANGUINEA',
+    width: 24,
+  },
+  {
+    key: 'nombre',
+    label: 'Nombre',
+    required: true,
+    description: 'Nombre de la categoria o parametro.',
+    example: 'GLUCOSA',
+    width: 28,
+  },
+  {
+    key: 'orden',
+    label: 'Orden',
+    required: true,
+    description: 'Numero entero para ordenar en pantalla.',
+    example: '1',
+    inputType: 'number',
+    width: 12,
+  },
+  {
+    key: 'unidad',
+    label: 'Unidad',
+    description: 'Solo para parametros.',
+    example: 'mg/dL',
+    width: 16,
+  },
+  {
+    key: 'valorReferencia',
+    label: 'Valor referencia',
+    description: 'Solo para parametros.',
+    example: '70 - 110',
+    width: 28,
+  },
+];
+
 export default function StudyDetailPage() {
+  const confirm = useConfirmDialog();
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -93,6 +160,8 @@ export default function StudyDetailPage() {
   const [packageStudyIds, setPackageStudyIds] = useState<number[]>([]);
   const [selectedPackageStudyId, setSelectedPackageStudyId] = useState('');
   const [savingPackageStudies, setSavingPackageStudies] = useState(false);
+  const detailImportCategoryMapRef = useRef<Map<string, number>>(new Map());
+  const detailImportUsedNamesRef = useRef<Set<string>>(new Set());
 
   const formErrors = useMemo(() => validateStudyForm(formData), [formData]);
 
@@ -223,6 +292,152 @@ export default function StudyDetailPage() {
     return true;
   };
 
+  const normalizeDetailName = (value: string) =>
+    value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toUpperCase();
+
+  const prepareDetailImportSession = () => {
+    const categoryMap = new Map<string, number>();
+    const usedNames = new Set<string>();
+
+    for (const detail of details) {
+      if (detail.dataType === 'category') {
+        categoryMap.set(normalizeDetailName(detail.name), detail.id);
+      }
+
+      usedNames.add(`${detail.dataType}:${normalizeDetailName(detail.name)}`);
+    }
+
+    detailImportCategoryMapRef.current = categoryMap;
+    detailImportUsedNamesRef.current = usedNames;
+  };
+
+  const sortDetailImportRows = (rows: StudyDetailExcelRow[]) => {
+    const knownCategories = new Set(
+      details
+        .filter((detail) => detail.dataType === 'category')
+        .map((detail) => normalizeDetailName(detail.name)),
+    );
+    const pending = [...rows];
+    const ordered: StudyDetailExcelRow[] = [];
+
+    while (pending.length > 0) {
+      let moved = false;
+
+      for (let index = 0; index < pending.length; ) {
+        const row = pending[index];
+        const parentName = normalizeDetailName(row.categoriaPadre);
+
+        if (row.tipo === 'category' && (!parentName || knownCategories.has(parentName))) {
+          ordered.push(row);
+          knownCategories.add(normalizeDetailName(row.nombre));
+          pending.splice(index, 1);
+          moved = true;
+          continue;
+        }
+
+        index += 1;
+      }
+
+      for (let index = 0; index < pending.length; ) {
+        const row = pending[index];
+        const parentName = normalizeDetailName(row.categoriaPadre);
+
+        if (row.tipo === 'parameter' && (!parentName || knownCategories.has(parentName))) {
+          ordered.push(row);
+          pending.splice(index, 1);
+          moved = true;
+          continue;
+        }
+
+        index += 1;
+      }
+
+      if (!moved) {
+        ordered.push(...pending);
+        break;
+      }
+    }
+
+    return ordered;
+  };
+
+  const exportableDetailRows = useMemo(
+    () => sortStudyDetails(details).map((detail) => mapStudyDetailToExcelRow(detail, details)),
+    [details],
+  );
+
+  const importStudyDetailRow = async (row: StudyDetailExcelRow) => {
+    if (!study) {
+      return { ok: false, error: 'No se encontro el estudio actual.' };
+    }
+
+    const normalizedType = row.tipo;
+    const normalizedName = normalizeDetailName(row.nombre);
+    const duplicateKey = `${normalizedType}:${normalizedName}`;
+
+    if (detailImportUsedNamesRef.current.has(duplicateKey)) {
+      return {
+        ok: false,
+        error: `Ya existe un elemento ${row.tipo === 'category' ? 'de categoria' : 'de parametro'} con ese nombre.`,
+      };
+    }
+
+    let parentId: number | undefined;
+    const normalizedParentName = normalizeDetailName(row.categoriaPadre);
+
+    if (normalizedParentName) {
+      parentId = detailImportCategoryMapRef.current.get(normalizedParentName);
+
+      if (!parentId) {
+        return {
+          ok: false,
+          error: `No se encontro la categoria padre "${row.categoriaPadre}".`,
+        };
+      }
+    }
+
+    const payload =
+      row.tipo === 'category'
+        ? {
+            dataType: 'category' as const,
+            name: normalizedName,
+            sortOrder: Number(row.orden),
+            parentId,
+          }
+        : {
+            dataType: 'parameter' as const,
+            name: normalizedName,
+            sortOrder: Number(row.orden),
+            parentId,
+            unit: row.unidad.trim() || undefined,
+            referenceValue: row.valorReferencia.trim() || undefined,
+          };
+
+    const response = await createStudyDetail(study.id, payload);
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: response.errors[0] ?? 'No se pudo importar este elemento.',
+      };
+    }
+
+    detailImportUsedNamesRef.current.add(duplicateKey);
+
+    if (response.data.data.dataType === 'category') {
+      detailImportCategoryMapRef.current.set(
+        normalizeDetailName(response.data.data.name),
+        response.data.data.id,
+      );
+    }
+
+    return { ok: true };
+  };
+
   const handleChange = (
     e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
   ) => {
@@ -339,9 +554,12 @@ export default function StudyDetailPage() {
   const handleDeleteStudy = async () => {
     if (!study) return;
 
-    const confirmed = window.confirm(
-      `Se eliminara "${study.name}" del catalogo. Esta accion ocultara el registro. ¿Deseas continuar?`,
-    );
+    const confirmed = await confirm({
+      title: 'Eliminar estudio',
+      message: `Se eliminara "${study.name}" del catalogo. Esta accion ocultara el registro y dejara de estar disponible para operar.`,
+      confirmLabel: 'Eliminar estudio',
+      tone: 'danger',
+    });
     if (!confirmed) return;
 
     setDeletingStudy(true);
@@ -425,9 +643,12 @@ export default function StudyDetailPage() {
   };
 
   const handleDeleteDetail = async (detail: StudyDetail) => {
-    const confirmed = window.confirm(
-      `Se eliminara el elemento "${detail.name}". Esta accion lo retirara de la configuracion del estudio. ¿Deseas continuar?`,
-    );
+    const confirmed = await confirm({
+      title: 'Eliminar elemento',
+      message: `Se eliminara el elemento "${detail.name}" y dejara de formar parte de la configuracion del estudio.`,
+      confirmLabel: 'Eliminar elemento',
+      tone: 'warning',
+    });
     if (!confirmed) return;
 
     setRemovingDetailId(detail.id);
@@ -859,6 +1080,43 @@ export default function StudyDetailPage() {
                   </div>
 
                   <div className="flex flex-wrap gap-3">
+                    <CatalogExcelModal
+                      title="Importacion y exportacion de configuracion"
+                      subtitle="Importa o exporta categorias y parametros del estudio desde una plantilla con vista previa."
+                      trigger={
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700 transition-all hover:bg-amber-100"
+                        >
+                          <FileSpreadsheet className="h-4 w-4" />
+                          Importacion/Exportacion
+                        </button>
+                      }
+                    >
+                      <CatalogExcelManager
+                        title={`Configuracion de ${study.name}`}
+                        description="Trabaja con categorias y parametros en lote. Usa el nombre de la categoria padre para relacionar subcategorias o parametros dentro del estudio."
+                        entityLabel="elementos de configuracion"
+                        columns={studyDetailExcelColumns}
+                        createEmptyRow={createEmptyStudyDetailExcelRow}
+                        validateRow={validateStudyDetailExcelRow}
+                        rowsForExport={exportableDetailRows}
+                        exportFileName={`plantilla-${study.code || study.id}.xlsx`}
+                        exportSheetName="Configuracion estudio"
+                        templateFileName={`template-config-${study.code || study.id}.xlsx`}
+                        templateSheetName="Plantilla configuracion"
+                        sortImportRows={sortDetailImportRows}
+                        onImportStart={() => {
+                          prepareDetailImportSession();
+                        }}
+                        onImportRow={importStudyDetailRow}
+                        onImportFinished={async () => {
+                          await refreshDetails(true);
+                        }}
+                        layout="flat"
+                      />
+                    </CatalogExcelModal>
+
                     <button
                       type="button"
                       onClick={() => setCreatingDetailType('category')}

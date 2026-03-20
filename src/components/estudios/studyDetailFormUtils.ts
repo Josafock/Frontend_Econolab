@@ -29,6 +29,15 @@ export type StudyDetailBulkFormErrors = Partial<
   Record<StudyDetailBulkFormField, string>
 >;
 
+export type StudyDetailExcelRow = {
+  tipo: '' | StudyDetailDataType;
+  categoriaPadre: string;
+  nombre: string;
+  orden: string;
+  unidad: string;
+  valorReferencia: string;
+};
+
 export function createEmptyStudyDetailForm(): StudyDetailFormValues {
   return {
     dataType: "category",
@@ -58,6 +67,17 @@ export function createEmptyStudyDetailBulkForm(
     parentId: "",
     sortOrderStart,
     bulkInput: "",
+  };
+}
+
+export function createEmptyStudyDetailExcelRow(): StudyDetailExcelRow {
+  return {
+    tipo: "",
+    categoriaPadre: "",
+    nombre: "",
+    orden: "1",
+    unidad: "",
+    valorReferencia: "",
   };
 }
 
@@ -216,5 +236,48 @@ export function mapStudyDetailToForm(detail: StudyDetail): StudyDetailFormValues
     sortOrder: String(detail.sortOrder ?? 1),
     unit: detail.unit ?? "",
     referenceValue: detail.referenceValue ?? "",
+  };
+}
+
+export function validateStudyDetailExcelRow(
+  values: StudyDetailExcelRow,
+): string[] {
+  const errors: string[] = [];
+
+  if (!values.tipo) {
+    errors.push("Selecciona el tipo de elemento.");
+  }
+
+  if (!values.nombre.trim()) {
+    errors.push("El nombre es obligatorio.");
+  } else if (values.nombre.trim().length > 150) {
+    errors.push("El nombre no puede exceder 150 caracteres.");
+  }
+
+  if (!values.orden.trim()) {
+    errors.push("El orden es obligatorio.");
+  } else {
+    const parsed = Number(values.orden);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      errors.push("El orden debe ser un entero mayor a cero.");
+    }
+  }
+
+  return errors;
+}
+
+export function mapStudyDetailToExcelRow(
+  detail: StudyDetail,
+  allDetails: StudyDetail[],
+): StudyDetailExcelRow {
+  const parent = allDetails.find((candidate) => candidate.id === detail.parentId);
+
+  return {
+    tipo: detail.dataType,
+    categoriaPadre: parent?.name ?? "",
+    nombre: detail.name ?? "",
+    orden: String(detail.sortOrder ?? 1),
+    unidad: detail.unit ?? "",
+    valorReferencia: detail.referenceValue ?? "",
   };
 }

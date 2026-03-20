@@ -185,5 +185,6 @@ export function useStudiesData(
     addStudy,
     toggleStudyStatus,
     deleteStudyById,
+    reloadStudies: () => fetchStudies(debouncedSearch, { silent: true, background: true }),
   };
 }

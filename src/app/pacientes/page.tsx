@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   BadgeCheck,
   Eye,
+  FileSpreadsheet,
   Filter,
   Loader2,
   Mail,
@@ -16,12 +17,22 @@ import {
   User,
 } from 'lucide-react';
 import AddPatientModal from '@/components/pacientes/AddPatientModal';
+import {
+  createEmptyPatientForm,
+  mapFormToPayload,
+  validatePatientForm,
+  type PatientFormValues,
+} from '@/components/pacientes/patientFormUtils';
+import CatalogExcelManager from '@/components/ui/CatalogExcelManager';
+import CatalogExcelModal from '@/components/ui/CatalogExcelModal';
 import { CollectionContentSkeleton } from '@/components/ui/PageSkeletons';
 import EntityActionsMenu from '@/components/ui/EntityActionsMenu';
 import TablePagination from '@/components/ui/TablePagination';
+import { createPatient } from '@/actions/patients/patientsActions';
 import { formatDate } from '@/helpers/date';
 import { calcularEdad, usePatientsData } from '@/hooks/usePatientsData';
 import type { PatientStatusFilter } from '@/actions/patients/patientsActions';
+import type { ExcelColumn } from '@/helpers/excel';
 
 const statusOptions: Array<{ value: PatientStatusFilter; label: string }> = [
   { value: 'all', label: 'Todos' },
@@ -46,6 +57,119 @@ const getStatusColor = (estatus: 'Activo' | 'Inactivo'): string => {
   return colors[estatus] || 'border-gray-200 bg-gray-50 text-gray-700';
 };
 
+const patientExcelColumns: ExcelColumn<PatientFormValues>[] = [
+  {
+    key: 'nombre',
+    label: 'Nombre',
+    required: true,
+    description: 'Nombre del paciente.',
+    example: 'JUAN',
+    width: 18,
+  },
+  {
+    key: 'apellidoPaterno',
+    label: 'Apellido paterno',
+    required: true,
+    description: 'Apellido paterno del paciente.',
+    example: 'PEREZ',
+    width: 22,
+  },
+  {
+    key: 'apellidoMaterno',
+    label: 'Apellido materno',
+    description: 'Apellido materno si aplica.',
+    example: 'LOPEZ',
+    width: 22,
+  },
+  {
+    key: 'fechaNacimiento',
+    label: 'Fecha nacimiento',
+    required: true,
+    description: 'Formato YYYY-MM-DD.',
+    example: '1990-05-14',
+    inputType: 'date',
+    width: 18,
+  },
+  {
+    key: 'genero',
+    label: 'Genero',
+    required: true,
+    description: 'Genero del paciente.',
+    example: 'female',
+    inputType: 'select',
+    options: [
+      { label: 'Femenino', value: 'female' },
+      { label: 'Masculino', value: 'male' },
+      { label: 'Otro', value: 'other' },
+    ],
+    width: 14,
+  },
+  {
+    key: 'telefono',
+    label: 'Telefono',
+    description: 'Solo numeros entre 7 y 15 digitos.',
+    example: '5512345678',
+    width: 18,
+  },
+  {
+    key: 'email',
+    label: 'Email',
+    description: 'Correo electronico del paciente.',
+    example: 'correo@dominio.com',
+    inputType: 'email',
+    width: 28,
+  },
+  {
+    key: 'direccion',
+    label: 'Direccion',
+    description: 'Calle y numero.',
+    example: 'Av. Central 123',
+    width: 28,
+  },
+  {
+    key: 'entreCalles',
+    label: 'Entre calles',
+    description: 'Referencia adicional de direccion.',
+    example: 'Entre Norte y Sur',
+    width: 28,
+  },
+  {
+    key: 'ciudad',
+    label: 'Ciudad',
+    description: 'Ciudad o municipio.',
+    example: 'Ecatepec',
+    width: 18,
+  },
+  {
+    key: 'estado',
+    label: 'Estado',
+    description: 'Estado de residencia.',
+    example: 'Estado de Mexico',
+    width: 20,
+  },
+  {
+    key: 'codigoPostal',
+    label: 'Codigo postal',
+    description: 'Solo numeros.',
+    example: '55070',
+    width: 16,
+  },
+  {
+    key: 'tipoDocumento',
+    label: 'Tipo documento',
+    description: 'Ejemplo: INE, CURP o Pasaporte.',
+    example: 'INE',
+    width: 18,
+  },
+  {
+    key: 'numeroDocumento',
+    label: 'Numero documento',
+    description: 'Numero del documento si existe.',
+    example: 'ABC123456',
+    width: 22,
+  },
+];
+
 export default function PacientesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<PatientStatusFilter>('all');
@@ -66,6 +190,7 @@ export default function PacientesPage() {
     inactivos,
     addPatient,
     togglePatientStatusById,
+    reloadPatients,
   } = usePatientsData(searchTerm, statusFilter);
 
   useEffect(() => {
@@ -99,13 +224,88 @@ export default function PacientesPage() {
           </p>
         </div>
 
-        <button
-          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-red-600/20 transition-all hover:bg-red-700"
-          onClick={() => setOpenAddModal(true)}
-        >
-          <Plus size={20} />
-          Nuevo paciente
-        </button>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <button
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-red-600/20 transition-all hover:bg-red-700"
+            onClick={() => setOpenAddModal(true)}
+          >
+            <Plus size={20} />
+            Nuevo paciente
+          </button>
+
+          <CatalogExcelModal
+            title="Importacion y exportacion de pacientes"
+            subtitle="Importa, exporta y valida pacientes desde un espacio separado para mantener esta pantalla limpia."
+            trigger={
+              <button
+                type="button"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-sm font-semibold text-amber-700 shadow-sm transition-all hover:bg-amber-100"
+              >
+                <FileSpreadsheet size={20} />
+                Importacion/Exportacion
+              </button>
+            }
+          >
+            <CatalogExcelManager
+              title="Carga masiva de pacientes"
+              description="Trabaja con una plantilla para subir varios pacientes de una sola vez, revisar sus datos y corregirlos antes de guardarlos."
+              entityLabel="pacientes"
+              columns={patientExcelColumns}
+              createEmptyRow={createEmptyPatientForm}
+              validateRow={(row) =>
+                Object.values(validatePatientForm(row)).filter(
+                  (error): error is string => Boolean(error),
+                )
+              }
+              rowsForExport={patients.map((patient) => ({
+                nombre: patient.nombre,
+                apellidoPaterno: patient.apellidoPaterno,
+                apellidoMaterno: patient.apellidoMaterno === '-' ? '' : patient.apellidoMaterno,
+                fechaNacimiento: patient.fechaNacimiento,
+                genero:
+                  (patient.genero === 'Femenino'
+                    ? 'female'
+                    : patient.genero === 'Masculino'
+                      ? 'male'
+                      : 'other') as PatientFormValues['genero'],
+                telefono: patient.telefono === '-' ? '' : patient.telefono,
+                email: patient.email === '-' ? '' : patient.email,
+                direccion: patient.direccion === '-' ? '' : patient.direccion,
+                entreCalles: patient.entreCalles === '-' ? '' : patient.entreCalles,
+                ciudad: patient.ciudad === '-' ? '' : patient.ciudad,
+                estado: patient.estado === '-' ? '' : patient.estado,
+                codigoPostal: patient.codigoPostal === '-' ? '' : patient.codigoPostal,
+                tipoDocumento:
+                  patient.documento === 'Sin documento'
+                    ? ''
+                    : patient.documento.split(':')[0] ?? '',
+                numeroDocumento:
+                  patient.documento === 'Sin documento'
+                    ? ''
+                    : patient.documento.split(':').slice(1).join(':').trim(),
+              }))}
+              exportFileName="pacientes.xlsx"
+              exportSheetName="Pacientes"
+              templateFileName="plantilla-pacientes.xlsx"
+              templateSheetName="Plantilla pacientes"
+              onImportRow={async (row) => {
+                const response = await createPatient(mapFormToPayload(row));
+                if (!response.ok) {
+                  return {
+                    ok: false,
+                    error: response.errors[0] ?? 'No se pudo importar el paciente.',
+                  };
+                }
+
+                return { ok: true };
+              }}
+              onImportFinished={async () => {
+                await reloadPatients();
+              }}
+              layout="flat"
+            />
+          </CatalogExcelModal>
+        </div>
       </div>
 
       <div className="mb-6 overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm">

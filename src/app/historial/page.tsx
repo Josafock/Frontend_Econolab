@@ -17,11 +17,13 @@ import {
 import { toast } from 'react-toastify';
 import {
   generateDailyCut,
+  getDailyCutById,
   getHistoryDashboard,
   type HistoryDashboardResponse,
 } from '@/actions/history/historyActions';
 import TablePagination from '@/components/ui/TablePagination';
 import { formatDate, formatDateTime } from '@/helpers/date';
+import { downloadWorkbook } from '@/helpers/excel';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 function getTodayInputValue() {
@@ -44,6 +46,147 @@ function money(value: number) {
     currency: 'MXN',
     minimumFractionDigits: 2,
   }).format(value || 0);
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function buildHistoryWorkbook(
+  selectedDate: string,
+  dashboard: HistoryDashboardResponse,
+) {
+  return [
+    {
+      name: 'Resumen',
+      rows: [
+        {
+          Fecha: selectedDate,
+          Servicios: dashboard.summary.servicesCount,
+          Pacientes: dashboard.summary.patientsCount,
+          Estudios: dashboard.summary.studiesCount,
+          Subtotal: dashboard.summary.subtotalAmount,
+          Descuento: dashboard.summary.discountAmount,
+          Total: dashboard.summary.totalAmount,
+          'Ticket promedio': dashboard.summary.averageTicket,
+        },
+      ],
+      widths: [16, 14, 14, 14, 14, 14, 14, 18],
+    },
+    {
+      name: 'Servicios',
+      rows: dashboard.services.map((service) => ({
+        Folio: service.folio,
+        Paciente: service.paciente,
+        Telefono: service.telefono,
+        Estudios: service.estudio,
+        Sucursal: service.sucursal,
+        Concluido: service.fechaConclusion ?? '',
+        Creacion: service.fechaCreacion ?? '',
+        Entrega: service.fechaEntrega ?? '',
+        Subtotal: service.subtotalAmount,
+        Descuento: service.discountAmount,
+        Total: service.totalAmount,
+        Estatus: service.status,
+      })),
+      widths: [18, 28, 18, 42, 18, 22, 22, 22, 14, 14, 14, 14],
+    },
+    {
+      name: 'Sucursales',
+      rows: dashboard.summary.branchBreakdown.map((branch) => ({
+        Sucursal: branch.branchName,
+        Servicios: branch.servicesCount,
+        Total: branch.revenueTotal,
+      })),
+      widths: [24, 14, 14],
+    },
+    {
+      name: 'Estudios frecuentes',
+      rows: dashboard.summary.topStudies.map((study) => ({
+        Estudio: study.studyName,
+        Veces: study.times,
+      })),
+      widths: [34, 12],
+    },
+    {
+      name: 'Ritmo',
+      rows: dashboard.summary.hourlyBreakdown.map((hour) => ({
+        Hora: hour.hour,
+        Servicios: hour.servicesCount,
+        Total: hour.revenueTotal,
+      })),
+      widths: [12, 14, 14],
+    },
+  ];
+}
+
+function buildDailyCutWorkbook(cut: NonNullable<HistoryDashboardResponse['savedCut']>) {
+  return [
+    {
+      name: 'Resumen',
+      rows: [
+        {
+          Fecha: cut.closingDate,
+          'Periodo inicio': cut.periodStart,
+          'Periodo fin': cut.periodEnd,
+          Servicios: cut.servicesCount,
+          Pacientes: cut.patientsCount,
+          Estudios: cut.studiesCount,
+          Subtotal: cut.subtotalAmount,
+          Descuento: cut.discountAmount,
+          Total: cut.totalAmount,
+          'Ticket promedio': cut.averageTicket,
+          Creado: cut.createdAt,
+          Actualizado: cut.updatedAt,
+        },
+      ],
+      widths: [16, 22, 22, 14, 14, 14, 14, 14, 14, 18, 22, 22],
+    },
+    {
+      name: 'Servicios corte',
+      rows: cut.servicesSnapshot.map((service) => ({
+        Folio: service.folio,
+        Paciente: service.patientName,
+        Estudios: service.studySummary,
+        Sucursal: service.branchName,
+        Concluido: service.completedAt ?? '',
+        Creacion: service.createdAt ?? '',
+        Entrega: service.deliveryAt ?? '',
+        Subtotal: service.subtotalAmount,
+        Descuento: service.discountAmount,
+        Total: service.totalAmount,
+      })),
+      widths: [18, 28, 42, 18, 22, 22, 22, 14, 14, 14],
+    },
+    {
+      name: 'Sucursales',
+      rows: cut.branchBreakdown.map((branch) => ({
+        Sucursal: branch.branchName,
+        Servicios: branch.servicesCount,
+        Total: branch.revenueTotal,
+      })),
+      widths: [24, 14, 14],
+    },
+    {
+      name: 'Estudios frecuentes',
+      rows: cut.topStudies.map((study) => ({
+        Estudio: study.studyName,
+        Veces: study.times,
+      })),
+      widths: [34, 12],
+    },
+    {
+      name: 'Ritmo',
+      rows: cut.hourlyBreakdown.map((hour) => ({
+        Hora: hour.hour,
+        Servicios: hour.servicesCount,
+        Total: hour.revenueTotal,
+      })),
+      widths: [12, 14, 14],
+    },
+  ];
 }
 
 function LoadingCard() {
@@ -105,6 +248,10 @@ export default function HistorialPage() {
   const [dashboard, setDashboard] = useState<HistoryDashboardResponse | null>(null);
   const [servicesPage, setServicesPage] = useState(1);
   const [servicesPageSize, setServicesPageSize] = useState(10);
+  const [exportProgress, setExportProgress] = useState<{
+    label: string;
+    percent: number;
+  } | null>(null);
 
   const debouncedSearch = useDebouncedValue(searchTerm.trim(), 350);
 
@@ -186,6 +333,71 @@ export default function HistorialPage() {
     return completedServices.slice(start, start + servicesPageSize);
   }, [completedServices, servicesPage, servicesPageSize]);
 
+  const handleExportHistory = async () => {
+    if (!dashboard) {
+      toast.error('No hay datos del historial para exportar.');
+      return;
+    }
+
+    setExportProgress({
+      label: 'Preparando historial del dia...',
+      percent: 15,
+    });
+    await wait(80);
+
+    setExportProgress({
+      label: 'Construyendo hojas de exportacion...',
+      percent: 65,
+    });
+    await wait(80);
+
+    downloadWorkbook(
+      `historial-${selectedDate}.xlsx`,
+      buildHistoryWorkbook(selectedDate, dashboard),
+    );
+
+    setExportProgress({
+      label: 'Historial exportado correctamente.',
+      percent: 100,
+    });
+    toast.success('Historial exportado correctamente.');
+    await wait(350);
+    setExportProgress(null);
+  };
+
+  const handleExportSavedCut = async (cutId: number) => {
+    setExportProgress({
+      label: 'Buscando corte guardado...',
+      percent: 20,
+    });
+
+    const response = await getDailyCutById(cutId);
+    if (!response.ok) {
+      toast.error(response.errors[0] ?? 'No se pudo preparar el corte.');
+      setExportProgress(null);
+      return;
+    }
+
+    setExportProgress({
+      label: 'Generando archivo del corte del dia...',
+      percent: 75,
+    });
+    await wait(80);
+
+    downloadWorkbook(
+      `corte-dia-${response.data.closingDate}.xlsx`,
+      buildDailyCutWorkbook(response.data),
+    );
+
+    setExportProgress({
+      label: 'Corte exportado correctamente.',
+      percent: 100,
+    });
+    toast.success('Corte del dia exportado correctamente.');
+    await wait(350);
+    setExportProgress(null);
+  };
+
   return (
     <div className="min-w-0">
       <div className="mb-8 flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
@@ -201,6 +413,16 @@ export default function HistorialPage() {
         </div>
 
         <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => void handleExportHistory()}
+            className="inline-flex items-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100 disabled:opacity-50"
+            disabled={loading || Boolean(exportProgress)}
+          >
+            <Download className="h-4 w-4" />
+            Exportar historial
+          </button>
+
           <button
             type="button"
             onClick={() => void loadDashboard()}
@@ -225,13 +447,15 @@ export default function HistorialPage() {
           </button>
 
           {savedCut ? (
-            <a
-              href={`/api/history/daily-cuts/${savedCut.id}/export`}
-              className="inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+            <button
+              type="button"
+              onClick={() => void handleExportSavedCut(savedCut.id)}
+              className="inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50"
+              disabled={loading || Boolean(exportProgress)}
             >
               <Download className="h-4 w-4" />
-              Exportar Excel
-            </a>
+              Exportar corte
+            </button>
           ) : null}
         </div>
       </div>
@@ -352,6 +576,31 @@ export default function HistorialPage() {
           </div>
         </div>
       </div>
+
+      {exportProgress ? (
+        <div className="mb-6 rounded-[2rem] border border-blue-200 bg-blue-50 p-5 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+              <div>
+                <p className="text-sm font-semibold text-blue-900">{exportProgress.label}</p>
+                <p className="text-xs text-blue-700">
+                  La exportacion permanecera disponible al terminar.
+                </p>
+              </div>
+            </div>
+            <span className="text-sm font-semibold text-blue-800">
+              {exportProgress.percent}%
+            </span>
+          </div>
+          <div className="mt-4 h-3 rounded-full bg-blue-100">
+            <div
+              className="h-3 rounded-full bg-blue-600 transition-all"
+              style={{ width: `${exportProgress.percent}%` }}
+            />
+          </div>
+        </div>
+      ) : null}
 
       {loading ? (
         <div className="space-y-6">
@@ -552,13 +801,15 @@ export default function HistorialPage() {
                         <div className="rounded-2xl bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700">
                           {money(cut.totalAmount)}
                         </div>
-                        <a
-                          href={`/api/history/daily-cuts/${cut.id}/export`}
-                          className="inline-flex items-center gap-2 rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+                        <button
+                          type="button"
+                          onClick={() => void handleExportSavedCut(cut.id)}
+                          className="inline-flex items-center gap-2 rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
+                          disabled={Boolean(exportProgress)}
                         >
                           <Download className="h-4 w-4" />
                           Exportar
-                        </a>
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -658,7 +909,7 @@ export default function HistorialPage() {
                   </p>
                   <p className="mt-2">
                     {savedCut
-                      ? `Se guardo por ultima vez el ${formatDateTime(savedCut.updatedAt)} y ya puede exportarse en CSV compatible con Excel.`
+                      ? `Se guardo por ultima vez el ${formatDateTime(savedCut.updatedAt)} y ya puede exportarse cuando lo necesites.`
                       : 'Genera el corte del dia para conservar un snapshot del ingreso y su desglose.'}
                   </p>
                 </div>

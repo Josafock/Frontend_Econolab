@@ -212,5 +212,6 @@ export function useDoctorsData(
     addDoctor,
     toggleDoctorStatusById,
     deleteDoctorById,
+    reloadDoctors: () => fetchDoctors(debouncedSearch, { silent: true, background: true }),
   };
 }

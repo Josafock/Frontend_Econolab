@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   BadgeCheck,
   Eye,
+  FileSpreadsheet,
   Filter,
   Loader2,
   Mail,
@@ -17,12 +18,23 @@ import {
   User,
 } from 'lucide-react';
 import AddDoctorModal from '@/components/medicos/AddDoctorModal';
+import {
+  createEmptyDoctorForm,
+  mapFormToPayload,
+  validateDoctorForm,
+  type DoctorFormValues,
+} from '@/components/medicos/doctorFormUtils';
+import CatalogExcelManager from '@/components/ui/CatalogExcelManager';
+import CatalogExcelModal from '@/components/ui/CatalogExcelModal';
+import { useConfirmDialog } from '@/components/ui/ConfirmDialogProvider';
 import { CollectionContentSkeleton } from '@/components/ui/PageSkeletons';
 import EntityActionsMenu from '@/components/ui/EntityActionsMenu';
 import TablePagination from '@/components/ui/TablePagination';
+import { createDoctor } from '@/actions/doctors/doctorsActions';
 import { formatDate } from '@/helpers/date';
 import { useDoctorsData } from '@/hooks/useDoctorsData';
 import type { DoctorStatusFilter } from '@/actions/doctors/doctorsActions';
+import type { ExcelColumn } from '@/helpers/excel';
 
 const statusOptions: Array<{ value: DoctorStatusFilter; label: string }> = [
   { value: 'all', label: 'Todos' },
@@ -47,7 +59,70 @@ const getStatusColor = (estatus: 'Activo' | 'Inactivo'): string => {
   return colors[estatus] || 'border-gray-200 bg-gray-50 text-gray-700';
 };
 
+const doctorExcelColumns: ExcelColumn<DoctorFormValues>[] = [
+  {
+    key: 'nombre',
+    label: 'Nombre',
+    required: true,
+    description: 'Nombre del medico.',
+    example: 'MARIA',
+    width: 18,
+  },
+  {
+    key: 'apellidoPaterno',
+    label: 'Apellido paterno',
+    required: true,
+    description: 'Apellido paterno del medico.',
+    example: 'GOMEZ',
+    width: 22,
+  },
+  {
+    key: 'apellidoMaterno',
+    label: 'Apellido materno',
+    description: 'Apellido materno si aplica.',
+    example: 'RUIZ',
+    width: 22,
+  },
+  {
+    key: 'especialidad',
+    label: 'Especialidad',
+    description: 'Especialidad principal.',
+    example: 'CARDIOLOGIA',
+    width: 24,
+  },
+  {
+    key: 'cedulaProfesional',
+    label: 'Cedula profesional',
+    description: 'Cedula o licencia.',
+    example: '1234567',
+    width: 20,
+  },
+  {
+    key: 'telefono',
+    label: 'Telefono',
+    description: 'Solo numeros entre 7 y 15 digitos.',
+    example: '5512345678',
+    width: 18,
+  },
+  {
+    key: 'email',
+    label: 'Email',
+    description: 'Correo del medico.',
+    example: 'medico@dominio.com',
+    inputType: 'email',
+    width: 28,
+  },
+  {
+    key: 'notas',
+    label: 'Notas',
+    description: 'Observaciones internas opcionales.',
+    example: 'Disponibilidad por las tardes',
+    width: 34,
+  },
+];
+
 export default function MedicosPage() {
+  const confirm = useConfirmDialog();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<DoctorStatusFilter>('all');
   const [showFilters, setShowFilters] = useState(false);
@@ -69,6 +144,7 @@ export default function MedicosPage() {
     addDoctor,
     toggleDoctorStatusById,
     deleteDoctorById,
+    reloadDoctors,
   } = useDoctorsData(searchTerm, statusFilter);
 
   useEffect(() => {
@@ -92,9 +168,12 @@ export default function MedicosPage() {
     const doctor = allDoctors.find((item) => item.id === doctorId);
     if (!doctor) return;
 
-    const confirmed = window.confirm(
-      `Se eliminará definitivamente a ${doctor.nombreCompleto}. Esta acción no se puede deshacer.`,
-    );
+    const confirmed = await confirm({
+      title: 'Eliminar medico',
+      message: `Se eliminara definitivamente a ${doctor.nombreCompleto}. Esta accion no se puede deshacer.`,
+      confirmLabel: 'Eliminar medico',
+      tone: 'danger',
+    });
 
     if (!confirmed) return;
 
@@ -115,13 +194,72 @@ export default function MedicosPage() {
           </p>
         </div>
 
-        <button
-          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-red-600/20 transition-all hover:bg-red-700"
-          onClick={() => setOpenAddModal(true)}
-        >
-          <Plus size={20} />
-          Nuevo médico
-        </button>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <button
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-red-600/20 transition-all hover:bg-red-700"
+            onClick={() => setOpenAddModal(true)}
+          >
+            <Plus size={20} />
+            Nuevo médico
+          </button>
+
+          <CatalogExcelModal
+            title="Importacion y exportacion de medicos"
+            subtitle="Centraliza importaciones, exportaciones y vista previa sin recargar la pantalla principal."
+            trigger={
+              <button
+                type="button"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-sm font-semibold text-amber-700 shadow-sm transition-all hover:bg-amber-100"
+              >
+                <FileSpreadsheet size={20} />
+                Importacion/Exportacion
+              </button>
+            }
+          >
+            <CatalogExcelManager
+              title="Carga masiva de medicos"
+              description="Sube directorios completos de medicos, revisa la vista previa y corrige cualquier fila antes de insertarla."
+              entityLabel="medicos"
+              columns={doctorExcelColumns}
+              createEmptyRow={createEmptyDoctorForm}
+              validateRow={(row) =>
+                Object.values(validateDoctorForm(row)).filter(
+                  (error): error is string => Boolean(error),
+                )
+              }
+              rowsForExport={doctors.map((doctor) => ({
+                nombre: doctor.nombre,
+                apellidoPaterno: doctor.apellidoPaterno,
+                apellidoMaterno: doctor.apellidoMaterno === '-' ? '' : doctor.apellidoMaterno,
+                especialidad:
+                  doctor.especialidad === 'Sin especialidad' ? '' : doctor.especialidad,
+                cedulaProfesional: doctor.cedula === '-' ? '' : doctor.cedula,
+                telefono: doctor.telefono === '-' ? '' : doctor.telefono,
+                email: doctor.email === '-' ? '' : doctor.email,
+                notas: doctor.notas,
+              }))}
+              exportFileName="medicos.xlsx"
+              exportSheetName="Medicos"
+              templateFileName="plantilla-medicos.xlsx"
+              templateSheetName="Plantilla medicos"
+              onImportRow={async (row) => {
+                const response = await createDoctor(mapFormToPayload(row));
+                if (!response.ok) {
+                  return {
+                    ok: false,
+                    error: response.errors[0] ?? 'No se pudo importar el medico.',
+                  };
+                }
+
+                return { ok: true };
+              }}
+              onImportFinished={async () => {
+                await reloadDoctors();
+              }}
+              layout="flat"
+            />
+          </CatalogExcelModal>
+        </div>
       </div>
 
       <div className="mb-6 overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm">
