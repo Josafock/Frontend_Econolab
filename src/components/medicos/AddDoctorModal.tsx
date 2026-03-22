@@ -73,7 +73,7 @@ export default function AddDoctorModal({
   return (
     <AppModal>
       <div className="mx-auto w-full max-w-5xl">
-        <div className="max-h-[calc(100dvh-1rem)] overflow-hidden rounded-[1.5rem] border border-gray-200 bg-white shadow-2xl sm:rounded-[2rem]">
+        <div className="flex max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-[1.5rem] border border-gray-200 bg-white shadow-2xl sm:rounded-[2rem]">
           <div className="border-b border-gray-200 bg-gradient-to-r from-red-600 via-red-500 to-rose-500 p-4 text-white sm:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex items-start gap-3 sm:gap-4">
@@ -103,19 +103,21 @@ export default function AddDoctorModal({
 
           <form
             onSubmit={handleSubmit}
-            className="max-h-[calc(100dvh-8rem)] overflow-y-auto p-4 sm:max-h-[calc(100dvh-10rem)] sm:p-6"
+            className="flex min-h-0 flex-1 flex-col"
           >
-            <DoctorFormFields
-              formData={formData}
-              errors={errors}
-              touched={touched}
-              onChange={handleChange}
-              onBlur={handleBlur}
-              disabled={isSaving}
-              compact
-            />
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 pb-6 sm:p-6">
+              <DoctorFormFields
+                formData={formData}
+                errors={errors}
+                touched={touched}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                disabled={isSaving}
+                compact
+              />
+            </div>
 
-            <div className="mt-6 flex flex-col gap-3 border-t border-gray-200 pt-5 md:flex-row">
+            <div className="flex flex-col gap-3 border-t border-gray-200 bg-white p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] md:flex-row sm:p-6">
               <button
                 type="button"
                 onClick={() => setOpen(false)}

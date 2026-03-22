@@ -86,7 +86,7 @@ export default function EditStudyDetailModal({
   return (
     <AppModal>
       <div className="mx-auto w-full max-w-3xl">
-        <div className="max-h-[calc(100dvh-1rem)] overflow-y-auto rounded-[1.5rem] border border-gray-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:rounded-[2rem]">
+        <div className="flex max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-[1.5rem] border border-gray-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:rounded-[2rem]">
           <div className="border-b border-gray-200 bg-gradient-to-r from-blue-700 via-blue-600 to-blue-500 p-4 text-white sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -108,20 +108,25 @@ export default function EditStudyDetailModal({
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6 p-4 sm:p-6">
-            <StudyDetailFormFields
-              formData={formData}
-              errors={errors}
-              touched={touched}
-              onChange={handleChange}
-              onBlur={handleBlur}
-              categories={categories}
-              excludeParentId={detail.id}
-              disabled={saving}
-              compact
-            />
+          <form
+            onSubmit={handleSubmit}
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 pb-6 sm:p-6">
+              <StudyDetailFormFields
+                formData={formData}
+                errors={errors}
+                touched={touched}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                categories={categories}
+                excludeParentId={detail.id}
+                disabled={saving}
+                compact
+              />
+            </div>
 
-            <div className="flex flex-col gap-3 border-t border-gray-200 pt-5 md:flex-row">
+            <div className="flex flex-col gap-3 border-t border-gray-200 bg-white p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] md:flex-row sm:p-6">
               <button
                 type="button"
                 onClick={onClose}

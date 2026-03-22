@@ -404,7 +404,7 @@ export default function AddServiceModal({
     <>
       <AppModal>
         <div className="mx-auto w-full max-w-7xl">
-          <div className="max-h-[calc(100dvh-1rem)] overflow-hidden rounded-[1.5rem] border border-gray-200 bg-white shadow-2xl sm:rounded-[2rem]">
+          <div className="flex max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-[1.5rem] border border-gray-200 bg-white shadow-2xl sm:rounded-[2rem]">
             <div className="border-b border-gray-200 bg-gradient-to-r from-red-700 via-red-600 to-rose-500 p-4 text-white sm:p-6">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex items-start gap-3 sm:gap-4">
@@ -440,7 +440,7 @@ export default function AddServiceModal({
               </div>
             </div>
 
-            <div className="max-h-[calc(100dvh-9rem)] overflow-y-auto p-4 sm:max-h-[calc(100dvh-12rem)] sm:p-6">
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 pb-6 sm:p-6">
               {isCatalogsLoading ? (
                 <div className="flex min-h-[26rem] flex-col items-center justify-center gap-4 rounded-[1.75rem] border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center">
                   <RefreshCw className="h-8 w-8 animate-spin text-red-500" />
@@ -1380,71 +1380,71 @@ export default function AddServiceModal({
                   </div>
                 </div>
               ) : null}
+            </div>
 
-              <div className="mt-6 flex flex-col gap-3 border-t border-gray-200 pt-5 md:flex-row md:items-center md:justify-between">
-                <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="flex flex-col gap-3 border-t border-gray-200 bg-white p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] md:flex-row md:items-center md:justify-between sm:p-6">
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="app-action-button rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition-all hover:bg-gray-50"
+                  disabled={isSaving || isCatalogsLoading}
+                >
+                  Cancelar
+                </button>
+
+                {currentStep > 0 ? (
                   <button
                     type="button"
-                    onClick={handleClose}
-                    className="app-action-button rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition-all hover:bg-gray-50"
+                    onClick={() =>
+                      setCurrentStep((step) => Math.max(0, step - 1))
+                    }
+                    className="app-action-button inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition-all hover:bg-gray-50"
                     disabled={isSaving || isCatalogsLoading}
                   >
-                    Cancelar
+                    <ChevronLeft className="h-4 w-4" />
+                    Regresar
                   </button>
+                ) : null}
+              </div>
 
-                  {currentStep > 0 ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setCurrentStep((step) => Math.max(0, step - 1))
-                      }
-                      className="app-action-button inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition-all hover:bg-gray-50"
-                      disabled={isSaving || isCatalogsLoading}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                      Regresar
-                    </button>
-                  ) : null}
-                </div>
-
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  {currentStep < stepTitles.length - 1 ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (currentStep === 0 && !canAdvanceToStudies) {
-                          toast.error(
-                            "Completa folio, paciente y sucursal antes de continuar.",
-                          );
-                          return;
-                        }
-
-                        if (currentStep === 1 && !canAdvanceToClosing) {
-                          toast.error("Agrega al menos un estudio o paquete.");
-                          return;
-                        }
-
-                        setCurrentStep((step) =>
-                          Math.min(stepTitles.length - 1, step + 1),
+              <div className="flex flex-col gap-3 sm:flex-row">
+                {currentStep < stepTitles.length - 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (currentStep === 0 && !canAdvanceToStudies) {
+                        toast.error(
+                          "Completa folio, paciente y sucursal antes de continuar.",
                         );
-                      }}
-                      className="app-action-button inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-red-700 disabled:opacity-50"
-                      disabled={isSaving || isCatalogsLoading}
-                    >
-                      Siguiente
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => void handleSubmit()}
-                      className="app-action-button inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-red-700 disabled:opacity-50"
-                      disabled={isSaving || isCatalogsLoading}
-                    >
-                      {isSaving ? "Guardando..." : submitLabel}
-                    </button>
-                  )}
-                </div>
+                        return;
+                      }
+
+                      if (currentStep === 1 && !canAdvanceToClosing) {
+                        toast.error("Agrega al menos un estudio o paquete.");
+                        return;
+                      }
+
+                      setCurrentStep((step) =>
+                        Math.min(stepTitles.length - 1, step + 1),
+                      );
+                    }}
+                    className="app-action-button inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-red-700 disabled:opacity-50"
+                    disabled={isSaving || isCatalogsLoading}
+                  >
+                    Siguiente
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void handleSubmit()}
+                    className="app-action-button inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-red-700 disabled:opacity-50"
+                    disabled={isSaving || isCatalogsLoading}
+                  >
+                    {isSaving ? "Guardando..." : submitLabel}
+                  </button>
+                )}
               </div>
             </div>
           </div>

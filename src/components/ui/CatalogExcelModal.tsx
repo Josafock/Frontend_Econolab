@@ -30,7 +30,7 @@ export default function CatalogExcelModal({
       {open ? (
         <AppModal>
           <div className="mx-auto w-full max-w-7xl">
-            <div className="max-h-[calc(100dvh-1rem)] overflow-y-auto rounded-[1.5rem] border border-gray-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:rounded-[2rem]">
+            <div className="flex max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-[1.5rem] border border-gray-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:rounded-[2rem]">
               <div className="border-b border-gray-200 bg-gradient-to-r from-slate-900 via-slate-800 to-red-700 p-4 text-white sm:p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -50,7 +50,9 @@ export default function CatalogExcelModal({
                 </div>
               </div>
 
-              <div className="p-4 sm:p-6">{children}</div>
+              <div className="min-h-0 flex-1 overflow-y-auto p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:p-6">
+                {children}
+              </div>
             </div>
           </div>
         </AppModal>

@@ -44,7 +44,7 @@ export default function ConfirmDialog({
   return (
     <AppModal>
       <div className="mx-auto w-full max-w-xl">
-        <div className="max-h-[calc(100dvh-1rem)] overflow-hidden rounded-[1.5rem] border border-gray-200 bg-white shadow-2xl sm:rounded-[2rem]">
+        <div className="flex max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-[1.5rem] border border-gray-200 bg-white shadow-2xl sm:rounded-[2rem]">
           <div className="border-b border-gray-200 bg-gradient-to-r from-slate-950 via-slate-900 to-red-800 p-4 text-white sm:p-6">
             <div className="mb-3 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/90">
               <span
@@ -64,7 +64,7 @@ export default function ConfirmDialog({
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 p-4 sm:flex-row sm:p-6">
+          <div className="flex flex-col gap-3 border-t border-gray-200 bg-white p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:flex-row sm:p-6">
             <button
               type="button"
               onClick={onClose}

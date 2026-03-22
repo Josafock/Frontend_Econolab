@@ -123,7 +123,7 @@ export default function AddStudyDetailModal({
   return (
     <AppModal>
       <div className="mx-auto w-full max-w-5xl">
-        <div className="max-h-[calc(100dvh-1rem)] overflow-y-auto rounded-[1.5rem] border border-gray-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:rounded-[2rem]">
+        <div className="flex max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-[1.5rem] border border-gray-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:rounded-[2rem]">
           <div className="border-b border-gray-200 bg-gradient-to-r from-emerald-700 via-emerald-600 to-teal-500 p-4 text-white sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -149,118 +149,123 @@ export default function AddStudyDetailModal({
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6 p-4 sm:p-6">
-            <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-              <div className="space-y-4">
-                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 text-sm text-emerald-900">
-                  <p className="font-semibold">Formato recomendado</p>
-                  <div className="mt-3 space-y-2 rounded-xl bg-white/70 p-3 font-mono text-xs text-emerald-950">
-                    {examples.map((example) => (
-                      <p key={example}>{example}</p>
-                    ))}
-                  </div>
-                  <p className="mt-3 text-xs text-emerald-800">
-                    {mode === "category"
-                      ? "Cada linea crea una categoria nueva."
-                      : "Cada linea crea un parametro. Si no ocupas unidad o referencia, puedes dejar vacio lo que va despues del |."}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
-                      Categoria padre
-                    </label>
-                    <select
-                      name="parentId"
-                      value={formData.parentId}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      className={`${fieldClassName} modal-select appearance-none`}
-                      disabled={saving}
-                    >
-                      <option value="">
-                        {mode === "parameter"
-                          ? "Sin categoria"
-                          : "Categoria raiz"}
-                      </option>
-                      {categories.map((category) => (
-                        <option key={category.id} value={category.id}>
-                          {category.name}
-                        </option>
+          <form
+            onSubmit={handleSubmit}
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 pb-6 sm:p-6">
+              <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 text-sm text-emerald-900">
+                    <p className="font-semibold">Formato recomendado</p>
+                    <div className="mt-3 space-y-2 rounded-xl bg-white/70 p-3 font-mono text-xs text-emerald-950">
+                      {examples.map((example) => (
+                        <p key={example}>{example}</p>
                       ))}
-                    </select>
-                    <p className="mt-1.5 text-xs text-gray-500">
-                      {mode === "parameter"
-                        ? "Si la eliges, todo el lote quedara dentro de esa categoria."
-                        : "Opcional, por si quieres crear subcategorias dentro de otra."}
+                    </div>
+                    <p className="mt-3 text-xs text-emerald-800">
+                      {mode === "category"
+                        ? "Cada linea crea una categoria nueva."
+                        : "Cada linea crea un parametro. Si no ocupas unidad o referencia, puedes dejar vacio lo que va despues del |."}
                     </p>
                   </div>
 
-                  <div className="mt-4">
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
-                      Orden inicial
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      name="sortOrderStart"
-                      value={formData.sortOrderStart}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      className={fieldClassName}
-                      disabled={saving}
-                    />
-                    {touched.sortOrderStart && errors.sortOrderStart ? (
-                      <p className="mt-1.5 text-xs font-medium text-red-600">
-                        {errors.sortOrderStart}
+                  <div className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-gray-700">
+                        Categoria padre
+                      </label>
+                      <select
+                        name="parentId"
+                        value={formData.parentId}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        className={`${fieldClassName} modal-select appearance-none`}
+                        disabled={saving}
+                      >
+                        <option value="">
+                          {mode === "parameter"
+                            ? "Sin categoria"
+                            : "Categoria raiz"}
+                        </option>
+                        {categories.map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.name}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-1.5 text-xs text-gray-500">
+                        {mode === "parameter"
+                          ? "Si la eliges, todo el lote quedara dentro de esa categoria."
+                          : "Opcional, por si quieres crear subcategorias dentro de otra."}
                       </p>
-                    ) : null}
-                    <p className="mt-1.5 text-xs text-gray-500">
-                      El sistema ira numerando cada linea en secuencia.
-                    </p>
-                  </div>
+                    </div>
 
-                  <div className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
-                    <p className="text-xs uppercase tracking-wide text-gray-500">
-                      Filas detectadas
-                    </p>
-                    <p className="mt-2 text-2xl font-semibold text-gray-900">
-                      {totalLines}
-                    </p>
+                    <div className="mt-4">
+                      <label className="mb-2 block text-sm font-medium text-gray-700">
+                        Orden inicial
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        name="sortOrderStart"
+                        value={formData.sortOrderStart}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        className={fieldClassName}
+                        disabled={saving}
+                      />
+                      {touched.sortOrderStart && errors.sortOrderStart ? (
+                        <p className="mt-1.5 text-xs font-medium text-red-600">
+                          {errors.sortOrderStart}
+                        </p>
+                      ) : null}
+                      <p className="mt-1.5 text-xs text-gray-500">
+                        El sistema ira numerando cada linea en secuencia.
+                      </p>
+                    </div>
+
+                    <div className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
+                      <p className="text-xs uppercase tracking-wide text-gray-500">
+                        Filas detectadas
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold text-gray-900">
+                        {totalLines}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  {mode === "category"
-                    ? "Categorias por linea"
-                    : "Parametros por linea"}
-                </label>
-                <textarea
-                  name="bulkInput"
-                  value={formData.bulkInput}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
-                  placeholder={examples.join("\n")}
-                  className={textareaClassName}
-                  disabled={saving}
-                />
-                {touched.bulkInput && errors.bulkInput ? (
-                  <p className="mt-1.5 text-xs font-medium text-red-600">
-                    {errors.bulkInput}
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    {mode === "category"
+                      ? "Categorias por linea"
+                      : "Parametros por linea"}
+                  </label>
+                  <textarea
+                    name="bulkInput"
+                    value={formData.bulkInput}
+                    onChange={handleChange}
+                    onBlur={handleBlur}
+                    placeholder={examples.join("\n")}
+                    className={textareaClassName}
+                    disabled={saving}
+                  />
+                  {touched.bulkInput && errors.bulkInput ? (
+                    <p className="mt-1.5 text-xs font-medium text-red-600">
+                      {errors.bulkInput}
+                    </p>
+                  ) : null}
+                  <p className="mt-2 text-xs text-gray-500">
+                    {mode === "category"
+                      ? "Tip: pega una lista completa y el sistema la convierte en categorias individuales."
+                      : "Usa el formato NOMBRE | UNIDAD | REFERENCIA para capturar varios parametros rapido."}
                   </p>
-                ) : null}
-                <p className="mt-2 text-xs text-gray-500">
-                  {mode === "category"
-                    ? "Tip: pega una lista completa y el sistema la convierte en categorias individuales."
-                    : "Usa el formato NOMBRE | UNIDAD | REFERENCIA para capturar varios parametros rapido."}
-                </p>
+                </div>
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 border-t border-gray-200 pt-5 md:flex-row">
+            <div className="flex flex-col gap-3 border-t border-gray-200 bg-white p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] md:flex-row sm:p-6">
               <button
                 type="button"
                 onClick={onClose}
