@@ -18,6 +18,7 @@ import {
   Loader2,
   Plus,
   PencilLine,
+  Search,
   Save,
   ShieldX,
   Trash2,
@@ -29,6 +30,7 @@ import {
   createStudyDetail,
   getStudyById,
   getStudyDetails,
+  getSuggestedStudyCode,
   getStudies,
   removeStudy,
   removeStudyDetail,
@@ -46,7 +48,9 @@ import { DetailPageSkeleton } from "@/components/ui/PageSkeletons";
 import {
   createEmptyStudyForm,
   createTouchedStudyForm,
+  generateSuggestedStudyCode,
   hasStudyFormErrors,
+  isGeneratedStudyCode,
   mapFormToUpdateStudyPayload,
   mapStudyToForm,
   updateDurationValue,
@@ -62,6 +66,7 @@ import {
 } from "@/components/estudios/studyDetailFormUtils";
 import EntityActionsMenu from "@/components/ui/EntityActionsMenu";
 import type { ExcelColumn } from "@/helpers/excel";
+import { matchesNormalizedSearch } from "@/helpers/search";
 import {
   formatStudyDuration,
   getStudyDetailTypeLabel,
@@ -71,6 +76,7 @@ import {
   getStudyTypeLabel,
   sortStudyDetails,
 } from "@/helpers/studies";
+import { useHashSectionScroll } from "@/hooks/useHashSectionScroll";
 
 const CatalogExcelManager = dynamic(
   () => import("@/components/ui/CatalogExcelManager"),
@@ -153,6 +159,7 @@ export default function StudyDetailPage() {
   const [formData, setFormData] = useState<StudyFormValues>(
     createEmptyStudyForm(),
   );
+  const [useAutoCode, setUseAutoCode] = useState(false);
   const [touched, setTouched] = useState<StudyFormTouched>({});
   const [isEditing, setIsEditing] = useState(
     searchParams.get("modo") === "editar",
@@ -173,12 +180,14 @@ export default function StudyDetailPage() {
   >(null);
   const [availableStudies, setAvailableStudies] = useState<Study[]>([]);
   const [packageStudyIds, setPackageStudyIds] = useState<number[]>([]);
-  const [selectedPackageStudyId, setSelectedPackageStudyId] = useState("");
+  const [packageStudySearch, setPackageStudySearch] = useState("");
   const [savingPackageStudies, setSavingPackageStudies] = useState(false);
   const detailImportCategoryMapRef = useRef<Map<string, number>>(new Map());
   const detailImportUsedNamesRef = useRef<Set<string>>(new Set());
 
   const formErrors = useMemo(() => validateStudyForm(formData), [formData]);
+
+  useHashSectionScroll({ enabled: !loading });
 
   const categories = useMemo(
     () =>
@@ -252,6 +261,27 @@ export default function StudyDetailPage() {
       ),
     [availableStudies, packageStudyIds],
   );
+  const activePackageCandidateStudies = useMemo(
+    () =>
+      packageCandidateStudies.filter((candidate) => candidate.status === "active"),
+    [packageCandidateStudies],
+  );
+  const filteredPackageCandidateStudies = useMemo(
+    () =>
+      activePackageCandidateStudies.filter((candidate) => {
+        return matchesNormalizedSearch(
+          [
+            candidate.name,
+            candidate.code,
+            candidate.description ?? "",
+            candidate.method ?? "",
+            candidate.indicator ?? "",
+          ],
+          packageStudySearch,
+        );
+      }),
+    [activePackageCandidateStudies, packageStudySearch],
+  );
 
   useEffect(() => {
     if (Number.isNaN(id)) {
@@ -294,6 +324,7 @@ export default function StudyDetailPage() {
 
       setStudy(studyResponse.data);
       setFormData(mapStudyToForm(studyResponse.data));
+      setUseAutoCode(false);
       setTouched({});
       setAvailableStudies(
         studiesCatalogResponse.data.data.filter(
@@ -301,7 +332,7 @@ export default function StudyDetailPage() {
         ),
       );
       setPackageStudyIds(studyResponse.data.packageStudyIds ?? []);
-      setSelectedPackageStudyId("");
+      setPackageStudySearch("");
       setDetails(detailsResponse.data);
       setLoading(false);
     };
@@ -486,10 +517,28 @@ export default function StudyDetailPage() {
   const handleChange = (
     e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
   ) => {
-    setFormData((current) => ({
-      ...current,
-      [e.target.name]: e.target.value,
-    }));
+    const { name, value } = e.target;
+
+    if (name === "clave") {
+      setUseAutoCode(false);
+    }
+
+    setFormData((current) => {
+      const nextForm = {
+        ...current,
+        [name]: value,
+      };
+
+      if (name === "tipo" && useAutoCode && isGeneratedStudyCode(current.clave)) {
+        nextForm.clave = generateSuggestedStudyCode(value as Study["type"]);
+      }
+
+      return nextForm;
+    });
+
+    if (name === "tipo" && useAutoCode) {
+      void handleGenerateCode(value as Study["type"]);
+    }
   };
 
   const handleBlur = (
@@ -516,17 +565,28 @@ export default function StudyDetailPage() {
     }));
   };
 
-  const handleAddPackageStudy = () => {
-    const parsedId = Number(selectedPackageStudyId);
-    if (!Number.isInteger(parsedId) || parsedId <= 0) {
-      toast.error("Selecciona un estudio para agregar al paquete.");
+  const handleGenerateCode = async (typeOverride?: Study["type"]) => {
+    setUseAutoCode(true);
+    const targetType = typeOverride ?? formData.tipo;
+    const response = await getSuggestedStudyCode(targetType);
+
+    setFormData((current) => ({
+      ...current,
+      clave: response.ok
+        ? response.data.code
+        : generateSuggestedStudyCode(targetType),
+    }));
+  };
+
+  const handleAddPackageStudy = (studyId: number) => {
+    if (!Number.isInteger(studyId) || studyId <= 0) {
+      toast.error("Selecciona un estudio valido para agregar al paquete.");
       return;
     }
 
     setPackageStudyIds((current) =>
-      current.includes(parsedId) ? current : [...current, parsedId],
+      current.includes(studyId) ? current : [...current, studyId],
     );
-    setSelectedPackageStudyId("");
   };
 
   const handleRemovePackageStudy = (studyId: number) => {
@@ -569,7 +629,7 @@ export default function StudyDetailPage() {
     setSavingStudy(true);
     const response = await updateStudy(
       study.id,
-      mapFormToUpdateStudyPayload(formData),
+      mapFormToUpdateStudyPayload(formData, { autoGenerateCode: useAutoCode }),
     );
     if (!response.ok) {
       toast.error(response.errors[0] ?? "No se pudo actualizar el estudio.");
@@ -580,6 +640,7 @@ export default function StudyDetailPage() {
     setStudy(response.data.data);
     setPackageStudyIds(response.data.data.packageStudyIds ?? []);
     setFormData(mapStudyToForm(response.data.data));
+    setUseAutoCode(false);
     setTouched({});
     setIsEditing(false);
     toast.success("Estudio actualizado con exito.");
@@ -603,6 +664,7 @@ export default function StudyDetailPage() {
 
     setStudy(response.data.data);
     setFormData(mapStudyToForm(response.data.data));
+    setUseAutoCode(false);
     toast.success(
       nextStatus === "active" ? "Estudio reactivado." : "Estudio suspendido.",
     );
@@ -636,6 +698,7 @@ export default function StudyDetailPage() {
     if (study) {
       setFormData(mapStudyToForm(study));
     }
+    setUseAutoCode(false);
     setTouched({});
     setIsEditing(false);
     router.replace(`/estudios/detalle/${id}`);
@@ -817,7 +880,9 @@ export default function StudyDetailPage() {
                   type="button"
                   onClick={() => {
                     setIsEditing(true);
-                    router.replace(`/estudios/detalle/${id}?modo=editar`);
+                    router.replace(
+                      `/estudios/detalle/${id}?modo=editar#editar-estudio`,
+                    );
                   }}
                   className="inline-flex items-center gap-2 rounded-2xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
                 >
@@ -872,7 +937,10 @@ export default function StudyDetailPage() {
         </div>
       ) : study ? (
         <div className="space-y-6">
-          <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+          <div
+            id="resumen-estudio"
+            className="section-anchor-target grid gap-4 lg:grid-cols-[1.2fr_0.8fr]"
+          >
             <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
               <div className="mb-4 flex items-center gap-3">
                 <div className="rounded-2xl bg-red-50 p-3 text-red-600">
@@ -1011,7 +1079,10 @@ export default function StudyDetailPage() {
           </div>
 
           {isEditing ? (
-            <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+            <div
+              id="editar-estudio"
+              className="section-anchor-target rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm"
+            >
               <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">
@@ -1044,13 +1115,17 @@ export default function StudyDetailPage() {
                 onBlur={handleBlur}
                 onDurationChange={handleDurationChange}
                 onDurationBlur={handleDurationBlur}
+                onGenerateCode={handleGenerateCode}
                 disabled={savingStudy}
               />
             </div>
           ) : null}
 
           {study.type === "package" ? (
-            <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+            <div
+              id="contenido-paquete"
+              className="section-anchor-target rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm"
+            >
               <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">
@@ -1075,42 +1150,91 @@ export default function StudyDetailPage() {
 
               <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
                 <div className="rounded-[1.5rem] border border-gray-200 bg-gray-50/70 p-4">
-                  <p className="text-sm font-semibold text-gray-900">
-                    Agregar estudio al paquete
-                  </p>
-                  <div className="mt-4 flex flex-col gap-3 md:flex-row">
-                    <select
-                      value={selectedPackageStudyId}
-                      onChange={(e) =>
-                        setSelectedPackageStudyId(e.target.value)
-                      }
-                      className="modal-select w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
-                      disabled={savingPackageStudies}
-                    >
-                      <option value="">Selecciona un estudio</option>
-                      {packageCandidateStudies.map((candidate) => (
-                        <option key={candidate.id} value={candidate.id}>
-                          {candidate.name}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">
+                        Agregar estudio al paquete
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Busca por nombre, clave o descripcion y agrega solo los
+                        estudios activos que aun no esten incluidos.
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+                      Disponibles: {activePackageCandidateStudies.length}
+                    </span>
+                  </div>
 
-                    <button
-                      type="button"
-                      onClick={handleAddPackageStudy}
-                      className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition-all hover:bg-gray-50 disabled:opacity-50"
-                      disabled={
-                        savingPackageStudies ||
-                        packageCandidateStudies.length === 0
-                      }
-                    >
-                      Agregar
-                    </button>
+                  <div className="relative mt-4">
+                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      value={packageStudySearch}
+                      onChange={(e) => setPackageStudySearch(e.target.value)}
+                      placeholder="Buscar por nombre, clave, descripcion, metodo o indicador..."
+                      className="w-full rounded-xl border border-gray-200 bg-white px-11 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                      disabled={savingPackageStudies}
+                    />
+                  </div>
+
+                  <div className="mt-4 max-h-[26rem] space-y-3 overflow-y-auto pr-1">
+                    {activePackageCandidateStudies.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center text-sm text-gray-500">
+                        No hay mas estudios activos disponibles para agregar.
+                      </div>
+                    ) : filteredPackageCandidateStudies.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center text-sm text-gray-500">
+                        No encontramos estudios con esa busqueda.
+                      </div>
+                    ) : (
+                      filteredPackageCandidateStudies.map((candidate) => (
+                        <div
+                          key={candidate.id}
+                          className="rounded-2xl border border-gray-200 bg-white p-4"
+                        >
+                          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-gray-900">
+                                {candidate.name}
+                              </p>
+                              <p className="mt-1 text-xs text-gray-500">
+                                {candidate.code} ·{" "}
+                                {formatStudyDuration(candidate.durationMinutes)}
+                              </p>
+                              <p className="mt-2 text-xs text-gray-600">
+                                {candidate.description || "Sin descripcion"}
+                              </p>
+                              <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                                {candidate.method ? (
+                                  <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
+                                    Metodo: {candidate.method}
+                                  </span>
+                                ) : null}
+                                {candidate.indicator ? (
+                                  <span className="rounded-full bg-red-50 px-2.5 py-1 font-medium text-red-700">
+                                    Indicador: {candidate.indicator}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleAddPackageStudy(candidate.id)}
+                              className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-blue-700 disabled:opacity-50"
+                              disabled={savingPackageStudies}
+                            >
+                              Agregar
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
 
                   <div className="mt-4 flex items-center justify-between border-t border-gray-200 pt-4">
                     <p className="text-xs text-gray-500">
-                      Solo se pueden agregar estudios individuales activos.
+                      Los cambios se guardan hasta confirmar el paquete.
                     </p>
                     <button
                       type="button"
@@ -1173,7 +1297,10 @@ export default function StudyDetailPage() {
             </div>
           ) : (
             <>
-              <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+              <div
+                id="plantilla-estudio"
+                className="section-anchor-target rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm"
+              >
                 <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900">

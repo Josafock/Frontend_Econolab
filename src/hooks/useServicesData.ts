@@ -245,7 +245,7 @@ export function useServicesData(searchTerm: string, filters: ServicesFilters) {
         return false;
       }
 
-      toast.success(`Servicio ${payload.folio} guardado con exito.`);
+      toast.success(`Servicio ${response.data.data.folio} guardado con exito.`);
       clearQueryCacheByPrefix(SERVICES_CACHE_PREFIX);
       await fetchServices(debouncedSearch, filters);
       setSaving(false);

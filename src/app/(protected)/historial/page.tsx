@@ -1,12 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3,
   CalendarDays,
   Download,
-  FileSpreadsheet,
   Loader2,
   RefreshCw,
   Search,
@@ -16,8 +15,6 @@ import {
 } from "lucide-react";
 import { toast } from "react-toastify";
 import {
-  generateDailyCut,
-  getDailyCutById,
   getHistoryDashboard,
   type HistoryDashboardResponse,
 } from "@/actions/history/historyActions";
@@ -39,12 +36,126 @@ function getTodayInputValue() {
   return `${year}-${month}-${day}`;
 }
 
+function shiftInputDate(value: string, days: number) {
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + days);
+
+  const nextYear = date.getUTCFullYear();
+  const nextMonth = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const nextDay = String(date.getUTCDate()).padStart(2, "0");
+
+  return `${nextYear}-${nextMonth}-${nextDay}`;
+}
+
+function isSingleDayRange(fromDate: string, toDate: string) {
+  return fromDate === toDate;
+}
+
+function getRangeLabel(fromDate: string, toDate: string) {
+  if (isSingleDayRange(fromDate, toDate)) {
+    return formatDate(fromDate);
+  }
+
+  return `${formatDate(fromDate)} al ${formatDate(toDate)}`;
+}
+
+function getRangeFileLabel(fromDate: string, toDate: string) {
+  if (isSingleDayRange(fromDate, toDate)) {
+    return fromDate;
+  }
+
+  return `${fromDate}-a-${toDate}`;
+}
+
 function money(value: number) {
   return new Intl.NumberFormat("es-MX", {
     style: "currency",
     currency: "MXN",
     minimumFractionDigits: 2,
   }).format(value || 0);
+}
+
+function getHistoryRangeIndicator(fromDate: string, toDate: string) {
+  const today = getTodayInputValue();
+  const yesterday = shiftInputDate(today, -1);
+
+  if (isSingleDayRange(fromDate, toDate) && fromDate === today) {
+    return {
+      label: "Hoy",
+      description: "Consulta del dia actual",
+      className: "bg-emerald-100 text-emerald-700",
+    };
+  }
+
+  if (isSingleDayRange(fromDate, toDate) && fromDate === yesterday) {
+    return {
+      label: "Ayer",
+      description: "Consulta del cierre anterior",
+      className: "bg-amber-100 text-amber-700",
+    };
+  }
+
+  if (!isSingleDayRange(fromDate, toDate)) {
+    return {
+      label: "Rango",
+      description: "Consulta por periodo",
+      className: "bg-violet-100 text-violet-700",
+    };
+  }
+
+  return {
+    label: "Personalizado",
+    description: "Consulta por fecha",
+    className: "bg-sky-100 text-sky-700",
+  };
+}
+
+function getServiceStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    pending: "Pendiente",
+    in_progress: "En curso",
+    delayed: "Retrasado",
+    completed: "Concluido",
+    cancelled: "Cancelado",
+  };
+
+  return labels[status] ?? status;
+}
+
+function formatExcelDateTime(value?: string | null) {
+  return value ? formatDateTime(value) : "N/D";
+}
+
+function formatExcelPercent(value: number, total: number) {
+  if (!total) return "0.00%";
+  return `${((value / total) * 100).toFixed(2)}%`;
+}
+
+function buildExecutiveSummaryRows(summary: HistoryDashboardResponse["summary"]) {
+  const strongestBranch = summary.branchBreakdown[0];
+  const strongestStudy = summary.topStudies[0];
+
+  return [
+    { Concepto: "Servicios concluidos", Valor: summary.servicesCount },
+    { Concepto: "Pacientes atendidos", Valor: summary.patientsCount },
+    { Concepto: "Estudios procesados", Valor: summary.studiesCount },
+    { Concepto: "Subtotal del periodo", Valor: money(summary.subtotalAmount) },
+    { Concepto: "Descuentos aplicados", Valor: money(summary.discountAmount) },
+    { Concepto: "Ingreso total del periodo", Valor: money(summary.totalAmount) },
+    {
+      Concepto: "Sucursal con mayor ingreso",
+      Valor: strongestBranch
+        ? `${strongestBranch.branchName} (${money(strongestBranch.revenueTotal)})`
+        : "Sin movimientos",
+    },
+    {
+      Concepto: "Estudio mas solicitado",
+      Valor: strongestStudy
+        ? `${strongestStudy.studyName} (${strongestStudy.times} solicitudes)`
+        : "Sin datos",
+    },
+  ];
 }
 
 function wait(ms: number) {
@@ -54,145 +165,93 @@ function wait(ms: number) {
 }
 
 function buildHistoryWorkbook(
-  selectedDate: string,
+  fromDate: string,
+  toDate: string,
   dashboard: HistoryDashboardResponse,
 ) {
   return [
     {
-      name: "Resumen",
+      name: "Resumen ejecutivo",
       rows: [
         {
-          Fecha: selectedDate,
-          Servicios: dashboard.summary.servicesCount,
-          Pacientes: dashboard.summary.patientsCount,
-          Estudios: dashboard.summary.studiesCount,
-          Subtotal: dashboard.summary.subtotalAmount,
-          Descuento: dashboard.summary.discountAmount,
-          Total: dashboard.summary.totalAmount,
-          "Ticket promedio": dashboard.summary.averageTicket,
+          Seccion: "Consulta",
+          Dato: "Periodo consultado",
+          Valor: getRangeLabel(fromDate, toDate),
         },
+        ...buildExecutiveSummaryRows(dashboard.summary).map((item) => ({
+          Seccion: "Resumen",
+          Dato: item.Concepto,
+          Valor: item.Valor,
+        })),
       ],
-      widths: [16, 14, 14, 14, 14, 14, 14, 18],
+      widths: [16, 28, 28],
     },
     {
-      name: "Servicios",
+      name: "Servicios concluidos",
       rows: dashboard.services.map((service) => ({
         Folio: service.folio,
         Paciente: service.paciente,
         Telefono: service.telefono,
+        Medico: service.medico,
+        "Cantidad estudios": service.estudiosCount ?? 0,
         Estudios: service.estudio,
         Sucursal: service.sucursal,
-        Concluido: service.fechaConclusion ?? "",
-        Creacion: service.fechaCreacion ?? "",
-        Entrega: service.fechaEntrega ?? "",
-        Subtotal: service.subtotalAmount,
-        Descuento: service.discountAmount,
-        Total: service.totalAmount,
-        Estatus: service.status,
+        "Fecha muestra": formatExcelDateTime(service.fechaMuestra),
+        "Fecha entrega": formatExcelDateTime(service.fechaEntrega),
+        "Fecha conclusion": formatExcelDateTime(service.fechaConclusion),
+        "Fecha creacion": formatExcelDateTime(service.fechaCreacion),
+        Subtotal: money(service.subtotalAmount),
+        Descuento: money(service.discountAmount),
+        Total: money(service.totalAmount),
+        Estatus: getServiceStatusLabel(service.status),
       })),
-      widths: [18, 28, 18, 42, 18, 22, 22, 22, 14, 14, 14, 14],
+      widths: [18, 28, 18, 28, 16, 42, 18, 22, 22, 22, 22, 16, 16, 16, 14],
     },
     {
       name: "Sucursales",
       rows: dashboard.summary.branchBreakdown.map((branch) => ({
         Sucursal: branch.branchName,
-        Servicios: branch.servicesCount,
-        Total: branch.revenueTotal,
+        "Servicios concluidos": branch.servicesCount,
+        "Ingreso total": money(branch.revenueTotal),
+        "Participacion ingreso": formatExcelPercent(
+          branch.revenueTotal,
+          dashboard.summary.totalAmount,
+        ),
+        "Participacion servicios": formatExcelPercent(
+          branch.servicesCount,
+          dashboard.summary.servicesCount,
+        ),
       })),
-      widths: [24, 14, 14],
+      widths: [24, 18, 18, 18, 18],
     },
     {
       name: "Estudios frecuentes",
-      rows: dashboard.summary.topStudies.map((study) => ({
+      rows: dashboard.summary.topStudies.map((study, index) => ({
+        Posicion: index + 1,
         Estudio: study.studyName,
-        Veces: study.times,
+        "Veces solicitado": study.times,
       })),
-      widths: [34, 12],
+      widths: [12, 40, 18],
     },
     {
-      name: "Ritmo",
+      name: "Ritmo por hora",
       rows: dashboard.summary.hourlyBreakdown.map((hour) => ({
         Hora: hour.hour,
-        Servicios: hour.servicesCount,
-        Total: hour.revenueTotal,
+        "Servicios concluidos": hour.servicesCount,
+        Ingreso: money(hour.revenueTotal),
+        "Participacion ingreso": formatExcelPercent(
+          hour.revenueTotal,
+          dashboard.summary.totalAmount,
+        ),
       })),
-      widths: [12, 14, 14],
-    },
-  ];
-}
-
-function buildDailyCutWorkbook(
-  cut: NonNullable<HistoryDashboardResponse["savedCut"]>,
-) {
-  return [
-    {
-      name: "Resumen",
-      rows: [
-        {
-          Fecha: cut.closingDate,
-          "Periodo inicio": cut.periodStart,
-          "Periodo fin": cut.periodEnd,
-          Servicios: cut.servicesCount,
-          Pacientes: cut.patientsCount,
-          Estudios: cut.studiesCount,
-          Subtotal: cut.subtotalAmount,
-          Descuento: cut.discountAmount,
-          Total: cut.totalAmount,
-          "Ticket promedio": cut.averageTicket,
-          Creado: cut.createdAt,
-          Actualizado: cut.updatedAt,
-        },
-      ],
-      widths: [16, 22, 22, 14, 14, 14, 14, 14, 14, 18, 22, 22],
-    },
-    {
-      name: "Servicios corte",
-      rows: cut.servicesSnapshot.map((service) => ({
-        Folio: service.folio,
-        Paciente: service.patientName,
-        Estudios: service.studySummary,
-        Sucursal: service.branchName,
-        Concluido: service.completedAt ?? "",
-        Creacion: service.createdAt ?? "",
-        Entrega: service.deliveryAt ?? "",
-        Subtotal: service.subtotalAmount,
-        Descuento: service.discountAmount,
-        Total: service.totalAmount,
-      })),
-      widths: [18, 28, 42, 18, 22, 22, 22, 14, 14, 14],
-    },
-    {
-      name: "Sucursales",
-      rows: cut.branchBreakdown.map((branch) => ({
-        Sucursal: branch.branchName,
-        Servicios: branch.servicesCount,
-        Total: branch.revenueTotal,
-      })),
-      widths: [24, 14, 14],
-    },
-    {
-      name: "Estudios frecuentes",
-      rows: cut.topStudies.map((study) => ({
-        Estudio: study.studyName,
-        Veces: study.times,
-      })),
-      widths: [34, 12],
-    },
-    {
-      name: "Ritmo",
-      rows: cut.hourlyBreakdown.map((hour) => ({
-        Hora: hour.hour,
-        Servicios: hour.servicesCount,
-        Total: hour.revenueTotal,
-      })),
-      widths: [12, 14, 14],
+      widths: [12, 18, 18, 18],
     },
   ];
 }
 
 function LoadingCard() {
   return (
-    <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+    <div className="app-panel-surface rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
       <div className="animate-pulse">
         <div className="h-4 w-24 rounded bg-gray-200" />
         <div className="mt-4 h-8 w-32 rounded bg-gray-200" />
@@ -210,7 +269,7 @@ function LoadingPanel({
   compact?: boolean;
 }) {
   return (
-    <div className="rounded-[2rem] border border-gray-200 bg-white shadow-sm">
+    <div className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white shadow-sm">
       <div className="border-b border-gray-200 px-6 py-5">
         <div className="animate-pulse">
           <div className="h-5 w-48 rounded bg-gray-200" />
@@ -242,10 +301,12 @@ function LoadingPanel({
 }
 
 export default function HistorialPage() {
-  const [selectedDate, setSelectedDate] = useState(getTodayInputValue());
+  const hasLoadedDashboardRef = useRef(false);
+  const [dateFrom, setDateFrom] = useState(getTodayInputValue());
+  const [dateTo, setDateTo] = useState(getTodayInputValue());
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
-  const [generatingCut, setGeneratingCut] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [dashboard, setDashboard] = useState<HistoryDashboardResponse | null>(
     null,
   );
@@ -260,68 +321,69 @@ export default function HistorialPage() {
 
   useEffect(() => {
     const today = getTodayInputValue();
-    setSelectedDate((current) => (current === today ? current : today));
+    setDateFrom((current) => (current === today ? current : today));
+    setDateTo((current) => (current === today ? current : today));
   }, []);
 
   const loadDashboard = useCallback(
-    async (options?: { silent?: boolean }) => {
-      if (!options?.silent) {
+    async (options?: { silent?: boolean; background?: boolean }) => {
+      if (options?.background) {
+        setRefreshing(true);
+      } else if (!options?.silent) {
         setLoading(true);
       }
 
       const response = await getHistoryDashboard({
-        date: selectedDate,
+        fromDate: dateFrom,
+        toDate: dateTo,
         search: debouncedSearch || undefined,
       });
 
       if (!response.ok) {
         toast.error(response.errors[0] ?? "No se pudo cargar el historial.");
-        setDashboard(null);
+        if (!options?.background) {
+          setDashboard(null);
+        }
         setLoading(false);
+        setRefreshing(false);
         return;
       }
 
       setDashboard(response.data);
+      hasLoadedDashboardRef.current = true;
       setLoading(false);
+      setRefreshing(false);
     },
-    [debouncedSearch, selectedDate],
+    [dateFrom, dateTo, debouncedSearch],
   );
 
   useEffect(() => {
-    void loadDashboard();
+    void loadDashboard({
+      background: hasLoadedDashboardRef.current,
+    });
   }, [loadDashboard]);
-
-  const handleGenerateCut = async () => {
-    setGeneratingCut(true);
-    const response = await generateDailyCut(selectedDate);
-
-    if (!response.ok) {
-      toast.error(response.errors[0] ?? "No se pudo generar el corte del dia.");
-      setGeneratingCut(false);
-      return;
-    }
-
-    toast.success("Corte del dia guardado correctamente.");
-    await loadDashboard({ silent: true });
-    setGeneratingCut(false);
-  };
 
   const summary = dashboard?.summary;
   const completedServices = useMemo(
     () => dashboard?.services ?? [],
     [dashboard],
   );
-  const savedCut = dashboard?.savedCut;
-  const recentCuts = useMemo(() => dashboard?.recentCuts ?? [], [dashboard]);
   const totalSummaryAmount = summary?.totalAmount ?? 0;
 
   const strongestBranch = useMemo(() => {
     return summary?.branchBreakdown?.[0] ?? null;
   }, [summary]);
+  const activeSearchLabel = debouncedSearch.trim();
+  const hasActiveSearch = activeSearchLabel.length > 0;
+  const activeRangeLabel = getRangeLabel(dateFrom, dateTo);
+  const historyRangeIndicator = useMemo(
+    () => getHistoryRangeIndicator(dateFrom, dateTo),
+    [dateFrom, dateTo],
+  );
 
   useEffect(() => {
     setServicesPage(1);
-  }, [selectedDate, debouncedSearch]);
+  }, [dateFrom, dateTo, debouncedSearch]);
 
   const servicesTotalPages = Math.max(
     1,
@@ -348,7 +410,7 @@ export default function HistorialPage() {
     const { downloadWorkbook } = await import("@/helpers/excel");
 
     setExportProgress({
-      label: "Preparando historial del dia...",
+      label: "Preparando historial del periodo...",
       percent: 15,
     });
     await wait(80);
@@ -360,8 +422,8 @@ export default function HistorialPage() {
     await wait(80);
 
     downloadWorkbook(
-      `historial-${selectedDate}.xlsx`,
-      buildHistoryWorkbook(selectedDate, dashboard),
+      `historial-${getRangeFileLabel(dateFrom, dateTo)}.xlsx`,
+      buildHistoryWorkbook(dateFrom, dateTo, dashboard),
     );
 
     setExportProgress({
@@ -373,117 +435,94 @@ export default function HistorialPage() {
     setExportProgress(null);
   };
 
-  const handleExportSavedCut = async (cutId: number) => {
-    const { downloadWorkbook } = await import("@/helpers/excel");
-
-    setExportProgress({
-      label: "Buscando corte guardado...",
-      percent: 20,
-    });
-
-    const response = await getDailyCutById(cutId);
-    if (!response.ok) {
-      toast.error(response.errors[0] ?? "No se pudo preparar el corte.");
-      setExportProgress(null);
-      return;
-    }
-
-    setExportProgress({
-      label: "Generando archivo del corte del dia...",
-      percent: 75,
-    });
-    await wait(80);
-
-    downloadWorkbook(
-      `corte-dia-${response.data.closingDate}.xlsx`,
-      buildDailyCutWorkbook(response.data),
-    );
-
-    setExportProgress({
-      label: "Corte exportado correctamente.",
-      percent: 100,
-    });
-    toast.success("Corte del dia exportado correctamente.");
-    await wait(350);
-    setExportProgress(null);
-  };
-
   return (
     <div className="min-w-0">
       <div className="mb-8 flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
             <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            Historial y corte diario
+            Historial operativo
           </div>
           <h1 className="text-3xl font-bold text-gray-900">Historial</h1>
           <p className="mt-2 max-w-3xl text-gray-600">
-            Consulta solo los servicios concluidos por fecha, genera el corte
-            del dia y conserva el historial de cierres para auditoria.
+            Consulta servicios concluidos por dia o por rango. El control de
+            cortes se administra desde su apartado dedicado dentro de este
+            modulo.
           </p>
         </div>
 
         <div className="flex flex-wrap gap-3">
+          <Link
+            href="/cortes"
+            className="inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+          >
+            Abrir cortes
+          </Link>
           <button
             type="button"
             onClick={() => void handleExportHistory()}
             className="inline-flex items-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100 disabled:opacity-50"
             disabled={loading || Boolean(exportProgress)}
           >
-            <Download className="h-4 w-4" />
-            Exportar historial
-          </button>
-
-          <button
-            type="button"
-            onClick={() => void loadDashboard()}
-            className="inline-flex items-center gap-2 rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Actualizar
-          </button>
-
-          <button
-            type="button"
-            onClick={() => void handleGenerateCut()}
-            className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-600/20 transition-all hover:bg-emerald-700 disabled:opacity-50"
-            disabled={generatingCut || loading}
-          >
-            {generatingCut ? (
+            {exportProgress ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <FileSpreadsheet className="h-4 w-4" />
+              <Download className="h-4 w-4" />
             )}
-            Guardar corte del dia
+            {exportProgress ? "Exportando..." : "Exportar historial"}
           </button>
 
-          {savedCut ? (
-            <button
-              type="button"
-              onClick={() => void handleExportSavedCut(savedCut.id)}
-              className="inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50"
-              disabled={loading || Boolean(exportProgress)}
-            >
-              <Download className="h-4 w-4" />
-              Exportar corte
-            </button>
-          ) : null}
+          <button
+            type="button"
+            onClick={() => void loadDashboard({ background: Boolean(dashboard) })}
+            className="inline-flex items-center gap-2 rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+            disabled={loading || refreshing}
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+            />
+            {refreshing ? "Actualizando..." : "Actualizar"}
+          </button>
         </div>
       </div>
 
-      <div className="mb-6 overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm">
-        <div className="border-b border-gray-100 bg-gradient-to-r from-white via-emerald-50/70 to-white px-6 py-5">
-          <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr_auto] lg:items-end">
+      {refreshing && !loading ? (
+        <div className="mb-3 flex items-center gap-2 text-xs text-gray-500">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Actualizando historial...
+        </div>
+      ) : null}
+
+      <div className="app-panel-surface mb-4 overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm">
+        <div className="bg-gradient-to-r from-white via-emerald-50/70 to-white p-6">
+          <div className="grid gap-4 lg:grid-cols-[0.72fr_0.72fr_1.25fr_auto] lg:items-end">
             <div>
               <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                Fecha del historial
+                Desde
               </label>
               <div className="relative">
                 <CalendarDays className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <input
                   type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  max={dateTo}
+                  className="w-full rounded-2xl border border-gray-200 bg-white px-11 py-3 text-sm text-gray-900 outline-none transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Hasta
+              </label>
+              <div className="relative">
+                <CalendarDays className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  min={dateFrom}
                   className="w-full rounded-2xl border border-gray-200 bg-white px-11 py-3 text-sm text-gray-900 outline-none transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
                 />
               </div>
@@ -505,19 +544,50 @@ export default function HistorialPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-              <p className="font-semibold">Fecha activa</p>
-              <p className="mt-1">{formatDate(selectedDate)}</p>
-            </div>
+            <Link
+              href="/cortes"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+            >
+              Abrir apartado de cortes
+            </Link>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-semibold ${historyRangeIndicator.className}`}
+            >
+              {historyRangeIndicator.label}
+            </span>
+            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+              Rango activo: {activeRangeLabel}
+            </span>
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-gray-600">
+              {historyRangeIndicator.description}
+            </span>
           </div>
         </div>
+      </div>
 
-        <div className="grid gap-4 px-6 py-5 md:grid-cols-2 xl:grid-cols-5">
-          <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="mb-6 flex flex-wrap gap-2">
+        <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+          Resultados: {completedServices.length}
+        </span>
+        <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+          {hasActiveSearch
+            ? `Busqueda: "${activeSearchLabel}"`
+            : "Busqueda: sin filtro"}
+        </span>
+        <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700">
+          Cortes: administralos desde el apartado dedicado
+        </span>
+      </div>
+
+      <div className="grid gap-4 px-0 py-0 md:grid-cols-2 xl:grid-cols-5">
+          <div className="app-panel-surface rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">
-                  Ingreso del dia
+                  Ingreso del periodo
                 </p>
                 <p className="mt-1 text-2xl font-bold text-gray-900">
                   {money(summary?.totalAmount ?? 0)}
@@ -529,7 +599,7 @@ export default function HistorialPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="app-panel-surface rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">
@@ -545,7 +615,7 @@ export default function HistorialPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="app-panel-surface rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">
@@ -561,14 +631,14 @@ export default function HistorialPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="app-panel-surface rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">
-                  Ticket promedio
+                  Descuentos aplicados
                 </p>
                 <p className="mt-1 text-2xl font-bold text-gray-900">
-                  {money(summary?.averageTicket ?? 0)}
+                  {money(summary?.discountAmount ?? 0)}
                 </p>
               </div>
               <div className="rounded-2xl bg-rose-100 p-3 text-rose-700">
@@ -577,7 +647,7 @@ export default function HistorialPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="app-panel-surface rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">
@@ -596,10 +666,9 @@ export default function HistorialPage() {
             </div>
           </div>
         </div>
-      </div>
 
       {exportProgress ? (
-        <div className="mb-6 rounded-[2rem] border border-blue-200 bg-blue-50 p-5 shadow-sm">
+        <div className="app-panel-surface mb-6 rounded-[2rem] border border-blue-200 bg-blue-50 p-5 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
@@ -648,20 +717,20 @@ export default function HistorialPage() {
       ) : (
         <div className="grid gap-6 xl:grid-cols-[1.45fr_0.95fr]">
           <div className="space-y-6">
-            <div className="rounded-[2rem] border border-gray-200 bg-white shadow-sm">
+            <div className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white shadow-sm">
               <div className="border-b border-gray-200 px-6 py-5">
                 <h2 className="text-lg font-semibold text-gray-900">
-                  Servicios concluidos del dia
+                  Servicios concluidos del periodo
                 </h2>
                 <p className="mt-1 text-sm text-gray-500">
-                  Solo aparecen servicios con estatus concluido para la fecha
-                  seleccionada.
+                  Solo aparecen servicios con estatus concluido dentro del
+                  rango seleccionado.
                 </p>
               </div>
 
               {completedServices.length === 0 ? (
                 <div className="p-8 text-center text-sm text-gray-500">
-                  No hay servicios concluidos para esta fecha.
+                  No hay servicios concluidos para este rango.
                 </div>
               ) : (
                 <>
@@ -791,76 +860,20 @@ export default function HistorialPage() {
                 </>
               )}
             </div>
-
-            <div className="rounded-[2rem] border border-gray-200 bg-white shadow-sm">
-              <div className="border-b border-gray-200 px-6 py-5">
-                <h2 className="text-lg font-semibold text-gray-900">
-                  Historial de cortes guardados
-                </h2>
-                <p className="mt-1 text-sm text-gray-500">
-                  Cada corte se conserva por fecha y puede exportarse nuevamente
-                  cuando se necesite.
-                </p>
-              </div>
-
-              {recentCuts.length === 0 ? (
-                <div className="p-8 text-center text-sm text-gray-500">
-                  Todavia no hay cortes guardados.
-                </div>
-              ) : (
-                <div className="max-h-[24rem] divide-y divide-gray-200 overflow-y-auto scroll-panel">
-                  {recentCuts.map((cut) => (
-                    <div
-                      key={cut.id}
-                      className="flex flex-col gap-4 px-6 py-5 md:flex-row md:items-center md:justify-between"
-                    >
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-semibold text-gray-900">
-                            Corte del {formatDate(cut.closingDate)}
-                          </p>
-                          <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
-                            {cut.servicesCount} servicios
-                          </span>
-                        </div>
-                        <p className="mt-2 text-xs text-gray-500">
-                          Ultima actualizacion: {formatDateTime(cut.updatedAt)}
-                        </p>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-3 md:justify-end">
-                        <div className="rounded-2xl bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700">
-                          {money(cut.totalAmount)}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => void handleExportSavedCut(cut.id)}
-                          className="inline-flex items-center gap-2 rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
-                          disabled={Boolean(exportProgress)}
-                        >
-                          <Download className="h-4 w-4" />
-                          Exportar
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
 
           <div className="space-y-6">
-            <div className="overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm">
+            <div className="app-panel-surface overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm">
               <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-900 p-6 text-white">
                 <p className="text-xs uppercase tracking-[0.25em] text-emerald-200">
-                  Corte del dia
+                  Resumen del periodo
                 </p>
                 <h2 className="mt-3 text-2xl font-semibold">
                   {money(summary?.totalAmount ?? 0)}
                 </h2>
                 <p className="mt-2 text-sm text-emerald-100">
-                  Resultado estimado de los servicios concluidos el{" "}
-                  {formatDate(selectedDate)}.
+                  Resumen estimado de los servicios concluidos en el periodo{" "}
+                  {activeRangeLabel}.
                 </p>
               </div>
 
@@ -886,12 +899,12 @@ export default function HistorialPage() {
 
                 <div>
                   <p className="text-sm font-semibold text-gray-900">
-                    Sucursales del dia
+                    Sucursales del periodo
                   </p>
                   <div className="mt-3 space-y-3">
                     {(summary?.branchBreakdown ?? []).length === 0 ? (
                       <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-500">
-                        Sin movimientos para esta fecha.
+                        Sin movimientos para este rango.
                       </div>
                     ) : (
                       summary?.branchBreakdown.map((branch) => (
@@ -946,30 +959,34 @@ export default function HistorialPage() {
                 </div>
 
                 <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-900">
-                  <p className="font-semibold">
-                    {savedCut ? "Corte guardado" : "Corte pendiente de guardar"}
-                  </p>
+                  <p className="font-semibold">Cortes en apartado separado</p>
                   <p className="mt-2">
-                    {savedCut
-                      ? `Se guardo por ultima vez el ${formatDateTime(savedCut.updatedAt)} y ya puede exportarse cuando lo necesites.`
-                      : "Genera el corte del dia para conservar un snapshot del ingreso y su desglose."}
+                    Revisa, guarda y exporta cortes diarios desde el apartado
+                    dedicado para mantener esta vista enfocada solo en consulta
+                    historica.
                   </p>
+                  <Link
+                    href="/cortes"
+                    className="mt-4 inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+                  >
+                    Ir a cortes
+                  </Link>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-gray-900">
-                Ritmo del dia
+                Ritmo del periodo
               </h2>
               <p className="mt-1 text-sm text-gray-500">
-                Distribucion de servicios concluidos por hora.
+                Distribucion de servicios concluidos por hora dentro del rango.
               </p>
 
               <div className="mt-4 space-y-3">
                 {(summary?.hourlyBreakdown ?? []).length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-500">
-                    Sin cierres registrados para esta fecha.
+                    Sin cierres registrados para este rango.
                   </div>
                 ) : (
                   summary?.hourlyBreakdown.map((item) => {

@@ -572,7 +572,7 @@ export default function EstudiosPage() {
                       items={[
                         {
                           label: "Ver detalle",
-                          href: `/estudios/detalle/${study.id}`,
+                          href: `/estudios/detalle/${study.id}#resumen-estudio`,
                           hint: "Disponible",
                           icon: <Eye size={16} />,
                         },
@@ -581,7 +581,7 @@ export default function EstudiosPage() {
                             study.type === "package"
                               ? "Editar paquete"
                               : "Editar estudio",
-                          href: `/estudios/detalle/${study.id}?modo=editar`,
+                          href: `/estudios/detalle/${study.id}?modo=editar#editar-estudio`,
                           hint: "Disponible",
                           icon: <PencilLine size={16} />,
                         },
@@ -590,7 +590,10 @@ export default function EstudiosPage() {
                             study.type === "package"
                               ? "Configurar paquete"
                               : "Configurar estudio",
-                          href: `/estudios/detalle/${study.id}`,
+                          href:
+                            study.type === "package"
+                              ? `/estudios/detalle/${study.id}#contenido-paquete`
+                              : `/estudios/detalle/${study.id}#plantilla-estudio`,
                           hint: "Disponible",
                           icon: <FlaskConical size={16} />,
                         },
@@ -700,7 +703,7 @@ export default function EstudiosPage() {
                     items={[
                       {
                         label: "Ver detalle",
-                        href: `/estudios/detalle/${study.id}`,
+                        href: `/estudios/detalle/${study.id}#resumen-estudio`,
                         hint: "Disponible",
                         icon: <Eye size={16} />,
                       },
@@ -709,7 +712,7 @@ export default function EstudiosPage() {
                           study.type === "package"
                             ? "Editar paquete"
                             : "Editar estudio",
-                        href: `/estudios/detalle/${study.id}?modo=editar`,
+                        href: `/estudios/detalle/${study.id}?modo=editar#editar-estudio`,
                         hint: "Disponible",
                         icon: <PencilLine size={16} />,
                       },
@@ -718,7 +721,10 @@ export default function EstudiosPage() {
                           study.type === "package"
                             ? "Configurar paquete"
                             : "Configurar estudio",
-                        href: `/estudios/detalle/${study.id}`,
+                        href:
+                          study.type === "package"
+                            ? `/estudios/detalle/${study.id}#contenido-paquete`
+                            : `/estudios/detalle/${study.id}#plantilla-estudio`,
                         hint: "Disponible",
                         icon: <FlaskConical size={16} />,
                       },

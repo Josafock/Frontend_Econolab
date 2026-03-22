@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useEffect,
   useMemo,
   useState,
   type ChangeEvent,
@@ -13,11 +14,14 @@ import type {
   CreateStudyPayload,
   StudyType,
 } from "@/actions/studies/studiesActions";
+import { getSuggestedStudyCode } from "@/actions/studies/studiesActions";
 import StudyFormFields from "@/components/estudios/StudyFormFields";
 import {
   createEmptyStudyForm,
   createTouchedStudyForm,
+  generateSuggestedStudyCode,
   hasStudyFormErrors,
+  isGeneratedStudyCode,
   mapFormToCreateStudyPayload,
   updateDurationValue,
   validateStudyForm,
@@ -39,22 +43,63 @@ export default function AddStudyModal({
   initialType = "study",
 }: AddStudyModalProps) {
   const [formData, setFormData] = useState(() =>
-    createEmptyStudyForm(initialType),
+    ({
+      ...createEmptyStudyForm(initialType),
+      clave: generateSuggestedStudyCode(initialType),
+    }),
   );
+  const [useAutoCode, setUseAutoCode] = useState(true);
   const [touched, setTouched] = useState<StudyFormTouched>({});
   const entityLabel = initialType === "package" ? "paquete" : "estudio";
   const isPackage = initialType === "package";
 
   const errors = useMemo(() => validateStudyForm(formData), [formData]);
 
+  useEffect(() => {
+    void (async () => {
+      const response = await getSuggestedStudyCode(initialType);
+      if (!response.ok) {
+        return;
+      }
+
+      setFormData((current) => {
+        if (!isGeneratedStudyCode(current.clave)) {
+          return current;
+        }
+
+        return {
+          ...current,
+          clave: response.data.code,
+        };
+      });
+    })();
+  }, [initialType]);
+
   const handleChange = (
     e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
   ) => {
     const { name, value } = e.target;
-    setFormData((current) => ({
-      ...current,
-      [name]: value,
-    }));
+
+    if (name === "clave") {
+      setUseAutoCode(false);
+    }
+
+    setFormData((current) => {
+      const nextForm = {
+        ...current,
+        [name]: value,
+      };
+
+      if (name === "tipo" && useAutoCode && isGeneratedStudyCode(current.clave)) {
+        nextForm.clave = generateSuggestedStudyCode(value as StudyType);
+      }
+
+      return nextForm;
+    });
+
+    if (name === "tipo" && useAutoCode) {
+      void handleGenerateCode(value as StudyType);
+    }
   };
 
   const handleBlur = (
@@ -81,6 +126,19 @@ export default function AddStudyModal({
     }));
   };
 
+  const handleGenerateCode = async (typeOverride?: StudyType) => {
+    setUseAutoCode(true);
+    const targetType = typeOverride ?? formData.tipo;
+    const response = await getSuggestedStudyCode(targetType);
+
+    setFormData((current) => ({
+      ...current,
+      clave: response.ok
+        ? response.data.code
+        : generateSuggestedStudyCode(targetType),
+    }));
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
@@ -93,7 +151,9 @@ export default function AddStudyModal({
       return;
     }
 
-    await addStudy(mapFormToCreateStudyPayload(formData));
+    await addStudy(
+      mapFormToCreateStudyPayload(formData, { autoGenerateCode: useAutoCode }),
+    );
   };
 
   return (
@@ -149,6 +209,7 @@ export default function AddStudyModal({
                 onBlur={handleBlur}
                 onDurationChange={handleDurationChange}
                 onDurationBlur={handleDurationBlur}
+                onGenerateCode={handleGenerateCode}
                 disabled={isSaving}
                 compact
               />

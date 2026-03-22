@@ -465,12 +465,12 @@ export default function MedicosPage() {
                       items={[
                         {
                           label: "Ver detalle",
-                          href: `/medicos/detalle/${medico.id}`,
+                          href: `/medicos/detalle/${medico.id}#resumen-perfil`,
                           icon: <Eye size={16} />,
                         },
                         {
                           label: "Editar médico",
-                          href: `/medicos/detalle/${medico.id}?modo=editar`,
+                          href: `/medicos/detalle/${medico.id}?modo=editar#perfil-completo`,
                           icon: <PencilLine size={16} />,
                         },
                         {
@@ -568,12 +568,12 @@ export default function MedicosPage() {
                     items={[
                       {
                         label: "Ver detalle",
-                        href: `/medicos/detalle/${medico.id}`,
+                        href: `/medicos/detalle/${medico.id}#resumen-perfil`,
                         icon: <Eye size={16} />,
                       },
                       {
                         label: "Editar médico",
-                        href: `/medicos/detalle/${medico.id}?modo=editar`,
+                        href: `/medicos/detalle/${medico.id}?modo=editar#perfil-completo`,
                         icon: <PencilLine size={16} />,
                       },
                       {

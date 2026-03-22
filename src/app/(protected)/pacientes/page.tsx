@@ -531,13 +531,13 @@ export default function PacientesPage() {
                       items={[
                         {
                           label: "Ver detalle",
-                          href: `/pacientes/detalle/${paciente.id}`,
+                          href: `/pacientes/detalle/${paciente.id}#resumen-expediente`,
                           hint: "Disponible",
                           icon: <Eye size={16} />,
                         },
                         {
                           label: "Editar paciente",
-                          href: `/pacientes/detalle/${paciente.id}?modo=editar`,
+                          href: `/pacientes/detalle/${paciente.id}?modo=editar#expediente-completo`,
                           hint: "Disponible",
                           icon: <PencilLine size={16} />,
                         },
@@ -646,13 +646,13 @@ export default function PacientesPage() {
                     items={[
                       {
                         label: "Ver detalle",
-                        href: `/pacientes/detalle/${paciente.id}`,
+                        href: `/pacientes/detalle/${paciente.id}#resumen-expediente`,
                         hint: "Disponible",
                         icon: <Eye size={16} />,
                       },
                       {
                         label: "Editar paciente",
-                        href: `/pacientes/detalle/${paciente.id}?modo=editar`,
+                        href: `/pacientes/detalle/${paciente.id}?modo=editar#expediente-completo`,
                         hint: "Disponible",
                         icon: <PencilLine size={16} />,
                       },

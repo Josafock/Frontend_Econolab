@@ -48,12 +48,13 @@ export function generateSuggestedServiceFolio() {
     now.getFullYear(),
     String(now.getMonth() + 1).padStart(2, "0"),
     String(now.getDate()).padStart(2, "0"),
-    String(now.getHours()).padStart(2, "0"),
-    String(now.getMinutes()).padStart(2, "0"),
-    String(now.getSeconds()).padStart(2, "0"),
   ];
 
-  return `ECO${parts.join("")}`;
+  return `ECO${parts.join("")}0001`;
+}
+
+export function isGeneratedServiceFolio(value: string) {
+  return /^ECO\d{12}$/i.test(value.trim());
 }
 
 export function createEmptyServiceForm(): ServiceFormValues {
@@ -267,11 +268,13 @@ function clean(value: string) {
 
 export function mapServiceFormToPayload(
   formData: ServiceFormValues,
+  options?: { autoGenerateFolio?: boolean },
 ): CreateServicePayload {
   const courtesyPercent = Number(formData.courtesyPercent || 0);
 
   return {
     folio: formData.folio.trim().toUpperCase(),
+    autoGenerateFolio: options?.autoGenerateFolio,
     patientId: Number(formData.patientId),
     doctorId: formData.doctorId ? Number(formData.doctorId) : undefined,
     branchName: clean(formData.branchName),

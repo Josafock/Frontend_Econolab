@@ -9,6 +9,7 @@ const LABELS: Record<string, string> = {
   estudios: "Estudios",
   servicios: "Servicios",
   historial: "Historial",
+  cortes: "Cortes",
   perfil: "Perfil",
   home: "Inicio",
   detalle: "Detalle",
@@ -38,6 +39,21 @@ const Breadcrumbs = () => {
   const pathname = usePathname();
   const paths = pathname.split("/").filter(Boolean);
   const normalizedPaths = paths[0] === "home" ? paths.slice(1) : paths;
+  const breadcrumbItems =
+    normalizedPaths[0] === "cortes"
+      ? [
+          { path: "historial", href: "/historial" },
+          { path: "cortes", href: "/cortes" },
+        ]
+      : normalizedPaths.map((path, index) => {
+          const href =
+            "/" +
+            (paths[0] === "home"
+              ? ["home", ...normalizedPaths.slice(0, index + 1)].join("/")
+              : normalizedPaths.slice(0, index + 1).join("/"));
+
+          return { path, href };
+        });
 
   return (
     <nav aria-label="Breadcrumb">
@@ -51,15 +67,10 @@ const Breadcrumbs = () => {
           </Link>
         </li>
 
-        {normalizedPaths.map((path, index) => {
-          const href =
-            "/" +
-            (paths[0] === "home"
-              ? ["home", ...normalizedPaths.slice(0, index + 1)].join("/")
-              : normalizedPaths.slice(0, index + 1).join("/"));
+        {breadcrumbItems.map(({ path, href }, index) => {
           const label = formatLabel(path);
-          const isLast = index === normalizedPaths.length - 1;
-          const nextPath = normalizedPaths[index + 1];
+          const isLast = index === breadcrumbItems.length - 1;
+          const nextPath = breadcrumbItems[index + 1]?.path;
           const isDetailParent = path === "detalle" && Boolean(nextPath);
           const isClickable = !isLast && !isDetailParent;
 

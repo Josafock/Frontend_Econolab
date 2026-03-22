@@ -29,10 +29,17 @@ export type DashboardOverview = {
     revenueInRange: number;
     createdServicesInRange: number;
     completedServicesInRange: number;
-    averageTicket: number;
+    totalServices: number;
+    createdServicesToday: number;
+    completedServicesToday: number;
+    todayRevenue: number;
     pendingServices: number;
     inProgressServices: number;
+    delayedServices: number;
     cancelledServicesInRange: number;
+    totalPatients: number;
+    totalDoctors: number;
+    activeStudies: number;
     totalUsers: number;
     adminUsers: number;
     receptionistUsers: number;
@@ -50,6 +57,18 @@ export type DashboardOverview = {
     } | null;
     breakdownInRange: Array<{
       branchName: string;
+      servicesCount: number;
+      revenueTotal: number;
+    }>;
+  };
+  doctors: {
+    topInRange: {
+      doctorName: string;
+      servicesCount: number;
+      revenueTotal: number;
+    } | null;
+    rankingInRange: Array<{
+      doctorName: string;
       servicesCount: number;
       revenueTotal: number;
     }>;

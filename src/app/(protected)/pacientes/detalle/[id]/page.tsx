@@ -39,6 +39,7 @@ import {
   type PatientFormTouched,
   type PatientFormValues,
 } from "@/components/pacientes/patientFormUtils";
+import { useHashSectionScroll } from "@/hooks/useHashSectionScroll";
 
 const getStatusColor = (isActive: boolean) =>
   isActive
@@ -78,6 +79,8 @@ export default function PatientDetailPage() {
     searchParams.get("modo") === "editar",
   );
   const errors = useMemo(() => validatePatientForm(formData), [formData]);
+
+  useHashSectionScroll({ enabled: !loading });
 
   useEffect(() => {
     if (Number.isNaN(id)) {
@@ -251,7 +254,9 @@ export default function PatientDetailPage() {
                   type="button"
                   onClick={() => {
                     setIsEditing(true);
-                    router.replace(`/pacientes/detalle/${id}?modo=editar`);
+                    router.replace(
+                      `/pacientes/detalle/${id}?modo=editar#expediente-completo`,
+                    );
                   }}
                   className="inline-flex items-center gap-2 rounded-2xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
                 >
@@ -293,7 +298,10 @@ export default function PatientDetailPage() {
         </div>
       ) : patient ? (
         <div className="space-y-6">
-          <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+          <div
+            id="resumen-expediente"
+            className="section-anchor-target grid gap-4 lg:grid-cols-[1.2fr_0.8fr]"
+          >
             <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
               <div className="mb-4 flex items-center gap-3">
                 <div className="rounded-2xl bg-red-50 p-3 text-red-600">
@@ -415,7 +423,10 @@ export default function PatientDetailPage() {
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+          <div
+            id="expediente-completo"
+            className="section-anchor-target rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm"
+          >
             <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">
@@ -432,7 +443,9 @@ export default function PatientDetailPage() {
                   type="button"
                   onClick={() => {
                     setIsEditing(true);
-                    router.replace(`/pacientes/detalle/${id}?modo=editar`);
+                    router.replace(
+                      `/pacientes/detalle/${id}?modo=editar#expediente-completo`,
+                    );
                   }}
                   className="inline-flex items-center gap-2 rounded-2xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
                 >

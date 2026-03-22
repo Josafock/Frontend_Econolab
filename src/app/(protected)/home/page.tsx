@@ -1,16 +1,17 @@
-import Link from 'next/link';
+﻿import Link from 'next/link';
 import {
   Activity,
   ArrowRight,
-  BadgeDollarSign,
   BarChart3,
   CalendarRange,
   CheckCircle2,
+  Clock3,
   ShieldAlert,
   Sparkles,
   TrendingDown,
   TrendingUp,
   UserCheck,
+  Users,
   Wallet,
 } from 'lucide-react';
 import { getDashboardOverview } from '@/actions/dashboard/dashboardActions';
@@ -19,7 +20,7 @@ import {
   getUsersWithRoleAction,
 } from '@/actions/users/adminUsersActions';
 import { verifySession } from '@/auth/dal';
-import AdminRoleManager from '@/components/home/AdminRoleManager';
+import AdminControlCenter from '@/components/home/AdminControlCenter';
 import { formatDate, formatDateTime } from '@/helpers/date';
 
 type HomePageProps = {
@@ -45,16 +46,10 @@ function money(value: number) {
 
 const rangeOptions = [
   { value: 'today', label: 'Hoy' },
-  { value: '7d', label: '7 días' },
+  { value: '7d', label: '7 dias' },
   { value: '30d', label: '1 mes' },
   { value: '90d', label: '3 meses' },
-  { value: 'year', label: '1 año' },
-] as const;
-
-const roleOptions = [
-  { value: 'all', label: 'Todos' },
-  { value: 'admin', label: 'Admins' },
-  { value: 'recepcionista', label: 'Recepcionistas' },
+  { value: 'year', label: '1 ano' },
 ] as const;
 
 const receptionistShortcuts = [
@@ -104,17 +99,17 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   if (user.rol !== 'admin') {
     return (
       <div className="space-y-8">
-        <section className="overflow-hidden rounded-[2.25rem] border border-red-200 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.98),_rgba(255,245,235,0.95)_38%,_rgba(254,215,170,0.95)_100%)] shadow-xl shadow-orange-200/40">
-          <div className="grid gap-6 p-8 lg:grid-cols-[1.15fr_0.85fr] lg:p-10">
+        <section className="app-panel-surface overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm">
+          <div className="grid gap-6 p-6 lg:grid-cols-[1.1fr_0.9fr]">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-red-700">
-                <Sparkles className="h-3.5 w-3.5" />
+              <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-slate-600">
+                <Sparkles className="h-3.5 w-3.5 text-red-600" />
                 Inicio
               </div>
-              <h1 className="mt-5 max-w-3xl font-serif text-4xl font-semibold tracking-tight text-slate-900 md:text-5xl">
-                Bienvenido, {user.nombre}. Tu panel esta listo para operar el dia.
+              <h1 className="mt-4 max-w-3xl text-2xl font-semibold tracking-tight text-slate-900 md:text-3xl">
+                Panel operativo listo para tu jornada
               </h1>
-              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-700">
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
                 Desde aqui puedes entrar directo a servicios, pacientes, medicos y estudios. El historial,
                 los cortes del dia, las graficas y los logins quedan reservados para administracion.
               </p>
@@ -199,10 +194,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     endDate: requestedEndDate,
   });
 
-  const adminUserResponses =
-    user.rol === 'admin'
-      ? await Promise.all([getUnassignedUsersAction(), getUsersWithRoleAction()])
-      : null;
+  const adminUserResponses = await Promise.all([
+    getUnassignedUsersAction(),
+    getUsersWithRoleAction(),
+  ]);
 
   if (!overviewResponse.ok) {
     return (
@@ -217,15 +212,15 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const savedCut = overview.finance.savedTodayCut;
   const maxTrendRevenue =
     Math.max(...overview.trends.revenueSeries.map((item) => item.revenueTotal), 1) || 1;
-  const pendingUsersResponse = adminUserResponses?.[0];
-  const usersWithRoleResponse = adminUserResponses?.[1];
+  const pendingUsersResponse = adminUserResponses[0];
+  const usersWithRoleResponse = adminUserResponses[1];
   const adminRoleErrors: string[] = [];
 
-  if (pendingUsersResponse && !pendingUsersResponse.ok) {
+  if (!pendingUsersResponse.ok) {
     adminRoleErrors.push(pendingUsersResponse.errors[0] ?? 'No se pudo cargar usuarios pendientes.');
   }
 
-  if (usersWithRoleResponse && !usersWithRoleResponse.ok) {
+  if (!usersWithRoleResponse.ok) {
     adminRoleErrors.push(usersWithRoleResponse.errors[0] ?? 'No se pudo cargar usuarios con rol.');
   }
 
@@ -234,37 +229,94 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     overview.filters.range === 'custom' ? overview.filters.startDate : requestedStartDate ?? '';
   const currentEndDate =
     overview.filters.range === 'custom' ? overview.filters.endDate : requestedEndDate ?? '';
+  const openServicesCount =
+    overview.kpis.pendingServices +
+    overview.kpis.inProgressServices +
+    overview.kpis.delayedServices;
+  const operationCards = [
+    {
+      label: 'Pendientes',
+      value: overview.kpis.pendingServices,
+      note: 'Esperan toma o seguimiento',
+      barClass: 'bg-amber-500',
+      surfaceClass: 'border-amber-200 bg-amber-50',
+      textClass: 'text-amber-900',
+    },
+    {
+      label: 'En curso',
+      value: overview.kpis.inProgressServices,
+      note: 'Se estan procesando',
+      barClass: 'bg-blue-500',
+      surfaceClass: 'border-blue-200 bg-blue-50',
+      textClass: 'text-blue-900',
+    },
+    {
+      label: 'Retrasados',
+      value: overview.kpis.delayedServices,
+      note: 'Conviene revisar entrega',
+      barClass: 'bg-rose-500',
+      surfaceClass: 'border-rose-200 bg-rose-50',
+      textClass: 'text-rose-900',
+    },
+    {
+      label: 'Concluidos del rango',
+      value: overview.kpis.completedServicesInRange,
+      note: 'Servicios ya cerrados',
+      barClass: 'bg-emerald-500',
+      surfaceClass: 'border-emerald-200 bg-emerald-50',
+      textClass: 'text-emerald-900',
+    },
+  ] as const;
+  const maxOperationValue =
+    Math.max(...operationCards.map((card) => card.value), 1) || 1;
+  const topLoginUsers = [...overview.logins.users]
+    .sort(
+      (left, right) =>
+        right.successfulLogins - left.successfulLogins ||
+        right.failedLogins - left.failedLogins ||
+        left.nombre.localeCompare(right.nombre, 'es-MX'),
+    )
+    .slice(0, 5);
+  const topUsersWithIssues = [...overview.logins.users]
+    .filter((user) => user.failedLogins > 0)
+    .sort(
+      (left, right) =>
+        right.failedLogins - left.failedLogins ||
+        right.successfulLogins - left.successfulLogins ||
+        left.nombre.localeCompare(right.nombre, 'es-MX'),
+    )
+    .slice(0, 5);
 
   return (
     <div className="space-y-8">
-      <section className="overflow-hidden rounded-[2.25rem] border border-red-200 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.95),_rgba(255,245,235,0.92)_35%,_rgba(254,215,170,0.92)_100%)] shadow-xl shadow-orange-200/40">
-        <div className="grid gap-6 p-8 xl:grid-cols-[1.35fr_0.95fr] xl:p-10">
+      <section className="app-panel-surface overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm">
+        <div className="grid gap-6 p-6 xl:grid-cols-[1.15fr_0.85fr]">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-red-700">
-              <Sparkles className="h-3.5 w-3.5" />
+            <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-slate-600">
+              <Sparkles className="h-3.5 w-3.5 text-red-600" />
               Inicio
             </div>
-            <h1 className="mt-5 max-w-3xl font-serif text-4xl font-semibold tracking-tight text-slate-900 md:text-5xl">
-              Bienvenido, {user.nombre}. Aquí vive el pulso financiero y operativo del laboratorio.
+            <h1 className="mt-4 max-w-3xl text-2xl font-semibold tracking-tight text-slate-900 md:text-3xl">
+              Tablero principal del laboratorio
             </h1>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-slate-700">
-              {overview.welcome.subtitle}
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+              Bienvenido, {user.nombre}. Aqui tienes un resumen limpio de operacion, demanda y accesos para el periodo activo.
             </p>
 
-            <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-sm">
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Rango activo</p>
                 <p className="mt-2 text-lg font-semibold text-slate-900">
                   {overview.filters.rangeLabel}
                 </p>
               </div>
-              <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-sm">
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Periodo</p>
                 <p className="mt-2 text-sm font-semibold text-slate-900">
                   {formatDate(overview.filters.startDate)} a {formatDate(overview.filters.endDate)}
                 </p>
               </div>
-              <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-sm">
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Corte de hoy</p>
                 <p className="mt-2 text-sm font-semibold text-slate-900">
                   {savedCut ? money(savedCut.totalAmount) : 'Pendiente'}
@@ -278,7 +330,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
             <div className="mt-5">
               <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                Rango de análisis
+                Rango de analisis
               </p>
               <div className="flex flex-wrap gap-2">
                 {rangeOptions.map((option) => (
@@ -355,32 +407,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               </form>
             </div>
 
-            <div className="mt-6">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                Usuarios visibles
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {roleOptions.map((option) => (
-                  <Link
-                    key={option.value}
-                    href={buildHref(overview.filters.range, option.value, {
-                      startDate:
-                        overview.filters.range === 'custom' ? overview.filters.startDate : undefined,
-                      endDate:
-                        overview.filters.range === 'custom' ? overview.filters.endDate : undefined,
-                    })}
-                    className={`app-chip-button rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
-                      overview.filters.role === option.value
-                        ? 'bg-emerald-400 text-slate-950'
-                        : 'border border-white/15 bg-white/5 text-slate-200 hover:bg-white/10'
-                    }`}
-                  >
-                    {option.label}
-                  </Link>
-                ))}
-              </div>
-            </div>
-
             <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
               <p className="font-semibold">
                 {savedCut ? 'Corte del dia disponible' : 'Corte del dia pendiente'}
@@ -388,7 +414,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               <p className="mt-2">
                 {savedCut
                   ? `El ultimo corte guardado suma ${money(savedCut.totalAmount)} y se actualizo el ${formatDateTime(savedCut.updatedAt)}.`
-                  : 'Todavia no se ha guardado el corte del dia. Puedes hacerlo desde Historial cuando cierre la jornada.'}
+                  : 'Todavia no se ha guardado el corte del dia. Puedes revisarlo desde Historial cuando cierre la jornada.'}
               </p>
               <Link
                 href="/historial"
@@ -402,22 +428,82 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         </div>
       </section>
 
-      {user.rol === 'admin' ? (
-        <AdminRoleManager
-          currentUserId={user.id}
-          initialUnassignedUsers={pendingUsersResponse?.ok ? pendingUsersResponse.data : []}
-          initialUsersWithRole={usersWithRoleResponse?.ok ? usersWithRoleResponse.data : []}
-          initialError={adminRoleError || null}
-        />
-      ) : null}
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <div className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-gray-600">Ganancia del rango</p>
+              <p className="text-sm font-medium text-gray-600">Total de servicios</p>
+              <p className="mt-2 text-3xl font-bold text-gray-900">
+                {overview.kpis.totalServices}
+              </p>
+              <p className="mt-2 text-xs text-gray-500">Base historica del laboratorio</p>
+            </div>
+            <div className="rounded-2xl bg-slate-100 p-3 text-slate-700">
+              <Activity className="h-5 w-5" />
+            </div>
+          </div>
+        </div>
+
+        <div className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Medicos activos</p>
+              <p className="mt-2 text-3xl font-bold text-gray-900">
+                {overview.kpis.totalDoctors}
+              </p>
+              <p className="mt-2 text-xs text-gray-500">
+                {overview.doctors.topInRange
+                  ? `${overview.doctors.topInRange.doctorName} lidera este periodo`
+                  : 'Sin medicos con movimiento en este rango'}
+              </p>
+            </div>
+            <div className="rounded-2xl bg-orange-100 p-3 text-orange-700">
+              <UserCheck className="h-5 w-5" />
+            </div>
+          </div>
+        </div>
+
+        <div className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Pacientes activos</p>
+              <p className="mt-2 text-3xl font-bold text-gray-900">
+                {overview.kpis.totalPatients}
+              </p>
+              <p className="mt-2 text-xs text-gray-500">Base actual de expedientes disponibles</p>
+            </div>
+            <div className="rounded-2xl bg-blue-100 p-3 text-blue-700">
+              <Users className="h-5 w-5" />
+            </div>
+          </div>
+        </div>
+
+        <div className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Estudios activos</p>
+              <p className="mt-2 text-3xl font-bold text-gray-900">{overview.kpis.activeStudies}</p>
+              <p className="mt-2 text-xs text-gray-500">
+                {overview.studies.topInRange
+                  ? `${overview.studies.topInRange.studyName} es el mas solicitado`
+                  : 'Sin demanda suficiente en el rango actual'}
+              </p>
+            </div>
+            <div className="rounded-2xl bg-emerald-100 p-3 text-emerald-700">
+              <BarChart3 className="h-5 w-5" />
+            </div>
+          </div>
+        </div>
+
+        <div className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Ingreso del rango</p>
               <p className="mt-2 text-3xl font-bold text-gray-900">
                 {money(overview.kpis.revenueInRange)}
+              </p>
+              <p className="mt-2 text-xs text-gray-500">
+                {overview.kpis.completedServicesInRange} concluidos en el rango
               </p>
             </div>
             <div className="rounded-2xl bg-emerald-100 p-3 text-emerald-700">
@@ -427,69 +513,219 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         </div>
 
         <div className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-gray-600">Concluidos</p>
+              <p className="text-sm font-medium text-gray-600">Servicios del dia</p>
               <p className="mt-2 text-3xl font-bold text-gray-900">
-                {overview.kpis.completedServicesInRange}
+                {overview.kpis.createdServicesToday}
               </p>
-            </div>
-            <div className="rounded-2xl bg-blue-100 p-3 text-blue-700">
-              <CheckCircle2 className="h-5 w-5" />
-            </div>
-          </div>
-        </div>
-
-        <div className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Creados</p>
-              <p className="mt-2 text-3xl font-bold text-gray-900">
-                {overview.kpis.createdServicesInRange}
+              <p className="mt-2 text-xs text-gray-500">
+                {overview.kpis.completedServicesToday} concluidos hoy
               </p>
             </div>
             <div className="rounded-2xl bg-orange-100 p-3 text-orange-700">
-              <Activity className="h-5 w-5" />
-            </div>
-          </div>
-        </div>
-
-        <div className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Ticket promedio</p>
-              <p className="mt-2 text-3xl font-bold text-gray-900">
-                {money(overview.kpis.averageTicket)}
-              </p>
-            </div>
-            <div className="rounded-2xl bg-violet-100 p-3 text-violet-700">
-              <BadgeDollarSign className="h-5 w-5" />
-            </div>
-          </div>
-        </div>
-
-        <div className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Logins fallidos</p>
-              <p className="mt-2 text-3xl font-bold text-gray-900">
-                {overview.logins.failedInRange}
-              </p>
-            </div>
-            <div className="rounded-2xl bg-rose-100 p-3 text-rose-700">
-              <ShieldAlert className="h-5 w-5" />
+              <CalendarRange className="h-5 w-5" />
             </div>
           </div>
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+      <section>
+        <AdminControlCenter
+          currentUserId={user.id}
+          rangeLabel={overview.filters.rangeLabel}
+          adminUsers={overview.kpis.adminUsers}
+          receptionistUsers={overview.kpis.receptionistUsers}
+          loginSummary={overview.logins}
+          initialUnassignedUsers={pendingUsersResponse.ok ? pendingUsersResponse.data : []}
+          initialUsersWithRole={usersWithRoleResponse.ok ? usersWithRoleResponse.data : []}
+          initialError={adminRoleError || null}
+        />
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+        <div className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Operacion</p>
+              <h2 className="mt-2 text-2xl font-semibold text-gray-900">Radar operativo</h2>
+              <p className="mt-2 text-sm text-gray-600">
+                Lo que mas conviene revisar primero para que la jornada no se atore. Hay{' '}
+                {openServicesCount} servicios abiertos en este momento.
+              </p>
+            </div>
+            <Clock3 className="h-6 w-6 text-slate-700" />
+          </div>
+
+          <div className="mt-6 space-y-4">
+            {operationCards.map((card) => {
+              const width = Math.max(10, (card.value / maxOperationValue) * 100);
+
+              return (
+                <div
+                  key={card.label}
+                  className={`rounded-[1.75rem] border p-5 ${card.surfaceClass}`}
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className={`text-sm font-semibold ${card.textClass}`}>{card.label}</p>
+                      <p className={`mt-1 text-3xl font-bold ${card.textClass}`}>{card.value}</p>
+                    </div>
+                    <p className={`text-sm ${card.textClass}`}>{card.note}</p>
+                  </div>
+
+                  <div className="mt-4 h-3 rounded-full bg-white/80">
+                    <div
+                      className={`h-3 rounded-full ${card.barClass}`}
+                      style={{ width: `${Math.min(100, width)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="grid gap-6">
+          <div className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+            <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Estadisticas</p>
+            <h2 className="mt-2 text-2xl font-semibold text-gray-900">Resumen del periodo</h2>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <p className="text-sm font-semibold text-emerald-900">Sucursal mas fuerte</p>
+                <p className="mt-2 text-lg font-semibold text-emerald-800">
+                  {strongestBranch?.branchName ?? 'Sin datos'}
+                </p>
+                <p className="mt-2 text-sm text-emerald-800">
+                  {strongestBranch
+                    ? `${money(strongestBranch.revenueTotal)} con ${strongestBranch.servicesCount} servicios concluidos.`
+                    : 'Todavia no hay servicios concluidos en este rango.'}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
+                <p className="text-sm font-semibold text-orange-900">Estudio mas solicitado</p>
+                <p className="mt-2 text-lg font-semibold text-orange-800">
+                  {overview.studies.topInRange?.studyName ?? 'Sin datos'}
+                </p>
+                <p className="mt-2 text-sm text-orange-800">
+                  {overview.studies.topInRange
+                    ? `${overview.studies.topInRange.times} solicitudes dentro del rango activo.`
+                    : 'Todavia no hay solicitudes suficientes para detectar demanda.'}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-semibold text-amber-900">Estudio menos solicitado</p>
+                <p className="mt-2 text-lg font-semibold text-amber-800">
+                  {overview.studies.bottomInRange?.studyName ?? 'Sin datos'}
+                </p>
+                <p className="mt-2 text-sm text-amber-800">
+                  {overview.studies.bottomInRange
+                    ? `${overview.studies.bottomInRange.times} solicitud${overview.studies.bottomInRange.times === 1 ? '' : 'es'} dentro del rango.`
+                    : 'Todavia no hay datos suficientes para detectar minimos.'}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                <p className="text-sm font-semibold text-blue-900">Ingreso de hoy</p>
+                <p className="mt-2 text-3xl font-bold text-blue-900">
+                  {money(overview.kpis.todayRevenue)}
+                </p>
+                <p className="mt-2 text-sm text-blue-800">
+                  {savedCut
+                    ? `Corte guardado por ${money(savedCut.totalAmount)}`
+                    : 'Aun sin corte guardado hoy'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="flex items-start gap-3">
+              <UserCheck className="mt-0.5 h-5 w-5 text-blue-700" />
+              <div>
+                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Actividad</p>
+                <h2 className="mt-2 text-2xl font-semibold text-gray-900">Usuarios operativos</h2>
+                <p className="mt-3 text-sm leading-6 text-gray-600">
+                  Aqui puedes revisar la actividad de admins y recepcionistas, que son quienes operan el sistema y capturan servicios.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-4 xl:grid-cols-2">
+              <div className="rounded-[1.75rem] border border-blue-200 bg-blue-50 p-4">
+                <p className="text-sm font-semibold text-blue-900">Usuarios con mas logins</p>
+                <div className="mt-4 space-y-3">
+                  {topLoginUsers.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-blue-200 bg-white/70 p-4 text-sm text-blue-800">
+                      No hay accesos suficientes en este periodo.
+                    </div>
+                  ) : (
+                    topLoginUsers.map((account, index) => (
+                      <div
+                        key={account.id}
+                        className="rounded-2xl border border-blue-100 bg-white/80 px-4 py-3"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-900">
+                              {index + 1}. {account.nombre}
+                            </p>
+                            <p className="mt-1 truncate text-xs text-slate-500">{account.email}</p>
+                          </div>
+                          <span className="rounded-full bg-blue-600 px-3 py-1 text-xs font-semibold text-white">
+                            {account.successfulLogins}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-[1.75rem] border border-emerald-200 bg-emerald-50 p-4">
+                <p className="text-sm font-semibold text-emerald-900">Usuarios con mas incidencias</p>
+                <div className="mt-4 space-y-3">
+                  {topUsersWithIssues.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-emerald-200 bg-white/70 p-4 text-sm text-emerald-800">
+                      No hubo intentos fallidos relevantes en este periodo.
+                    </div>
+                  ) : (
+                    topUsersWithIssues.map((account, index) => (
+                      <div
+                        key={`${account.id}-${index}`}
+                        className="rounded-2xl border border-emerald-100 bg-white/80 px-4 py-3"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-900">
+                              {index + 1}. {account.nombre}
+                            </p>
+                            <p className="mt-1 truncate text-xs text-slate-500">{account.email}</p>
+                          </div>
+                          <span className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white">
+                            {account.failedLogins}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[1fr]">
         <div className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Estudios</p>
               <h2 className="mt-2 text-2xl font-semibold text-gray-900">
-                Demanda clínica dentro del rango
+                Demanda clinica dentro del rango
               </h2>
             </div>
             <BarChart3 className="h-6 w-6 text-emerald-600" />
@@ -500,7 +736,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               <div className="flex items-center gap-3">
                 <TrendingUp className="h-5 w-5 text-emerald-700" />
                 <div>
-                  <p className="text-sm font-semibold text-emerald-900">Más solicitado</p>
+                  <p className="text-sm font-semibold text-emerald-900">Mas solicitado</p>
                   <p className="mt-1 text-lg font-semibold text-emerald-800">
                     {overview.studies.topInRange?.studyName ?? 'Sin datos'}
                   </p>
@@ -509,7 +745,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               <p className="mt-4 text-sm text-emerald-800">
                 {overview.studies.topInRange
                   ? `${overview.studies.topInRange.times} solicitudes dentro del rango activo.`
-                  : 'Todavía no hay registros para este periodo.'}
+                  : 'Todavia no hay registros para este periodo.'}
               </p>
             </div>
 
@@ -526,7 +762,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               <p className="mt-4 text-sm text-orange-800">
                 {overview.studies.bottomInRange
                   ? `${overview.studies.bottomInRange.times} solicitud${overview.studies.bottomInRange.times === 1 ? '' : 'es'} en el rango.`
-                  : 'Aún no hay suficiente movimiento para detectar mínimos.'}
+                  : 'Aun no hay suficiente movimiento para detectar minimos.'}
               </p>
             </div>
           </div>
@@ -534,7 +770,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <div className="mt-6 space-y-3">
             {overview.studies.rankingInRange.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-5 text-sm text-gray-500">
-                No hay ranking de estudios para este rango todavía.
+                No hay ranking de estudios para este rango todavia.
               </div>
             ) : (
               overview.studies.rankingInRange.map((study, index) => (
@@ -558,8 +794,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         </div>
 
         <div className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
-          <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Operación</p>
-          <h2 className="mt-2 text-2xl font-semibold text-gray-900">Pulso actual del sistema</h2>
+          <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Operacion</p>
+          <h2 className="mt-2 text-2xl font-semibold text-gray-900">Pulso operativo</h2>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
             <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
@@ -577,22 +813,22 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               </p>
             </div>
             <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-              <p className="text-sm text-gray-600">Usuarios únicos con login</p>
+              <p className="text-sm text-gray-600">Retrasados</p>
               <p className="mt-2 text-2xl font-semibold text-gray-900">
-                {overview.logins.uniqueUsersInRange}
+                {overview.kpis.delayedServices}
               </p>
             </div>
           </div>
 
           <div className="mt-6 rounded-[1.75rem] bg-gradient-to-br from-slate-950 via-slate-900 to-red-900 p-5 text-white">
-            <p className="text-sm text-red-100">Sucursal más fuerte del rango</p>
+            <p className="text-sm text-red-100">Sucursal mas fuerte del rango</p>
             <p className="mt-2 text-2xl font-semibold">
               {strongestBranch?.branchName ?? 'Sin datos'}
             </p>
             <p className="mt-2 text-sm text-red-100">
               {strongestBranch
                 ? `${money(strongestBranch.revenueTotal)} con ${strongestBranch.servicesCount} servicios concluidos.`
-                : 'Todavía no hay servicios concluidos en este rango.'}
+                : 'Todavia no hay servicios concluidos en este rango.'}
             </p>
           </div>
 
@@ -621,8 +857,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-        <div className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+      <section className="grid gap-6 xl:grid-cols-[1fr]">
+        <div className="hidden app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
           <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Tendencia</p>
           <h2 className="mt-2 text-2xl font-semibold text-gray-900">
             Ganancias del rango
@@ -631,7 +867,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <div className="mt-8 space-y-4">
             {overview.trends.revenueSeries.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-5 text-sm text-gray-500">
-                Aún no hay datos concluidos para construir una tendencia.
+                Aun no hay datos concluidos para construir una tendencia.
               </div>
             ) : (
               overview.trends.revenueSeries.map((item) => {
@@ -644,7 +880,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                         {item.key.length === 7 ? item.key : formatDate(item.key)}
                       </span>
                       <span className="text-gray-600">
-                        {money(item.revenueTotal)} · {item.servicesCount} servicios
+                        {money(item.revenueTotal)}  -  {item.servicesCount} servicios
                       </span>
                     </div>
                     <div className="h-3 rounded-full bg-gray-100">
@@ -730,11 +966,11 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
                   <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
                     <span>
-                      Último login:{' '}
+                      Ultimo login:{' '}
                       {account.lastLoginAt ? formatDateTime(account.lastLoginAt) : 'Sin login'}
                     </span>
                     <span>
-                      Último intento:{' '}
+                      Ultimo intento:{' '}
                       {account.lastAttemptAt ? formatDateTime(account.lastAttemptAt) : 'Sin intentos'}
                     </span>
                   </div>
@@ -745,11 +981,11 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <div className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+      <section className="grid gap-6 xl:grid-cols-[1fr]">
+        <div className="hidden app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
           <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Accesos recientes</p>
           <h2 className="mt-2 text-2xl font-semibold text-gray-900">
-            Últimos movimientos de login
+            Ultimos movimientos de login
           </h2>
 
           <div className="mt-5 max-h-[24rem] space-y-3 overflow-y-auto pr-2 scroll-panel">
@@ -791,15 +1027,15 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         </div>
 
         <div className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
-          <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Operación reciente</p>
+          <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Operacion reciente</p>
           <h2 className="mt-2 text-2xl font-semibold text-gray-900">
-            Últimos servicios concluidos
+            Ultimos servicios concluidos
           </h2>
 
           <div className="mt-5 max-h-[24rem] space-y-3 overflow-y-auto pr-2 scroll-panel">
             {overview.operations.latestCompletedServices.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-5 text-sm text-gray-500">
-                Todavía no hay cierres en el rango elegido.
+                Todavia no hay cierres en el rango elegido.
               </div>
             ) : (
               overview.operations.latestCompletedServices.map((service) => (
@@ -826,13 +1062,24 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             )}
           </div>
 
-          <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
+          <div className="hidden mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
             <div className="flex items-start gap-3">
               <UserCheck className="mt-0.5 h-4 w-4 text-blue-700" />
               <p>
                 En <span className="font-semibold">{overview.filters.rangeLabel.toLowerCase()}</span> hubo{' '}
                 <span className="font-semibold">{overview.logins.successfulInRange}</span> accesos exitosos y{' '}
-                <span className="font-semibold">{overview.logins.failedInRange}</span> fallidos. Si el fallo crece junto con cancelaciones, conviene revisar operación y capacitación.
+                <span className="font-semibold">{overview.logins.failedInRange}</span> fallidos. Si el fallo crece junto con cancelaciones, conviene revisar operacion y capacitacion.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
+            <div className="flex items-start gap-3">
+              <UserCheck className="mt-0.5 h-4 w-4 text-blue-700" />
+              <p>
+                En <span className="font-semibold">{overview.filters.rangeLabel.toLowerCase()}</span>{' '}
+                se concluyeron <span className="font-semibold">{overview.kpis.completedServicesInRange}</span>{' '}
+                servicios y se registraron <span className="font-semibold">{overview.kpis.createdServicesInRange}</span>. Si la creacion sube pero la conclusion se frena, conviene revisar capacidad y tiempos de entrega.
               </p>
             </div>
           </div>
@@ -841,3 +1088,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     </div>
   );
 }
+
+
+

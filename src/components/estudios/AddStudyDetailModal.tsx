@@ -1,26 +1,19 @@
 "use client";
 
 import {
+  useEffect,
   useMemo,
+  useRef,
   useState,
-  type ChangeEvent,
-  type FocusEvent,
   type FormEvent,
+  type KeyboardEvent,
 } from "react";
-import { Save, X } from "lucide-react";
+import { Plus, Save, Trash2, X } from "lucide-react";
 import { toast } from "react-toastify";
 import type {
   CreateStudyDetailPayload,
   StudyDetail,
 } from "@/actions/studies/studiesActions";
-import {
-  createEmptyStudyDetailBulkForm,
-  hasStudyDetailBulkFormErrors,
-  mapStudyDetailBulkFormToCreatePayloads,
-  validateStudyDetailBulkForm,
-  type StudyDetailBulkFormField,
-  type StudyDetailBulkFormValues,
-} from "@/components/estudios/studyDetailFormUtils";
 import AppModal from "@/components/ui/AppModal";
 
 type AddStudyDetailModalProps = {
@@ -32,21 +25,95 @@ type AddStudyDetailModalProps = {
   onSave: (payloads: CreateStudyDetailPayload[]) => Promise<boolean>;
 };
 
-const fieldClassName =
-  "w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 disabled:bg-gray-100 disabled:text-gray-500";
+type QuickEntryRow = {
+  id: string;
+  name: string;
+  unit: string;
+  referenceValue: string;
+  sortOrder: string;
+};
 
-const textareaClassName = `${fieldClassName} min-h-48 resize-y sm:min-h-56`;
+type QuickEntryRowErrors = {
+  name?: string;
+  sortOrder?: string;
+};
 
-function getExamples(mode: "category" | "parameter") {
-  if (mode === "category") {
-    return ["QUIMICA SANGUINEA", "FORMULA ROJA", "FORMULA BLANCA"];
+const inputClassName =
+  "w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 outline-none transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 disabled:bg-gray-100 disabled:text-gray-500";
+
+function createRowId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
   }
 
-  return [
-    "GLUCOSA | mg/dL | 70 - 110",
-    "COLESTEROL | mg/dL | < 200",
-    "TRIGLICERIDOS | mg/dL | < 150",
-  ];
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function createQuickEntryRow(sortOrder: string): QuickEntryRow {
+  return {
+    id: createRowId(),
+    name: "",
+    unit: "",
+    referenceValue: "",
+    sortOrder,
+  };
+}
+
+function getFieldRefKey(rowId: string, field: keyof Omit<QuickEntryRow, "id">) {
+  return `${rowId}:${field}`;
+}
+
+function hasRowContent(row: QuickEntryRow, mode: "category" | "parameter") {
+  if (mode === "category") {
+    return row.name.trim().length > 0;
+  }
+
+  return Boolean(
+    row.name.trim() || row.unit.trim() || row.referenceValue.trim(),
+  );
+}
+
+function getNextSortOrder(rows: QuickEntryRow[], defaultSortOrder: number) {
+  const lastRow = rows.at(-1);
+  const parsed = Number(lastRow?.sortOrder ?? "");
+
+  if (Number.isInteger(parsed) && parsed > 0) {
+    return String(parsed + 1);
+  }
+
+  return String(defaultSortOrder + rows.length);
+}
+
+function validateRow(
+  row: QuickEntryRow,
+  mode: "category" | "parameter",
+): QuickEntryRowErrors {
+  if (!hasRowContent(row, mode)) {
+    return {};
+  }
+
+  const errors: QuickEntryRowErrors = {};
+
+  if (!row.name.trim()) {
+    errors.name = "Captura un nombre.";
+  } else if (row.name.trim().length > 150) {
+    errors.name = "El nombre no puede exceder 150 caracteres.";
+  }
+
+  if (!row.sortOrder.trim()) {
+    errors.sortOrder = "El orden es obligatorio.";
+  } else {
+    const parsed = Number(row.sortOrder);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      errors.sortOrder = "El orden debe ser un entero mayor a cero.";
+    }
+  }
+
+  return errors;
+}
+
+function hasValidationErrors(errors: QuickEntryRowErrors) {
+  return Boolean(errors.name || errors.sortOrder);
 }
 
 export default function AddStudyDetailModal({
@@ -57,63 +124,148 @@ export default function AddStudyDetailModal({
   onClose,
   onSave,
 }: AddStudyDetailModalProps) {
-  const [formData, setFormData] = useState<StudyDetailBulkFormValues>(() =>
-    createEmptyStudyDetailBulkForm(String(defaultSortOrder)),
-  );
-  const [touched, setTouched] = useState<
-    Partial<Record<StudyDetailBulkFormField, boolean>>
-  >({});
+  const [parentId, setParentId] = useState("");
+  const [rows, setRows] = useState<QuickEntryRow[]>(() => [
+    createQuickEntryRow(String(defaultSortOrder)),
+  ]);
+  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const pendingFocusKeyRef = useRef<string | null>(null);
 
-  const errors = useMemo(
-    () => validateStudyDetailBulkForm(formData, mode),
-    [formData, mode],
+  const rowErrors = useMemo(
+    () => rows.map((row) => validateRow(row, mode)),
+    [mode, rows],
   );
-  const entityLabel = mode === "category" ? "categorias" : "parametros";
-  const examples = getExamples(mode);
-  const totalLines = useMemo(
+  const filledRows = useMemo(
+    () => rows.filter((row) => hasRowContent(row, mode)),
+    [mode, rows],
+  );
+  const readyRowsCount = useMemo(
     () =>
-      formData.bulkInput
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean).length,
-    [formData.bulkInput],
+      rows.reduce((total, row, index) => {
+        if (!hasRowContent(row, mode)) {
+          return total;
+        }
+
+        return total + (hasValidationErrors(rowErrors[index]) ? 0 : 1);
+      }, 0),
+    [mode, rowErrors, rows],
+  );
+  const invalidRowsCount = useMemo(
+    () =>
+      rows.reduce((total, row, index) => {
+        if (!hasRowContent(row, mode)) {
+          return total;
+        }
+
+        return total + (hasValidationErrors(rowErrors[index]) ? 1 : 0);
+      }, 0),
+    [mode, rowErrors, rows],
   );
 
-  const handleChange = (
-    e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
-  ) => {
-    const { name, value } = e.target;
-    setFormData((current) => ({
-      ...current,
-      [name]: value,
-    }));
-  };
+  const entityLabel = mode === "category" ? "categorias" : "parametros";
+  const gridClassName =
+    mode === "category"
+      ? "grid gap-3 md:grid-cols-[3rem_minmax(0,1fr)_8rem_2.75rem] md:items-start"
+      : "grid gap-3 md:grid-cols-[3rem_minmax(0,1.1fr)_minmax(0,0.7fr)_minmax(0,1fr)_8rem_2.75rem] md:items-start";
 
-  const handleBlur = (
-    e: FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
-  ) => {
-    const { name } = e.target;
-    setTouched((current) => ({
-      ...current,
-      [name]: true,
-    }));
-  };
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-
-    setTouched({
-      parentId: true,
-      sortOrderStart: true,
-      bulkInput: true,
-    });
-
-    if (hasStudyDetailBulkFormErrors(errors)) {
-      toast.error(`Revisa el lote de ${entityLabel} antes de guardar.`);
+  useEffect(() => {
+    if (!pendingFocusKeyRef.current) {
       return;
     }
 
-    const payloads = mapStudyDetailBulkFormToCreatePayloads(formData, mode);
+    const targetKey = pendingFocusKeyRef.current;
+    const frameId = window.requestAnimationFrame(() => {
+      inputRefs.current[targetKey]?.focus();
+      pendingFocusKeyRef.current = null;
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [rows]);
+
+  const addRow = (focusNewRow = false) => {
+    setRows((current) => {
+      const nextRow = createQuickEntryRow(
+        getNextSortOrder(current, defaultSortOrder),
+      );
+
+      if (focusNewRow) {
+        pendingFocusKeyRef.current = getFieldRefKey(nextRow.id, "name");
+      }
+
+      return [...current, nextRow];
+    });
+  };
+
+  const handleRowChange = (
+    rowId: string,
+    field: keyof Omit<QuickEntryRow, "id">,
+    value: string,
+  ) => {
+    setRows((current) =>
+      current.map((row) => (row.id === rowId ? { ...row, [field]: value } : row)),
+    );
+  };
+
+  const handleRemoveRow = (rowId: string) => {
+    setRows((current) => {
+      if (current.length === 1) {
+        return [createQuickEntryRow(String(defaultSortOrder))];
+      }
+
+      return current.filter((row) => row.id !== rowId);
+    });
+  };
+
+  const handleLastFieldKeyDown = (
+    event: KeyboardEvent<HTMLInputElement>,
+    rowId: string,
+  ) => {
+    if (event.key !== "Tab" || event.shiftKey) {
+      return;
+    }
+
+    const isLastRow = rows.at(-1)?.id === rowId;
+    const currentRow = rows.find((row) => row.id === rowId);
+
+    if (!isLastRow || !currentRow || !hasRowContent(currentRow, mode)) {
+      return;
+    }
+
+    event.preventDefault();
+    addRow(true);
+  };
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+
+    if (filledRows.length === 0) {
+      toast.error(
+        mode === "category"
+          ? "Captura al menos una categoria antes de guardar."
+          : "Captura al menos un parametro antes de guardar.",
+      );
+      return;
+    }
+
+    if (invalidRowsCount > 0) {
+      toast.error(`Corrige las filas pendientes antes de guardar ${entityLabel}.`);
+      return;
+    }
+
+    const payloads: CreateStudyDetailPayload[] = filledRows.map((row) => ({
+      dataType: mode,
+      name: row.name.trim().toUpperCase(),
+      sortOrder: Number(row.sortOrder),
+      parentId: parentId ? Number(parentId) : undefined,
+      unit: mode === "parameter" ? row.unit.trim() || undefined : undefined,
+      referenceValue:
+        mode === "parameter"
+          ? row.referenceValue.trim() || undefined
+          : undefined,
+    }));
+
     const ok = await onSave(payloads);
     if (ok) {
       onClose();
@@ -122,20 +274,20 @@ export default function AddStudyDetailModal({
 
   return (
     <AppModal>
-      <div className="mx-auto w-full max-w-5xl">
+      <div className="mx-auto w-full max-w-6xl">
         <div className="flex max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-[1.5rem] border border-gray-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:rounded-[2rem]">
           <div className="border-b border-gray-200 bg-gradient-to-r from-emerald-700 via-emerald-600 to-teal-500 p-4 text-white sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-xl font-semibold sm:text-2xl">
                   {mode === "category"
-                    ? "Alta multiple de categorias"
-                    : "Alta multiple de parametros"}
+                    ? "Captura guiada de categorias"
+                    : "Captura guiada de parametros"}
                 </h2>
                 <p className="mt-1 text-sm text-emerald-50">
-                  {mode === "category"
-                    ? "Captura varias categorias de una sola vez, una por linea."
-                    : "Captura varios parametros de una sola vez con nombre, unidad y referencia."}
+                  Captura por filas como en importacion manual. Avanza con{" "}
+                  <span className="font-semibold">Tab</span> y al salir del
+                  ultimo campo se crea la siguiente fila.
                 </p>
               </div>
 
@@ -154,113 +306,266 @@ export default function AddStudyDetailModal({
             className="flex min-h-0 flex-1 flex-col"
           >
             <div className="min-h-0 flex-1 overflow-y-auto p-4 pb-6 sm:p-6">
-              <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+              <div className="grid gap-5 xl:grid-cols-[0.82fr_1.18fr]">
                 <div className="space-y-4">
-                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 text-sm text-emerald-900">
-                    <p className="font-semibold">Formato recomendado</p>
-                    <div className="mt-3 space-y-2 rounded-xl bg-white/70 p-3 font-mono text-xs text-emerald-950">
-                      {examples.map((example) => (
-                        <p key={example}>{example}</p>
+                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50/80 p-4 text-sm text-emerald-900">
+                    <p className="font-semibold">Como capturar rapido</p>
+                    <ul className="mt-3 space-y-2 text-sm text-emerald-800">
+                      <li>
+                        Captura una fila por cada{" "}
+                        {mode === "category" ? "categoria" : "parametro"}.
+                      </li>
+                      <li>
+                        Usa <span className="font-semibold">Tab</span> para
+                        avanzar entre columnas.
+                      </li>
+                      <li>
+                        En el ultimo campo,{" "}
+                        <span className="font-semibold">Tab</span> agrega una
+                        nueva fila automaticamente.
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div className="rounded-2xl border border-gray-200 bg-gray-50/80 p-4">
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      {mode === "parameter"
+                        ? "Categoria para este lote"
+                        : "Categoria padre para este lote"}
+                    </label>
+                    <select
+                      value={parentId}
+                      onChange={(event) => setParentId(event.target.value)}
+                      className={`${inputClassName} modal-select appearance-none`}
+                      disabled={saving}
+                    >
+                      <option value="">
+                        {mode === "parameter"
+                          ? "Sin categoria"
+                          : "Categoria raiz"}
+                      </option>
+                      {categories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
                       ))}
-                    </div>
-                    <p className="mt-3 text-xs text-emerald-800">
-                      {mode === "category"
-                        ? "Cada linea crea una categoria nueva."
-                        : "Cada linea crea un parametro. Si no ocupas unidad o referencia, puedes dejar vacio lo que va despues del |."}
+                    </select>
+                    <p className="mt-2 text-xs text-gray-500">
+                      {mode === "parameter"
+                        ? "La categoria elegida se aplicara a todas las filas de esta captura."
+                        : "Usala solo si vas a crear subcategorias dentro de otra categoria existente."}
                     </p>
                   </div>
 
-                  <div className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
-                    <div>
-                      <label className="mb-2 block text-sm font-medium text-gray-700">
-                        Categoria padre
-                      </label>
-                      <select
-                        name="parentId"
-                        value={formData.parentId}
-                        onChange={handleChange}
-                        onBlur={handleBlur}
-                        className={`${fieldClassName} modal-select appearance-none`}
-                        disabled={saving}
-                      >
-                        <option value="">
-                          {mode === "parameter"
-                            ? "Sin categoria"
-                            : "Categoria raiz"}
-                        </option>
-                        {categories.map((category) => (
-                          <option key={category.id} value={category.id}>
-                            {category.name}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="mt-1.5 text-xs text-gray-500">
-                        {mode === "parameter"
-                          ? "Si la eliges, todo el lote quedara dentro de esa categoria."
-                          : "Opcional, por si quieres crear subcategorias dentro de otra."}
-                      </p>
-                    </div>
-
-                    <div className="mt-4">
-                      <label className="mb-2 block text-sm font-medium text-gray-700">
-                        Orden inicial
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        name="sortOrderStart"
-                        value={formData.sortOrderStart}
-                        onChange={handleChange}
-                        onBlur={handleBlur}
-                        className={fieldClassName}
-                        disabled={saving}
-                      />
-                      {touched.sortOrderStart && errors.sortOrderStart ? (
-                        <p className="mt-1.5 text-xs font-medium text-red-600">
-                          {errors.sortOrderStart}
-                        </p>
-                      ) : null}
-                      <p className="mt-1.5 text-xs text-gray-500">
-                        El sistema ira numerando cada linea en secuencia.
-                      </p>
-                    </div>
-
-                    <div className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-gray-200 bg-white p-4">
                       <p className="text-xs uppercase tracking-wide text-gray-500">
-                        Filas detectadas
+                        Filas listas
                       </p>
                       <p className="mt-2 text-2xl font-semibold text-gray-900">
-                        {totalLines}
+                        {readyRowsCount}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                      <p className="text-xs uppercase tracking-wide text-gray-500">
+                        Por corregir
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold text-gray-900">
+                        {invalidRowsCount}
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
-                    {mode === "category"
-                      ? "Categorias por linea"
-                      : "Parametros por linea"}
-                  </label>
-                  <textarea
-                    name="bulkInput"
-                    value={formData.bulkInput}
-                    onChange={handleChange}
-                    onBlur={handleBlur}
-                    placeholder={examples.join("\n")}
-                    className={textareaClassName}
-                    disabled={saving}
-                  />
-                  {touched.bulkInput && errors.bulkInput ? (
-                    <p className="mt-1.5 text-xs font-medium text-red-600">
-                      {errors.bulkInput}
-                    </p>
-                  ) : null}
-                  <p className="mt-2 text-xs text-gray-500">
-                    {mode === "category"
-                      ? "Tip: pega una lista completa y el sistema la convierte en categorias individuales."
-                      : "Usa el formato NOMBRE | UNIDAD | REFERENCIA para capturar varios parametros rapido."}
-                  </p>
+                <div className="rounded-[1.5rem] border border-gray-200 bg-gray-50/70 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">
+                        Filas para agregar
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {mode === "category"
+                          ? "Captura nombre y orden. Puedes seguir tabulando para crear varias categorias de corrido."
+                          : "Captura nombre, unidad, referencia y orden. El flujo queda rapido pero mucho mas claro para quien opera."}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => addRow(true)}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition-all hover:bg-gray-50"
+                      disabled={saving}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Agregar fila
+                    </button>
+                  </div>
+
+                  <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white">
+                    <div
+                      className={`${gridClassName} border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500`}
+                    >
+                      <div className="hidden md:block">#</div>
+                      <div>{mode === "category" ? "Categoria" : "Parametro"}</div>
+                      {mode === "parameter" ? <div>Unidad</div> : null}
+                      {mode === "parameter" ? <div>Referencia</div> : null}
+                      <div>Orden</div>
+                      <div className="hidden md:block text-right">Accion</div>
+                    </div>
+
+                    <div className="divide-y divide-gray-200">
+                      {rows.map((row, index) => {
+                        const currentErrors = rowErrors[index];
+
+                        return (
+                          <div key={row.id} className="px-4 py-4">
+                            <div className="mb-3 flex items-center justify-between gap-3 md:hidden">
+                              <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+                                Fila {index + 1}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveRow(row.id)}
+                                tabIndex={-1}
+                                className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 transition-all hover:bg-red-50"
+                                disabled={saving}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                Quitar
+                              </button>
+                            </div>
+
+                            <div className={gridClassName}>
+                              <div className="hidden items-center justify-center rounded-xl bg-gray-100 text-sm font-semibold text-gray-700 md:flex">
+                                {index + 1}
+                              </div>
+
+                              <div>
+                                <input
+                                  ref={(element) => {
+                                    inputRefs.current[getFieldRefKey(row.id, "name")] =
+                                      element;
+                                  }}
+                                  type="text"
+                                  value={row.name}
+                                  onChange={(event) =>
+                                    handleRowChange(
+                                      row.id,
+                                      "name",
+                                      event.target.value,
+                                    )
+                                  }
+                                  placeholder={
+                                    mode === "category"
+                                      ? "Quimica sanguinea"
+                                      : "Glucosa"
+                                  }
+                                  className={inputClassName}
+                                  disabled={saving}
+                                />
+                                {currentErrors.name ? (
+                                  <p className="mt-1.5 text-xs font-medium text-red-600">
+                                    {currentErrors.name}
+                                  </p>
+                                ) : null}
+                              </div>
+
+                              {mode === "parameter" ? (
+                                <div>
+                                  <input
+                                    ref={(element) => {
+                                      inputRefs.current[
+                                        getFieldRefKey(row.id, "unit")
+                                      ] = element;
+                                    }}
+                                    type="text"
+                                    value={row.unit}
+                                    onChange={(event) =>
+                                      handleRowChange(
+                                        row.id,
+                                        "unit",
+                                        event.target.value,
+                                      )
+                                    }
+                                    placeholder="mg/dL"
+                                    className={inputClassName}
+                                    disabled={saving}
+                                  />
+                                </div>
+                              ) : null}
+
+                              {mode === "parameter" ? (
+                                <div>
+                                  <input
+                                    ref={(element) => {
+                                      inputRefs.current[
+                                        getFieldRefKey(row.id, "referenceValue")
+                                      ] = element;
+                                    }}
+                                    type="text"
+                                    value={row.referenceValue}
+                                    onChange={(event) =>
+                                      handleRowChange(
+                                        row.id,
+                                        "referenceValue",
+                                        event.target.value,
+                                      )
+                                    }
+                                    placeholder="70 - 110"
+                                    className={inputClassName}
+                                    disabled={saving}
+                                  />
+                                </div>
+                              ) : null}
+
+                              <div>
+                                <input
+                                  ref={(element) => {
+                                    inputRefs.current[
+                                      getFieldRefKey(row.id, "sortOrder")
+                                    ] = element;
+                                  }}
+                                  type="number"
+                                  min="1"
+                                  value={row.sortOrder}
+                                  onChange={(event) =>
+                                    handleRowChange(
+                                      row.id,
+                                      "sortOrder",
+                                      event.target.value,
+                                    )
+                                  }
+                                  onKeyDown={(event) =>
+                                    handleLastFieldKeyDown(event, row.id)
+                                  }
+                                  placeholder="1"
+                                  className={inputClassName}
+                                  disabled={saving}
+                                />
+                                {currentErrors.sortOrder ? (
+                                  <p className="mt-1.5 text-xs font-medium text-red-600">
+                                    {currentErrors.sortOrder}
+                                  </p>
+                                ) : null}
+                              </div>
+
+                              <div className="hidden md:flex md:justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveRow(row.id)}
+                                  tabIndex={-1}
+                                  className="inline-flex h-[3rem] w-[3rem] items-center justify-center rounded-xl border border-red-200 bg-white text-red-600 transition-all hover:bg-red-50"
+                                  disabled={saving}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -277,7 +582,7 @@ export default function AddStudyDetailModal({
               <button
                 type="submit"
                 className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-emerald-700 disabled:opacity-50"
-                disabled={saving}
+                disabled={saving || readyRowsCount === 0}
               >
                 <Save className="h-4 w-4" />
                 {saving ? "Guardando..." : `Guardar ${entityLabel}`}

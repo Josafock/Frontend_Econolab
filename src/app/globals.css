@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+html {
+  scroll-behavior: smooth;
+}
+
 /* ===== COLORS - GLOBAL CSS ===== */
 :root {
   /* Colores Primarios & Neutros */
@@ -337,6 +341,10 @@ a[href]:focus-visible,
   background: rgba(100, 116, 139, 1);
 }
 
+.section-anchor-target {
+  scroll-margin-top: 6.5rem;
+}
+
 .Toastify__toast-container,
 .Toastify__toast-container[data-stacked='true'] {
   --toastify-toast-width: min(30rem, calc(100vw - 1.5rem));
@@ -534,6 +542,10 @@ a[href]:focus-visible,
 
   .app-toast__message {
     font-size: 1rem;
+  }
+
+  .section-anchor-target {
+    scroll-margin-top: 7.5rem;
   }
 }
 

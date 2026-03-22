@@ -126,7 +126,7 @@ export default function ServiciosPage() {
   }) => [
     {
       label: "Ver detalle",
-      href: `/servicios/detalle/${service.id}`,
+      href: `/servicios/detalle/${service.id}#resumen-operativo`,
       hint: "Disponible",
       icon: <Eye size={16} />,
     },

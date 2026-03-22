@@ -11,7 +11,7 @@ export default function AppModal({ children }: AppModalProps) {
   return (
     <AnimatePresence>
       <motion.div
-        className="fixed inset-0 z-50 overflow-x-hidden overflow-y-auto overscroll-contain px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-[calc(env(safe-area-inset-top)+0.5rem)] sm:p-4"
+        className="fixed inset-0 z-50 overflow-hidden overscroll-contain px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-[calc(env(safe-area-inset-top)+0.5rem)] sm:p-4"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -26,7 +26,7 @@ export default function AppModal({ children }: AppModalProps) {
         />
 
         <motion.div
-          className="relative flex min-h-full w-full items-start justify-center py-1 sm:items-center sm:py-6"
+          className="relative flex h-full w-full items-start justify-center py-1 sm:py-4"
           initial={{ opacity: 0, y: 12, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 12, scale: 0.98 }}

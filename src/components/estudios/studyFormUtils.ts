@@ -7,6 +7,12 @@ import type {
 } from "@/actions/studies/studiesActions";
 import { minutesToTimeValue, timeValueToMinutes } from "@/helpers/studies";
 
+const AUTO_STUDY_CODE_PREFIX: Record<StudyType, string> = {
+  study: "EST",
+  package: "PAQ",
+  other: "OTR",
+};
+
 export type StudyFormValues = {
   nombre: string;
   clave: string;
@@ -80,6 +86,21 @@ export function updateDurationValue(
 
   const normalizedMinutes = String(Math.min(Number(clippedMinutes), 59));
   return `${current.hours}:${normalizedMinutes}`;
+}
+
+export function generateSuggestedStudyCode(type: StudyType = "study") {
+  const now = new Date();
+  const parts = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+  ];
+
+  return `${AUTO_STUDY_CODE_PREFIX[type]}${parts.join("")}0001`;
+}
+
+export function isGeneratedStudyCode(code: string) {
+  return /^(EST|PAQ|OTR)\d{12}$/i.test(code.trim());
 }
 
 export function createEmptyStudyForm(initialType: StudyType = "study"): StudyFormValues {
@@ -180,12 +201,16 @@ export function hasStudyFormErrors(errors: StudyFormErrors): boolean {
   return Object.values(errors).some(Boolean);
 }
 
-export function mapFormToCreateStudyPayload(values: StudyFormValues): CreateStudyPayload {
+export function mapFormToCreateStudyPayload(
+  values: StudyFormValues,
+  options?: { autoGenerateCode?: boolean },
+): CreateStudyPayload {
   const isPackage = values.tipo === "package";
 
   return {
     name: values.nombre.trim().toUpperCase(),
     code: values.clave.trim().toUpperCase(),
+    autoGenerateCode: options?.autoGenerateCode,
     description: normalizeText(values.descripcion),
     durationMinutes: timeValueToMinutes(values.duracion),
     type: values.tipo,
@@ -201,8 +226,11 @@ export function mapFormToCreateStudyPayload(values: StudyFormValues): CreateStud
   };
 }
 
-export function mapFormToUpdateStudyPayload(values: StudyFormValues): UpdateStudyPayload {
-  return mapFormToCreateStudyPayload(values);
+export function mapFormToUpdateStudyPayload(
+  values: StudyFormValues,
+  options?: { autoGenerateCode?: boolean },
+): UpdateStudyPayload {
+  return mapFormToCreateStudyPayload(values, options);
 }
 
 export function mapStudyToForm(study: Study): StudyFormValues {

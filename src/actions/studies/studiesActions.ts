@@ -62,7 +62,8 @@ const studiesSearchResponseSchema = z.object({
 
 const createStudyPayloadSchema = z.object({
   name: z.string().min(1).max(200),
-  code: z.string().min(1).max(50),
+  code: z.string().min(1).max(50).optional(),
+  autoGenerateCode: z.boolean().optional(),
   description: z.string().optional(),
   durationMinutes: numericIntFieldSchema.min(1),
   type: studyTypeSchema,
@@ -170,6 +171,22 @@ export async function createStudy(
   const parsed = studyMutationResponseSchema.safeParse(response.data);
   if (!parsed.success) {
     return { ok: false, errors: ["La respuesta al crear estudio es invalida."] };
+  }
+
+  return { ok: true, data: parsed.data };
+}
+
+export async function getSuggestedStudyCode(
+  type: StudyType = "study",
+): Promise<ApiResult<{ code: string }>> {
+  const response = await fetchApi<{ code: string }>(
+    `/studies/next-code?type=${encodeURIComponent(type)}`,
+  );
+  if (!response.ok) return response;
+
+  const parsed = z.object({ code: z.string().min(1) }).safeParse(response.data);
+  if (!parsed.success) {
+    return { ok: false, errors: ["La sugerencia de clave es invalida."] };
   }
 
   return { ok: true, data: parsed.data };

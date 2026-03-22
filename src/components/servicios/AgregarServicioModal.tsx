@@ -22,6 +22,7 @@ import {
   type CreatePatientPayload,
   type Patient,
 } from "@/actions/patients/patientsActions";
+import { getSuggestedServiceFolio } from "@/actions/services/servicesActions";
 import type { Study } from "@/actions/studies/studiesActions";
 import {
   createDoctor,
@@ -36,6 +37,7 @@ import {
   createEmptyServiceForm,
   createServiceDraftItem,
   generateSuggestedServiceFolio,
+  isGeneratedServiceFolio,
   getServicePriceTypeLabel,
   getStudyNameSummary,
   hasServiceFormErrors,
@@ -142,6 +144,7 @@ export default function AddServiceModal({
   const [formData, setFormData] = useState<ServiceFormValues>(
     initialValues ?? createEmptyServiceForm(),
   );
+  const [useAutoFolio, setUseAutoFolio] = useState(!initialValues);
 
   useEffect(() => {
     setLocalPatients((current) => {
@@ -162,6 +165,30 @@ export default function AddServiceModal({
       return [...preservedLocal, ...doctors];
     });
   }, [doctors]);
+
+  useEffect(() => {
+    if (initialValues) {
+      return;
+    }
+
+    void (async () => {
+      const response = await getSuggestedServiceFolio();
+      if (!response.ok) {
+        return;
+      }
+
+      setFormData((current) => {
+        if (!isGeneratedServiceFolio(current.folio)) {
+          return current;
+        }
+
+        return {
+          ...current,
+          folio: response.data.folio,
+        };
+      });
+    })();
+  }, [initialValues]);
 
   const errors = useMemo(() => validateServiceForm(formData), [formData]);
   const courtesyPercent = Number(formData.courtesyPercent || 0);
@@ -395,7 +422,9 @@ export default function AddServiceModal({
       return;
     }
 
-    const ok = await saveService(mapServiceFormToPayload(formData));
+    const ok = await saveService(
+      mapServiceFormToPayload(formData, { autoGenerateFolio: useAutoFolio }),
+    );
     if (ok) {
       setOpen(false);
     }
@@ -484,24 +513,30 @@ export default function AddServiceModal({
                           <div className="flex gap-2">
                             <input
                               value={formData.folio}
-                              onChange={(e) =>
+                              onChange={(e) => {
+                                setUseAutoFolio(false);
                                 setFormData((current) => ({
                                   ...current,
                                   folio: e.target.value,
-                                }))
-                              }
+                                }));
+                              }}
                               className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
-                              placeholder="ECO202603150001"
+                              placeholder="ECO202603220001"
                               disabled={isSaving}
                             />
                             <button
                               type="button"
-                              onClick={() =>
+                              onClick={async () => {
+                                setUseAutoFolio(true);
+                                const response = await getSuggestedServiceFolio();
+
                                 setFormData((current) => ({
                                   ...current,
-                                  folio: generateSuggestedServiceFolio(),
-                                }))
-                              }
+                                  folio: response.ok
+                                    ? response.data.folio
+                                    : generateSuggestedServiceFolio(),
+                                }));
+                              }}
                               className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-3 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50"
                               disabled={isSaving}
                             >

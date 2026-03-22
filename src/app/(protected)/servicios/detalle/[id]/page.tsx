@@ -44,6 +44,7 @@ import ServiceResultEditor from "@/components/servicios/ServiceResultEditor";
 import { DetailPageSkeleton } from "@/components/ui/PageSkeletons";
 import { mapServiceToForm } from "@/components/servicios/serviceFormUtils";
 import { formatDateTime } from "@/helpers/date";
+import { useHashSectionScroll } from "@/hooks/useHashSectionScroll";
 
 const AddServiceModal = dynamic(
   () => import("@/components/servicios/AgregarServicioModal"),
@@ -124,6 +125,8 @@ export default function ServiceDetailPage() {
   const [studyDetailsMap, setStudyDetailsMap] = useState<DetailState>({});
   const [openEditModal, setOpenEditModal] = useState(false);
   const [openResultsPdfModal, setOpenResultsPdfModal] = useState(false);
+
+  useHashSectionScroll({ enabled: !loading });
 
   useEffect(() => {
     if (Number.isNaN(id)) {
@@ -356,7 +359,10 @@ export default function ServiceDetailPage() {
       </div>
 
       <div className="space-y-6">
-        <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+        <div
+          id="resumen-operativo"
+          className="section-anchor-target grid gap-4 lg:grid-cols-[1.1fr_0.9fr]"
+        >
           <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
             <div className="mb-4 flex items-center gap-3">
               <div className="rounded-2xl bg-red-50 p-3 text-red-600">
@@ -511,7 +517,10 @@ export default function ServiceDetailPage() {
           </div>
         </div>
 
-        <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+        <div
+          id="desglose-servicio"
+          className="section-anchor-target rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm"
+        >
           <div className="mb-5 flex items-center gap-3">
             <div className="rounded-2xl bg-blue-50 p-3 text-blue-600">
               <Activity className="h-5 w-5" />
@@ -558,7 +567,7 @@ export default function ServiceDetailPage() {
 
         <div
           id="resultados"
-          className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm"
+          className="section-anchor-target rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm"
         >
           <div className="mb-5 flex items-center gap-3">
             <div className="rounded-2xl bg-emerald-50 p-3 text-emerald-600">

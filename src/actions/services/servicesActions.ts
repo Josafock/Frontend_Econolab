@@ -78,6 +78,7 @@ type UpdateServiceResponse = {
 
 export type CreateServicePayload = {
   folio: string;
+  autoGenerateFolio?: boolean;
   patientId: number;
   doctorId?: number;
   branchName?: string;
@@ -123,6 +124,10 @@ export async function createService(payload: CreateServicePayload) {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export async function getSuggestedServiceFolio() {
+  return fetchApi<{ folio: string }>("/services/next-folio");
 }
 
 export async function getServiceById(id: number) {

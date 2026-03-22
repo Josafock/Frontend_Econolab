@@ -8,6 +8,7 @@ import {
   FlaskConical,
   Hash,
   Percent,
+  RefreshCw,
   Tag,
 } from 'lucide-react';
 import {
@@ -32,6 +33,7 @@ type StudyFormFieldsProps = {
   ) => void;
   onDurationChange?: (part: StudyDurationPart, value: string) => void;
   onDurationBlur?: () => void;
+  onGenerateCode?: () => void;
   disabled?: boolean;
   compact?: boolean;
 };
@@ -93,6 +95,7 @@ export default function StudyFormFields({
   onBlur,
   onDurationChange,
   onDurationBlur,
+  onGenerateCode,
   disabled = false,
   compact = false,
 }: StudyFormFieldsProps) {
@@ -158,19 +161,35 @@ export default function StudyFormFields({
             <FieldLabel required={REQUIRED_STUDY_FIELDS.includes('clave')}>
               Clave o referencia
             </FieldLabel>
-            <div className="relative">
-              <Hash className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                name="clave"
-                value={formData.clave}
-                onChange={onChange}
-                onBlur={onBlur}
-                placeholder="BH, QS6, CHECK"
-                className={getInputClass(claveError.hasError, true)}
-                disabled={disabled}
-              />
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="relative flex-1">
+                <Hash className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  name="clave"
+                  value={formData.clave}
+                  onChange={onChange}
+                  onBlur={onBlur}
+                  placeholder="BH, QS6, CHECK"
+                  className={getInputClass(claveError.hasError, true)}
+                  disabled={disabled}
+                />
+              </div>
+              {onGenerateCode ? (
+                <button
+                  type="button"
+                  onClick={onGenerateCode}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-3 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={disabled}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Auto
+                </button>
+              ) : null}
             </div>
+            <p className="mt-2 text-xs text-gray-500">
+              Puedes capturar la clave manualmente o generarla automaticamente.
+            </p>
             <ErrorText message={claveError.message} />
           </div>
 
