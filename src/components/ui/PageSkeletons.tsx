@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 type CollectionContentSkeletonProps = {
   statCards?: number;
@@ -15,10 +15,10 @@ export function CollectionContentSkeleton({
 }: CollectionContentSkeletonProps) {
   const statGridClass =
     statCards >= 5
-      ? 'grid gap-4 md:grid-cols-2 xl:grid-cols-5'
+      ? "grid gap-4 md:grid-cols-2 xl:grid-cols-5"
       : statCards === 4
-        ? 'grid gap-4 md:grid-cols-2 xl:grid-cols-4'
-        : 'grid gap-4 md:grid-cols-2 xl:grid-cols-3';
+        ? "grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+        : "grid gap-4 md:grid-cols-2 xl:grid-cols-3";
 
   return (
     <div className="space-y-6">
@@ -40,7 +40,10 @@ export function CollectionContentSkeleton({
         <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
           <div className="grid grid-cols-5 gap-4">
             {Array.from({ length: 5 }).map((_, index) => (
-              <div key={index} className="h-4 rounded bg-gray-200 animate-pulse" />
+              <div
+                key={index}
+                className="h-4 rounded bg-gray-200 animate-pulse"
+              />
             ))}
           </div>
         </div>
@@ -51,7 +54,7 @@ export function CollectionContentSkeleton({
                 <div
                   key={cellIndex}
                   className={`animate-pulse rounded ${
-                    cellIndex === 0 ? 'h-5 w-20 bg-gray-200' : 'h-4 bg-gray-100'
+                    cellIndex === 0 ? "h-5 w-20 bg-gray-200" : "h-4 bg-gray-100"
                   }`}
                 />
               ))}
@@ -84,9 +87,7 @@ export function CollectionContentSkeleton({
   );
 }
 
-export function DetailPageSkeleton({
-  sections = 3,
-}: DetailPageSkeletonProps) {
+export function DetailPageSkeleton({ sections = 3 }: DetailPageSkeletonProps) {
   return (
     <div className="space-y-6">
       <div className="animate-pulse">
@@ -99,8 +100,8 @@ export function DetailPageSkeleton({
         {Array.from({ length: sections }).map((_, index) => (
           <div
             key={index}
-            className={`rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm ${
-              index === 0 ? '' : index === 1 ? '' : 'lg:col-span-2'
+            className={`rounded-[2rem] border border-gray-200 bg-white p-4 shadow-sm sm:p-6 ${
+              index === 0 ? "" : index === 1 ? "" : "lg:col-span-2"
             }`}
           >
             <div className="animate-pulse space-y-4">

@@ -122,7 +122,8 @@ export function useServicesData(searchTerm: string, filters: ServicesFilters) {
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
-  const [catalogsLoading, setCatalogsLoading] = useState(true);
+  const [catalogsLoading, setCatalogsLoading] = useState(false);
+  const [catalogsLoaded, setCatalogsLoaded] = useState(false);
   const [catalogs, setCatalogs] = useState<CatalogsState>({
     patients: [],
     doctors: [],
@@ -179,12 +180,25 @@ export function useServicesData(searchTerm: string, filters: ServicesFilters) {
   );
 
   const loadFormCatalogs = useCallback(async () => {
+    if (catalogsLoaded) {
+      return;
+    }
+
     const cached = getQueryCache<CatalogsState>(CATALOGS_CACHE_KEY);
+    const cachedCatalogs = cached?.data ?? {
+      patients: [],
+      doctors: [],
+      studies: [],
+    };
 
     if (cached) {
-      setCatalogs(cached.data);
+      setCatalogs(cachedCatalogs);
       setCatalogsLoading(false);
+      setCatalogsLoaded(true);
+      return;
     }
+
+    setCatalogsLoading(true);
 
     const [patientsResponse, doctorsResponse, studiesResponse] = await Promise.all([
       getPatients({ limit: 400, status: 'all' }),
@@ -193,19 +207,18 @@ export function useServicesData(searchTerm: string, filters: ServicesFilters) {
     ]);
 
     const nextCatalogs: CatalogsState = {
-      patients: patientsResponse.ok ? patientsResponse.data.data : cached?.data.patients ?? [],
-      doctors: doctorsResponse.ok ? doctorsResponse.data.data : cached?.data.doctors ?? [],
-      studies: studiesResponse.ok ? studiesResponse.data.data : cached?.data.studies ?? [],
+      patients: patientsResponse.ok ? patientsResponse.data.data : cachedCatalogs?.patients ?? [],
+      doctors: doctorsResponse.ok ? doctorsResponse.data.data : cachedCatalogs?.doctors ?? [],
+      studies: studiesResponse.ok ? studiesResponse.data.data : cachedCatalogs?.studies ?? [],
     };
+    const hasSuccessfulCatalogLoad =
+      patientsResponse.ok || doctorsResponse.ok || studiesResponse.ok;
 
     setCatalogs(nextCatalogs);
     setCatalogsLoading(false);
+    setCatalogsLoaded(hasSuccessfulCatalogLoad);
     setQueryCache(CATALOGS_CACHE_KEY, nextCatalogs);
-  }, []);
-
-  useEffect(() => {
-    void loadFormCatalogs();
-  }, [loadFormCatalogs]);
+  }, [catalogsLoaded]);
 
   useEffect(() => {
     const cacheKey = getServicesCacheKey(debouncedSearch, filters);
@@ -303,6 +316,7 @@ export function useServicesData(searchTerm: string, filters: ServicesFilters) {
     stats,
     catalogs,
     catalogsLoading,
+    loadFormCatalogs,
     saveService,
     saveServiceChanges,
     changeServiceStatus,

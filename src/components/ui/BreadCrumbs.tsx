@@ -42,8 +42,11 @@ const Breadcrumbs = () => {
   return (
     <nav aria-label="Breadcrumb">
       <ol className="flex flex-wrap items-center gap-y-2 text-sm text-gray-500">
-        <li>
-          <Link href="/home" className="font-medium transition-colors hover:text-red-500">
+        <li className="min-w-0">
+          <Link
+            href="/home"
+            className="app-interactive-link inline-block max-w-full truncate font-medium transition-colors hover:text-red-500"
+          >
             Inicio
           </Link>
         </li>
@@ -61,15 +64,22 @@ const Breadcrumbs = () => {
           const isClickable = !isLast && !isDetailParent;
 
           return (
-            <li key={href} className="flex items-center">
+            <li key={href} className="flex min-w-0 items-center">
               <span className="mx-2 text-gray-300">/</span>
 
               {isClickable ? (
-                <Link href={href} className="transition-colors hover:text-red-500">
+                <Link
+                  href={href}
+                  className="app-interactive-link inline-block max-w-[12rem] truncate transition-colors hover:text-red-500 sm:max-w-[16rem]"
+                >
                   {label}
                 </Link>
               ) : (
-                <span className={isLast ? "font-medium text-gray-900" : "text-gray-500"}>
+                <span
+                  className={`inline-block max-w-[12rem] truncate ${
+                    isLast ? "font-medium text-gray-900" : "text-gray-500"
+                  } sm:max-w-[16rem]`}
+                >
                   {label}
                 </span>
               )}

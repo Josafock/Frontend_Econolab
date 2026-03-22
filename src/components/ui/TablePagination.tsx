@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 
 type TablePaginationProps = {
   page: number;
@@ -15,7 +15,7 @@ export default function TablePagination({
   page,
   pageSize,
   totalItems,
-  itemLabel = 'registros',
+  itemLabel = "registros",
   onPageChange,
   onPageSizeChange,
 }: TablePaginationProps) {
@@ -23,7 +23,8 @@ export default function TablePagination({
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const currentPage = Math.min(page, totalPages);
   const start = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
-  const end = totalItems === 0 ? 0 : Math.min(currentPage * pageSize, totalItems);
+  const end =
+    totalItems === 0 ? 0 : Math.min(currentPage * pageSize, totalItems);
 
   useEffect(() => {
     setDraftPageSize(String(pageSize));
@@ -53,7 +54,7 @@ export default function TablePagination({
             onChange={(event) => setDraftPageSize(event.target.value)}
             onBlur={applyPageSize}
             onKeyDown={(event) => {
-              if (event.key === 'Enter') {
+              if (event.key === "Enter") {
                 event.preventDefault();
                 applyPageSize();
               }
@@ -64,18 +65,18 @@ export default function TablePagination({
         </label>
 
         <p>
-          Mostrando registros del <span className="font-semibold">{start}</span> al{' '}
-          <span className="font-semibold">{end}</span> de un total de{' '}
+          Mostrando registros del <span className="font-semibold">{start}</span>{" "}
+          al <span className="font-semibold">{end}</span> de un total de{" "}
           <span className="font-semibold">{totalItems}</span> {itemLabel}
         </p>
       </div>
 
-      <div className="flex items-center gap-2 self-end sm:self-auto">
+      <div className="flex flex-wrap items-center justify-end gap-2 self-stretch sm:self-auto">
         <button
           type="button"
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage <= 1}
-          className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+          className="app-interactive-button rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:border-red-200 hover:bg-gray-100 hover:shadow-md hover:shadow-red-100/50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Anterior
         </button>
@@ -88,7 +89,7 @@ export default function TablePagination({
           type="button"
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage >= totalPages}
-          className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+          className="app-interactive-button rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:border-red-200 hover:bg-gray-100 hover:shadow-md hover:shadow-red-100/50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Siguiente
         </button>

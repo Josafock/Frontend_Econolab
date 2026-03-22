@@ -139,7 +139,7 @@ export default function PerfilClient({ user }: PerfilClientProps) {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+      <section className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-center gap-4">
             <div className="relative">
@@ -211,7 +211,7 @@ export default function PerfilClient({ user }: PerfilClientProps) {
 
       <section className="grid gap-6 xl:grid-cols-[0.82fr_1.18fr]">
         <div className="space-y-6">
-          <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
             <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Panel lateral</p>
             <h2 className="mt-2 text-2xl font-semibold text-gray-900">Acciones de la cuenta</h2>
 
@@ -219,7 +219,7 @@ export default function PerfilClient({ user }: PerfilClientProps) {
               <button
                 type="button"
                 onClick={() => setActiveTab('overview')}
-                className={`flex w-full items-center gap-3 rounded-2xl px-4 py-4 text-left text-sm font-semibold transition-colors ${
+                className={`app-tab-button flex w-full items-center gap-3 rounded-2xl px-4 py-4 text-left text-sm font-semibold transition-colors ${
                   activeTab === 'overview'
                     ? 'border border-red-200 bg-red-50 text-red-700'
                     : 'border border-gray-200 bg-gray-50 text-gray-700 hover:bg-white'
@@ -232,7 +232,7 @@ export default function PerfilClient({ user }: PerfilClientProps) {
               <button
                 type="button"
                 onClick={() => setActiveTab('security')}
-                className={`flex w-full items-center gap-3 rounded-2xl px-4 py-4 text-left text-sm font-semibold transition-colors ${
+                className={`app-tab-button flex w-full items-center gap-3 rounded-2xl px-4 py-4 text-left text-sm font-semibold transition-colors ${
                   activeTab === 'security'
                     ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
                     : 'border border-gray-200 bg-gray-50 text-gray-700 hover:bg-white'
@@ -244,7 +244,7 @@ export default function PerfilClient({ user }: PerfilClientProps) {
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
             <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Estado</p>
             <h3 className="mt-2 text-xl font-semibold text-gray-900">Cuenta verificada</h3>
 
@@ -286,7 +286,7 @@ export default function PerfilClient({ user }: PerfilClientProps) {
           </div>
         </div>
 
-        <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
           {activeTab === 'overview' ? (
             <div>
               <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Resumen</p>
@@ -353,7 +353,7 @@ export default function PerfilClient({ user }: PerfilClientProps) {
                         type="button"
                         onClick={handleProfileSave}
                         disabled={isSavingProfile || !hasProfileChanges}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-red-600/20 transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-70"
+                        className="app-action-button inline-flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-red-600/20 transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-70"
                       >
                         {isSavingProfile ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -571,7 +571,7 @@ export default function PerfilClient({ user }: PerfilClientProps) {
                   type="button"
                   onClick={handlePasswordChange}
                   disabled={isPending}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-600/20 transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="app-action-button inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-600/20 transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />

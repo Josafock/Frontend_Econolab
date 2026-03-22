@@ -1,18 +1,24 @@
-import { cookies } from 'next/headers';
-import { NextResponse } from 'next/server';
+import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
 
 type RouteContext = {
   params: { id: string } | Promise<{ id: string }>;
 };
 
-async function readErrorMessage(response: Response, fallback: string): Promise<string> {
-  const payload = await response.text().catch(() => '');
+async function readErrorMessage(
+  response: Response,
+  fallback: string,
+): Promise<string> {
+  const payload = await response.text().catch(() => "");
   if (!payload) return fallback;
 
   try {
     const parsed = JSON.parse(payload) as { message?: string | string[] };
     if (Array.isArray(parsed.message)) return parsed.message[0] ?? fallback;
-    if (typeof parsed.message === 'string' && parsed.message.trim().length > 0) {
+    if (
+      typeof parsed.message === "string" &&
+      parsed.message.trim().length > 0
+    ) {
       return parsed.message;
     }
   } catch {
@@ -22,31 +28,41 @@ async function readErrorMessage(response: Response, fallback: string): Promise<s
   return fallback;
 }
 
-export async function GET(_: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
   const resolved = await Promise.resolve(context.params);
-  const id = Number.parseInt(String(resolved?.id ?? ''), 10);
+  const id = Number.parseInt(String(resolved?.id ?? ""), 10);
   if (!Number.isInteger(id) || id <= 0) {
-    return NextResponse.json({ message: 'Id de servicio invalido.' }, { status: 400 });
+    return NextResponse.json(
+      { message: "Id de servicio invalido." },
+      { status: 400 },
+    );
   }
-  const token = (await cookies()).get('ECONOLAB_TOKEN')?.value;
+  const token = (await cookies()).get("ECONOLAB_TOKEN")?.value;
 
   if (!token) {
     return NextResponse.json(
-      { message: 'Tu sesion expiro. Inicia sesion nuevamente.' },
+      { message: "Tu sesion expiro. Inicia sesion nuevamente." },
       { status: 401 },
     );
   }
 
   const authHeaders = { Authorization: `Bearer ${token}` };
-  const pdfUrl = `${process.env.API_URL}/results/service-order/${id}/pdf`;
+  const requestUrl = new URL(request.url);
+  const suffix = requestUrl.search ? requestUrl.search : "";
+  const pdfUrl = `${process.env.API_URL}/results/service-order/${id}/pdf${suffix}`;
   const pdfRes = await fetch(pdfUrl, {
     headers: authHeaders,
-    cache: 'no-store',
+    cache: "no-store",
   });
 
   if (!pdfRes.ok) {
     return NextResponse.json(
-      { message: await readErrorMessage(pdfRes, 'No se pudo generar el PDF de resultados.') },
+      {
+        message: await readErrorMessage(
+          pdfRes,
+          "No se pudo generar el PDF de resultados.",
+        ),
+      },
       { status: pdfRes.status },
     );
   }
@@ -55,8 +71,8 @@ export async function GET(_: Request, context: RouteContext) {
   return new NextResponse(pdf, {
     status: 200,
     headers: {
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="resultado-servicio-${id}.pdf"`,
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `inline; filename="resultado-servicio-${id}.pdf"`,
     },
   });
 }

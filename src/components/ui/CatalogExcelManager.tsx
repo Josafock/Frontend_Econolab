@@ -14,9 +14,6 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import {
-  createTemplateSheets,
-  downloadWorkbook,
-  readExcelRows,
   type ExcelColumn,
 } from '@/helpers/excel';
 
@@ -79,6 +76,10 @@ function wait(ms: number) {
   });
 }
 
+async function loadExcelHelpers() {
+  return import('@/helpers/excel');
+}
+
 export default function CatalogExcelManager<Row extends Record<string, string>>({
   title,
   description,
@@ -136,6 +137,8 @@ export default function CatalogExcelManager<Row extends Record<string, string>>(
   };
 
   const handleDownloadTemplate = async () => {
+    const { createTemplateSheets, downloadWorkbook } = await loadExcelHelpers();
+
     setProgress({
       mode: 'export',
       current: 15,
@@ -165,6 +168,8 @@ export default function CatalogExcelManager<Row extends Record<string, string>>(
       toast.info(`No hay ${entityLabel} para exportar en este momento.`);
       return;
     }
+
+    const { downloadWorkbook } = await loadExcelHelpers();
 
     setProgress({
       mode: 'export',
@@ -228,6 +233,8 @@ export default function CatalogExcelManager<Row extends Record<string, string>>(
     if (!pendingFiles.length) return;
 
     try {
+      const { readExcelRows } = await loadExcelHelpers();
+
       setProgress({
         mode: 'reading',
         current: 5,

@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import { RefreshCcw, Home, Bug } from 'lucide-react';
-import Link from 'next/link';
+import { useEffect } from "react";
+import { RefreshCcw, Home, Bug } from "lucide-react";
+import Link from "next/link";
 
 export default function ErrorPage({
   error,
@@ -17,7 +17,7 @@ export default function ErrorPage({
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-6">
-      <div className="max-w-xl w-full bg-white border border-gray-200 rounded-xl shadow-sm p-8 text-center">
+      <div className="w-full max-w-xl rounded-xl border border-gray-200 bg-white p-6 text-center shadow-sm sm:p-8">
         {/* Icono */}
         <div className="flex justify-center mb-4">
           <div className="p-4 bg-orange-100 rounded-full">
@@ -37,7 +37,7 @@ export default function ErrorPage({
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <button
             onClick={reset}
-            className="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+            className="app-interactive-button flex items-center justify-center gap-2 rounded-lg bg-red-600 px-6 py-3 font-medium text-white transition-colors hover:bg-red-700 hover:shadow-lg hover:shadow-red-200/60"
           >
             <RefreshCcw size={18} />
             Reintentar
@@ -45,7 +45,7 @@ export default function ErrorPage({
 
           <Link
             href="/"
-            className="flex items-center justify-center gap-2 border border-gray-300 px-6 py-3 rounded-lg hover:bg-gray-50 transition-colors"
+            className="app-interactive-button flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-6 py-3 transition-colors hover:border-red-200 hover:bg-gray-50 hover:shadow-md hover:shadow-red-100/50"
           >
             <Home size={18} />
             Ir al inicio
@@ -54,7 +54,7 @@ export default function ErrorPage({
 
         {/* Detalle técnico opcional */}
         <p className="mt-6 text-xs text-gray-400">
-          Error ID: {error.digest ?? 'N/A'}
+          Error ID: {error.digest ?? "N/A"}
         </p>
       </div>
     </div>

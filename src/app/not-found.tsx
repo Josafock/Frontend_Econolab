@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { Home, Search, ArrowLeft, AlertTriangle } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import Link from "next/link";
+import { Home, Search, ArrowLeft, AlertTriangle } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export default function NotFoundPage() {
   const router = useRouter();
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-6">
-      <div className="max-w-xl w-full bg-white border border-gray-200 rounded-xl shadow-sm p-8 text-center">
+      <div className="w-full max-w-xl rounded-xl border border-gray-200 bg-white p-6 text-center shadow-sm sm:p-8">
         {/* Icono */}
         <div className="flex justify-center mb-4">
           <div className="p-4 bg-red-100 rounded-full">

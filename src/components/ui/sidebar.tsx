@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  ChevronRight,
   ClipboardList,
   FlaskConical,
   History,
@@ -92,7 +93,7 @@ export function Sidebar(user: UserType) {
     <>
       <button
         onClick={toggleSidebar}
-        className="fixed left-4 top-4 z-[70] rounded-2xl border border-red-200 bg-white p-3 text-red-600 shadow-lg shadow-red-200/40 transition-colors hover:bg-red-50 md:hidden"
+        className="fixed left-4 top-4 z-[70] cursor-pointer rounded-2xl border border-red-200 bg-white p-3 text-red-600 shadow-lg shadow-red-200/40 transition-all duration-200 hover:-translate-y-0.5 hover:bg-red-50 hover:shadow-xl hover:shadow-red-200/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 focus-visible:ring-offset-2 md:hidden"
         aria-label={isOpen ? 'Cerrar menu lateral' : 'Abrir menu lateral'}
       >
         {isOpen ? <X size={24} /> : <Menu size={24} />}
@@ -127,7 +128,7 @@ export function Sidebar(user: UserType) {
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col">
-            <nav className="flex-1 space-y-2 overflow-y-auto px-4 py-6">
+            <nav className="scroll-panel flex-1 space-y-2 overflow-y-auto px-4 py-6">
               {visibleMenuItems.map((item) => {
                 const isActive = isItemActive(item.path);
                 const Icon = item.icon;
@@ -136,21 +137,68 @@ export function Sidebar(user: UserType) {
                   <button
                     key={item.path}
                     onClick={() => handleNavigation(item.path)}
-                    className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium transition-all ${
+                    onMouseEnter={() => {
+                      void router.prefetch(item.path);
+                    }}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={`group relative flex w-full cursor-pointer items-center gap-3 overflow-hidden rounded-2xl border px-4 py-3 text-left text-sm font-medium transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 focus-visible:ring-offset-2 ${
                       isActive
-                        ? 'border border-red-200 bg-red-50 text-red-700 shadow-sm'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                        ? 'border-red-200 bg-gradient-to-r from-red-50 via-white to-white text-red-700 shadow-sm shadow-red-100/80'
+                        : 'border-transparent text-gray-600 hover:-translate-y-0.5 hover:border-red-100 hover:bg-white hover:text-gray-900 hover:shadow-lg hover:shadow-red-100/70'
                     }`}
                   >
                     <span
-                      className={`flex h-9 w-9 items-center justify-center rounded-xl ${
-                        isActive ? 'bg-white text-red-600' : 'bg-gray-100 text-gray-500'
+                      aria-hidden="true"
+                      className={`absolute inset-y-3 left-2 w-1 rounded-full transition-all duration-200 ${
+                        isActive
+                          ? 'bg-red-500 opacity-100'
+                          : 'bg-red-300 opacity-0 group-hover:opacity-100'
+                      }`}
+                    />
+
+                    <span
+                      aria-hidden="true"
+                      className={`absolute inset-0 bg-gradient-to-r transition-opacity duration-200 ${
+                        isActive
+                          ? 'from-red-100/70 via-transparent to-transparent opacity-100'
+                          : 'from-red-50/80 via-transparent to-transparent opacity-0 group-hover:opacity-100'
+                      }`}
+                    />
+
+                    <span
+                      className={`relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all duration-200 ${
+                        isActive
+                          ? 'bg-white text-red-600 shadow-sm shadow-red-100'
+                          : 'bg-gray-100 text-gray-500 group-hover:bg-red-50 group-hover:text-red-600 group-hover:shadow-sm group-hover:shadow-red-100'
                       }`}
                     >
                       <Icon size={18} />
                     </span>
-                    <span className="truncate">{item.name}</span>
-                    {isActive ? <span className="ml-auto h-2 w-2 rounded-full bg-red-600" /> : null}
+
+                    <span className="relative z-10 truncate transition-transform duration-200 group-hover:translate-x-0.5">
+                      {item.name}
+                    </span>
+
+                    <span className="relative z-10 ml-auto flex items-center gap-2">
+                      {!isActive ? (
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-red-500 opacity-0 transition-all duration-200 group-hover:opacity-100">
+                          Ir
+                        </span>
+                      ) : null}
+
+                      <ChevronRight
+                        size={16}
+                        className={`transition-all duration-200 ${
+                          isActive
+                            ? 'translate-x-0 text-red-600'
+                            : 'translate-x-2 text-red-400 opacity-0 group-hover:translate-x-0 group-hover:opacity-100'
+                        }`}
+                      />
+
+                      {isActive ? (
+                        <span className="h-2 w-2 rounded-full bg-red-600 shadow-[0_0_0_4px_rgba(254,202,202,0.75)]" />
+                      ) : null}
+                    </span>
                   </button>
                 );
               })}
@@ -176,7 +224,7 @@ export function Sidebar(user: UserType) {
 
               <button
                 onClick={handleLogout}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 hover:text-gray-900"
+                className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700 transition-all duration-200 hover:-translate-y-0.5 hover:border-red-100 hover:bg-gray-50 hover:text-gray-900 hover:shadow-md hover:shadow-slate-200/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 focus-visible:ring-offset-2"
               >
                 <LogOut size={16} />
                 Cerrar sesion

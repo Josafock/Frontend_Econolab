@@ -1,13 +1,19 @@
-'use client';
+"use client";
 
-import { useMemo, useState, type ChangeEvent, type FocusEvent, type FormEvent } from 'react';
-import { Save, X } from 'lucide-react';
-import { toast } from 'react-toastify';
+import {
+  useMemo,
+  useState,
+  type ChangeEvent,
+  type FocusEvent,
+  type FormEvent,
+} from "react";
+import { Save, X } from "lucide-react";
+import { toast } from "react-toastify";
 import type {
   StudyDetail,
   UpdateStudyDetailPayload,
-} from '@/actions/studies/studiesActions';
-import StudyDetailFormFields from '@/components/estudios/StudyDetailFormFields';
+} from "@/actions/studies/studiesActions";
+import StudyDetailFormFields from "@/components/estudios/StudyDetailFormFields";
 import {
   createTouchedStudyDetailForm,
   hasStudyDetailFormErrors,
@@ -15,8 +21,8 @@ import {
   mapStudyDetailToForm,
   validateStudyDetailForm,
   type StudyDetailFormTouched,
-} from '@/components/estudios/studyDetailFormUtils';
-import AppModal from '@/components/ui/AppModal';
+} from "@/components/estudios/studyDetailFormUtils";
+import AppModal from "@/components/ui/AppModal";
 
 type EditStudyDetailModalProps = {
   detail: StudyDetail;
@@ -45,8 +51,8 @@ export default function EditStudyDetailModal({
     setFormData((current) => ({
       ...current,
       [name]: value,
-      ...(name === 'dataType' && value === 'category'
-        ? { parentId: current.parentId, unit: '', referenceValue: '' }
+      ...(name === "dataType" && value === "category"
+        ? { parentId: current.parentId, unit: "", referenceValue: "" }
         : {}),
     }));
   };
@@ -67,7 +73,7 @@ export default function EditStudyDetailModal({
     setTouched(createTouchedStudyDetailForm());
 
     if (hasStudyDetailFormErrors(errors)) {
-      toast.error('Revisa la configuracion del detalle antes de guardar.');
+      toast.error("Revisa la configuracion del detalle antes de guardar.");
       return;
     }
 
@@ -80,11 +86,13 @@ export default function EditStudyDetailModal({
   return (
     <AppModal>
       <div className="mx-auto w-full max-w-3xl">
-        <div className="max-h-[calc(100vh-1.5rem)] overflow-y-auto rounded-[1.5rem] border border-gray-200 bg-white shadow-2xl sm:max-h-[calc(100vh-3rem)] sm:rounded-[2rem]">
+        <div className="max-h-[calc(100dvh-1rem)] overflow-y-auto rounded-[1.5rem] border border-gray-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:rounded-[2rem]">
           <div className="border-b border-gray-200 bg-gradient-to-r from-blue-700 via-blue-600 to-blue-500 p-4 text-white sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-xl font-semibold sm:text-2xl">Editar elemento</h2>
+                <h2 className="text-xl font-semibold sm:text-2xl">
+                  Editar elemento
+                </h2>
                 <p className="mt-1 text-sm text-blue-50">
                   Actualiza categoria, orden, unidad y valores de referencia.
                 </p>
@@ -128,7 +136,7 @@ export default function EditStudyDetailModal({
                 disabled={saving}
               >
                 <Save className="h-4 w-4" />
-                {saving ? 'Guardando...' : 'Guardar cambios'}
+                {saving ? "Guardando..." : "Guardar cambios"}
               </button>
             </div>
           </form>
