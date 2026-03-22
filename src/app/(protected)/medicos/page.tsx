@@ -414,9 +414,6 @@ export default function MedicosPage() {
                     <h3 className="text-sm font-semibold text-gray-900">
                       {medico.nombreCompleto}
                     </h3>
-                    <p className="mt-1 text-xs text-gray-500">
-                      ID #{medico.id}
-                    </p>
                   </div>
 
                   <div className="col-span-2">

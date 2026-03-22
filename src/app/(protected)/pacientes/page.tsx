@@ -477,9 +477,6 @@ export default function PacientesPage() {
                     <p className="text-sm font-medium text-gray-900">
                       {paciente.documento}
                     </p>
-                    <p className="mt-1 text-xs text-gray-500">
-                      ID #{paciente.id}
-                    </p>
                   </div>
 
                   <div className="col-span-2">

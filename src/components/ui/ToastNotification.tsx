@@ -75,9 +75,9 @@ export default function ToastNotification() {
   return (
     <ToastContainer
       position="top-right"
-      autoClose={2600}
+      autoClose={1800}
       hideProgressBar={false}
-      newestOnTop={true}
+      newestOnTop
       closeOnClick
       pauseOnFocusLoss={false}
       draggable
@@ -86,60 +86,60 @@ export default function ToastNotification() {
       transition={Slide}
       limit={4}
       icon={({ type }) => {
+        const base = "flex items-center justify-center rounded-full p-2";
+
         if (type === 'success') {
           return (
-            <span className="app-toast__icon app-toast__icon--success">
-              <CheckCircle2 className="h-4 w-4" />
+            <span className={`${base} bg-emerald-100 text-emerald-600`}>
+              <CheckCircle2 className="h-5 w-5" />
             </span>
           );
         }
 
         if (type === 'error') {
           return (
-            <span className="app-toast__icon app-toast__icon--error">
-              <XCircle className="h-4 w-4" />
+            <span className={`${base} bg-red-100 text-red-600`}>
+              <XCircle className="h-5 w-5" />
             </span>
           );
         }
 
         if (type === 'warning') {
           return (
-            <span className="app-toast__icon app-toast__icon--warning">
-              <AlertTriangle className="h-4 w-4" />
+            <span className={`${base} bg-amber-100 text-amber-600`}>
+              <AlertTriangle className="h-5 w-5" />
             </span>
           );
         }
 
         return (
-          <span className="app-toast__icon app-toast__icon--info">
-            <Info className="h-4 w-4" />
+          <span className={`${base} bg-blue-100 text-blue-600`}>
+            <Info className="h-5 w-5" />
           </span>
         );
       }}
-      toastClassName={(context) =>
+      toastClassName={() =>
         [
-          'app-toast group overflow-hidden rounded-[1.4rem] border bg-white shadow-2xl',
-          'min-h-[80px] w-[25rem] max-w-[calc(100vw-1rem)] text-slate-900 ring-1 ring-white/80',
-          context?.type === 'success' ? 'app-toast--success' : '',
-          context?.type === 'error' ? 'app-toast--error' : '',
-          context?.type === 'warning' ? 'app-toast--warning' : '',
-          context?.type === 'info' ? 'app-toast--info' : '',
-        ]
-          .filter(Boolean)
-          .join(' ')
+          "group relative flex items-center gap-3",
+          "rounded-2xl border border-slate-200 bg-white",
+          "shadow-lg",
+          "px-4 py-3",
+          "min-h-[64px]",
+          "w-[22rem] sm:w-[24rem] max-w-[calc(100vw-1.5rem)]",
+          "overflow-hidden", // 🔥 CLAVE para la barra
+        ].join(" ")
       }
-      progressClassName="app-toast__progress"
+      progressClassName="h-1 bg-gradient-to-r from-slate-200 via-slate-400 to-slate-200"
       closeButton={({ closeToast }) => (
         <button
-          type="button"
           onClick={closeToast}
-          className="app-toast__close"
-          aria-label="Cerrar notificacion"
+          className="ml-auto flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+          aria-label="Cerrar notificación"
         >
           <X className="h-4 w-4" />
         </button>
       )}
-      className="!top-5 !right-5 text-sm"
+      className="!top-6 !right-6"
     />
   );
 }

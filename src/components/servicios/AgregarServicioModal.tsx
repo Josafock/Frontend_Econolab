@@ -193,7 +193,8 @@ export default function AddServiceModal({
 
   const filteredPatients = useMemo(() => {
     if (!patientSearch.trim()) {
-      return localPatients;
+      const activePatients = localPatients.filter((patient) => patient.isActive !== false);
+      return activePatients;
     }
 
     return localPatients.filter((patient) =>
