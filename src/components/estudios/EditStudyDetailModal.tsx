@@ -7,7 +7,7 @@ import {
   type FocusEvent,
   type FormEvent,
 } from "react";
-import { Save, X } from "lucide-react";
+import { Save } from "lucide-react";
 import { toast } from "react-toastify";
 import type {
   StudyDetail,
@@ -22,7 +22,13 @@ import {
   validateStudyDetailForm,
   type StudyDetailFormTouched,
 } from "@/components/estudios/studyDetailFormUtils";
-import AppModal from "@/components/ui/AppModal";
+import {
+  Modal,
+  ModalBody,
+  ModalFooter,
+  ModalHeader,
+  ModalPanel,
+} from "@/components/ui/Modal";
 
 type EditStudyDetailModalProps = {
   detail: StudyDetail;
@@ -84,69 +90,52 @@ export default function EditStudyDetailModal({
   };
 
   return (
-    <AppModal>
-      <div className="mx-auto w-full max-w-3xl">
-        <div className="flex max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-[1.5rem] border border-gray-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:rounded-[2rem]">
-          <div className="border-b border-gray-200 bg-gradient-to-r from-blue-700 via-blue-600 to-blue-500 p-4 text-white sm:p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-semibold sm:text-2xl">
-                  Editar elemento
-                </h2>
-                <p className="mt-1 text-sm text-blue-50">
-                  Actualiza categoria, orden, unidad y valores de referencia.
-                </p>
-              </div>
+    <Modal>
+      <ModalPanel widthClassName="max-w-3xl">
+        <ModalHeader
+          title="Editar elemento"
+          description="Actualiza categoria, orden, unidad y valores de referencia."
+          onClose={onClose}
+          closeDisabled={saving}
+          className="bg-gradient-to-r from-blue-700 via-blue-600 to-blue-500"
+          descriptionClassName="text-blue-50"
+        />
 
-              <button
-                onClick={onClose}
-                className="rounded-xl border border-white/20 bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
-                disabled={saving}
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <ModalBody>
+            <StudyDetailFormFields
+              formData={formData}
+              errors={errors}
+              touched={touched}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              categories={categories}
+              excludeParentId={detail.id}
+              disabled={saving}
+              compact
+            />
+          </ModalBody>
 
-          <form
-            onSubmit={handleSubmit}
-            className="flex min-h-0 flex-1 flex-col"
-          >
-            <div className="min-h-0 flex-1 overflow-y-auto p-4 pb-6 sm:p-6">
-              <StudyDetailFormFields
-                formData={formData}
-                errors={errors}
-                touched={touched}
-                onChange={handleChange}
-                onBlur={handleBlur}
-                categories={categories}
-                excludeParentId={detail.id}
-                disabled={saving}
-                compact
-              />
-            </div>
-
-            <div className="flex flex-col gap-3 border-t border-gray-200 bg-white p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] md:flex-row sm:p-6">
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition-all hover:bg-gray-50"
-                disabled={saving}
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-blue-700 disabled:opacity-50"
-                disabled={saving}
-              >
-                <Save className="h-4 w-4" />
-                {saving ? "Guardando..." : "Guardar cambios"}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </AppModal>
+          <ModalFooter>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition-all hover:bg-gray-50"
+              disabled={saving}
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-blue-700 disabled:opacity-50"
+              disabled={saving}
+            >
+              <Save className="h-4 w-4" />
+              {saving ? "Guardando..." : "Guardar cambios"}
+            </button>
+          </ModalFooter>
+        </form>
+      </ModalPanel>
+    </Modal>
   );
 }

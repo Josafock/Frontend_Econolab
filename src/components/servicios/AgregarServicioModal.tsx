@@ -374,7 +374,7 @@ export default function AddServiceModal({
     if (!response.ok) {
       toast.error(response.errors[0] ?? "No se pudo crear el paciente.");
       setIsSavingPatient(false);
-      return;
+      return false;
     }
 
     const patient = response.data.data;
@@ -389,6 +389,7 @@ export default function AddServiceModal({
     setOpenPatientModal(false);
     setIsSavingPatient(false);
     toast.success("Paciente creado y seleccionado en el servicio.");
+    return true;
   };
 
   const handleInlineDoctorCreate = async (payload: CreateDoctorPayload) => {

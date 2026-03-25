@@ -1,60 +1,32 @@
 "use server";
 
-import { fetchApi } from "@/actions/_lib/api";
+import { fetchApi, type ApiResult } from "@/actions/_lib/api";
+import {
+  createDoctorPayloadSchema,
+  doctorMessageResponseSchema,
+  doctorMutationResponseSchema,
+  doctorSchema,
+  doctorsSearchResponseSchema,
+  updateDoctorPayloadSchema,
+  updateDoctorStatusPayloadSchema,
+  type CreateDoctorPayload as CreateDoctorPayloadInput,
+  type Doctor as DoctorRecord,
+  type DoctorMutationResponse,
+  type DoctorsSearchResponse,
+  type UpdateDoctorPayload as UpdateDoctorPayloadInput,
+} from "@/schemas";
 
 export type DoctorStatusFilter = "all" | "active" | "inactive";
-
-export type Doctor = {
-  id: number;
-  firstName: string;
-  lastName: string;
-  middleName?: string | null;
-  email?: string | null;
-  phone?: string | null;
-  specialty?: string | null;
-  licenseNumber?: string | null;
-  notes?: string | null;
-  isActive?: boolean;
-  createdAt?: string;
-  updatedAt?: string;
-};
-
-type DoctorsSearchResponse = {
-  data: Doctor[];
-  meta: { page: number; limit: number; total: number };
-};
-
-type DoctorDetailResponse = Doctor;
-
-type CreateDoctorResponse = {
-  message: string;
-  data: Doctor;
-};
-
-type UpdateDoctorResponse = {
-  message: string;
-  data: Doctor;
-};
-
-export type CreateDoctorPayload = {
-  firstName: string;
-  lastName: string;
-  middleName?: string;
-  email?: string;
-  phone?: string;
-  specialty?: string;
-  licenseNumber?: string;
-  notes?: string;
-};
-
-export type UpdateDoctorPayload = Partial<CreateDoctorPayload>;
+export type Doctor = DoctorRecord;
+export type CreateDoctorPayload = CreateDoctorPayloadInput;
+export type UpdateDoctorPayload = UpdateDoctorPayloadInput;
 
 export async function getDoctors(params?: {
   search?: string;
   page?: number;
   limit?: number;
   status?: DoctorStatusFilter;
-}) {
+}): Promise<ApiResult<DoctorsSearchResponse>> {
   const query = new URLSearchParams();
   if (params?.search) query.set("search", params.search);
   if (params?.page) query.set("page", String(params.page));
@@ -62,42 +34,150 @@ export async function getDoctors(params?: {
   if (params?.status) query.set("status", params.status);
 
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  return fetchApi<DoctorsSearchResponse>(`/doctors${suffix}`);
+  const response = await fetchApi<DoctorsSearchResponse>(`/doctors${suffix}`);
+  if (!response.ok) return response;
+
+  const parsed = doctorsSearchResponseSchema.safeParse(response.data);
+  if (!parsed.success) {
+    return { ok: false, errors: ["La respuesta de medicos es invalida."] };
+  }
+
+  return { ok: true, data: parsed.data };
 }
 
-export async function createDoctor(payload: CreateDoctorPayload) {
-  return fetchApi<CreateDoctorResponse>("/doctors", {
+export async function createDoctor(
+  payload: CreateDoctorPayload,
+): Promise<ApiResult<DoctorMutationResponse>> {
+  const parsedPayload = createDoctorPayloadSchema.safeParse(payload);
+  if (!parsedPayload.success) {
+    const firstError =
+      parsedPayload.error.issues[0]?.message ?? "Datos de medico invalidos.";
+    return { ok: false, errors: [firstError] };
+  }
+
+  const response = await fetchApi<DoctorMutationResponse>("/doctors", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(parsedPayload.data),
   });
+  if (!response.ok) return response;
+
+  const parsed = doctorMutationResponseSchema.safeParse(response.data);
+  if (!parsed.success) {
+    return { ok: false, errors: ["La respuesta al crear medico es invalida."] };
+  }
+
+  return { ok: true, data: parsed.data };
 }
 
-export async function getDoctorById(id: number) {
-  return fetchApi<DoctorDetailResponse>(`/doctors/${id}`);
+export async function getDoctorById(id: number): Promise<ApiResult<Doctor>> {
+  const response = await fetchApi<Doctor>(`/doctors/${id}`);
+  if (!response.ok) return response;
+
+  const parsed = doctorSchema.safeParse(response.data);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      errors: ["La respuesta del detalle de medico es invalida."],
+    };
+  }
+
+  return { ok: true, data: parsed.data };
 }
 
-export async function updateDoctor(id: number, payload: UpdateDoctorPayload) {
-  return fetchApi<UpdateDoctorResponse>(`/doctors/${id}`, {
+export async function updateDoctor(
+  id: number,
+  payload: UpdateDoctorPayload,
+): Promise<ApiResult<DoctorMutationResponse>> {
+  const parsedPayload = updateDoctorPayloadSchema.safeParse(payload);
+  if (!parsedPayload.success) {
+    const firstError =
+      parsedPayload.error.issues[0]?.message ?? "Datos de medico invalidos.";
+    return { ok: false, errors: [firstError] };
+  }
+
+  const response = await fetchApi<DoctorMutationResponse>(`/doctors/${id}`, {
     method: "PUT",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(parsedPayload.data),
   });
+  if (!response.ok) return response;
+
+  const parsed = doctorMutationResponseSchema.safeParse(response.data);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      errors: ["La respuesta al actualizar medico es invalida."],
+    };
+  }
+
+  return { ok: true, data: parsed.data };
 }
 
-export async function updateDoctorStatus(id: number, isActive: boolean) {
-  return fetchApi<UpdateDoctorResponse>(`/doctors/${id}/status`, {
-    method: "PUT",
-    body: JSON.stringify({ isActive }),
-  });
+export async function updateDoctorStatus(
+  id: number,
+  isActive: boolean,
+): Promise<ApiResult<DoctorMutationResponse>> {
+  const parsedPayload = updateDoctorStatusPayloadSchema.safeParse({ isActive });
+  if (!parsedPayload.success) {
+    const firstError =
+      parsedPayload.error.issues[0]?.message ??
+      "El estatus del medico es invalido.";
+    return { ok: false, errors: [firstError] };
+  }
+
+  const response = await fetchApi<DoctorMutationResponse>(
+    `/doctors/${id}/status`,
+    {
+      method: "PUT",
+      body: JSON.stringify(parsedPayload.data),
+    },
+  );
+  if (!response.ok) return response;
+
+  const parsed = doctorMutationResponseSchema.safeParse(response.data);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      errors: ["La respuesta al actualizar estatus es invalida."],
+    };
+  }
+
+  return { ok: true, data: parsed.data };
 }
 
-export async function deactivateDoctor(id: number) {
-  return fetchApi<{ message: string }>(`/doctors/${id}`, {
+export async function deactivateDoctor(
+  id: number,
+): Promise<ApiResult<{ message: string }>> {
+  const response = await fetchApi<{ message: string }>(`/doctors/${id}`, {
     method: "DELETE",
   });
+  if (!response.ok) return response;
+
+  const parsed = doctorMessageResponseSchema.safeParse(response.data);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      errors: ["La respuesta al desactivar medico es invalida."],
+    };
+  }
+
+  return { ok: true, data: parsed.data };
 }
 
-export async function hardDeleteDoctor(id: number) {
-  return fetchApi<{ message: string }>(`/doctors/${id}/hard`, {
+export async function hardDeleteDoctor(
+  id: number,
+): Promise<ApiResult<{ message: string }>> {
+  const response = await fetchApi<{ message: string }>(`/doctors/${id}/hard`, {
     method: "DELETE",
   });
+  if (!response.ok) return response;
+
+  const parsed = doctorMessageResponseSchema.safeParse(response.data);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      errors: ["La respuesta al eliminar medico es invalida."],
+    };
+  }
+
+  return { ok: true, data: parsed.data };
 }

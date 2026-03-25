@@ -1,0 +1,741 @@
+"use client";
+
+import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import {
+  BadgeCheck,
+  Eye,
+  FileSpreadsheet,
+  Filter,
+  Loader2,
+  Mail,
+  PencilLine,
+  Phone,
+  Plus,
+  Search,
+  ShieldX,
+  Stethoscope,
+  Trash2,
+  User,
+} from "lucide-react";
+import { toast } from "react-toastify";
+import {
+  createDoctor,
+  hardDeleteDoctor,
+  updateDoctorStatus,
+  type CreateDoctorPayload,
+  type DoctorStatusFilter,
+} from "@/actions/doctors/doctorsActions";
+import {
+  createEmptyDoctorForm,
+  mapFormToPayload,
+  validateDoctorForm,
+  type DoctorFormValues,
+} from "@/components/medicos/doctorFormUtils";
+import CatalogExcelModal from "@/components/ui/CatalogExcelModal";
+import { useConfirmDialog } from "@/components/ui/ConfirmDialogProvider";
+import EntityActionsMenu from "@/components/ui/EntityActionsMenu";
+import TablePagination from "@/components/ui/TablePagination";
+import { formatDate } from "@/helpers/date";
+import type { ExcelColumn } from "@/helpers/excel";
+
+const AddDoctorModal = dynamic(
+  () => import("@/components/medicos/AddDoctorModal"),
+);
+const CatalogExcelManager = dynamic(
+  () => import("@/components/ui/CatalogExcelManager"),
+) as typeof import("@/components/ui/CatalogExcelManager").default;
+
+type UiDoctor = {
+  id: number;
+  nombre: string;
+  apellidoPaterno: string;
+  apellidoMaterno: string;
+  nombreCompleto: string;
+  especialidad: string;
+  cedula: string;
+  telefono: string;
+  email: string;
+  notas: string;
+  fechaRegistro: string;
+  estatus: "Activo" | "Inactivo";
+  isActive: boolean;
+};
+
+type DoctorsPageClientProps = {
+  initialDoctors: UiDoctor[];
+  initialError?: string | null;
+};
+
+const statusOptions: Array<{ value: DoctorStatusFilter; label: string }> = [
+  { value: "all", label: "Todos" },
+  { value: "active", label: "Activos" },
+  { value: "inactive", label: "Inactivos" },
+];
+
+const doctorExcelColumns: ExcelColumn<DoctorFormValues>[] = [
+  {
+    key: "nombre",
+    label: "Nombre",
+    required: true,
+    description: "Nombre del medico.",
+    example: "MARIA",
+    width: 18,
+  },
+  {
+    key: "apellidoPaterno",
+    label: "Apellido paterno",
+    required: true,
+    description: "Apellido paterno del medico.",
+    example: "GOMEZ",
+    width: 22,
+  },
+  {
+    key: "apellidoMaterno",
+    label: "Apellido materno",
+    description: "Apellido materno si aplica.",
+    example: "RUIZ",
+    width: 22,
+  },
+  {
+    key: "especialidad",
+    label: "Especialidad",
+    description: "Especialidad principal.",
+    example: "CARDIOLOGIA",
+    width: 24,
+  },
+  {
+    key: "cedulaProfesional",
+    label: "Cedula profesional",
+    description: "Cedula o licencia.",
+    example: "1234567",
+    width: 20,
+  },
+  {
+    key: "telefono",
+    label: "Telefono",
+    description: "Solo numeros entre 7 y 15 digitos.",
+    example: "5512345678",
+    width: 18,
+  },
+  {
+    key: "email",
+    label: "Email",
+    description: "Correo del medico.",
+    example: "medico@dominio.com",
+    inputType: "email",
+    width: 28,
+  },
+  {
+    key: "notas",
+    label: "Notas",
+    description: "Observaciones internas opcionales.",
+    example: "Disponibilidad por las tardes",
+    width: 34,
+  },
+];
+
+function getEspecialidadColor(especialidad: string): string {
+  const low = especialidad.toLowerCase();
+  if (low.includes("cardio")) return "bg-red-100 text-red-800";
+  if (low.includes("pedia")) return "bg-pink-100 text-pink-800";
+  if (low.includes("derma")) return "bg-cyan-100 text-cyan-800";
+  if (low.includes("gine")) return "bg-purple-100 text-purple-800";
+  return "bg-blue-100 text-blue-800";
+}
+
+function getStatusColor(estatus: "Activo" | "Inactivo"): string {
+  const colors: Record<string, string> = {
+    Activo: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    Inactivo: "border-red-200 bg-red-50 text-red-700",
+  };
+  return colors[estatus] || "border-gray-200 bg-gray-50 text-gray-700";
+}
+
+function matchesDoctorSearch(doctor: UiDoctor, searchTerm: string) {
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  if (!normalizedSearch) return true;
+
+  return [
+    doctor.nombreCompleto,
+    doctor.nombre,
+    doctor.apellidoPaterno,
+    doctor.apellidoMaterno,
+    doctor.especialidad,
+    doctor.cedula,
+    doctor.telefono,
+    doctor.email,
+  ].some((value) => value.toLowerCase().includes(normalizedSearch));
+}
+
+export default function DoctorsPageClient({
+  initialDoctors,
+  initialError = null,
+}: DoctorsPageClientProps) {
+  const router = useRouter();
+  const confirm = useConfirmDialog();
+  const [isRefreshing, startRefreshTransition] = useTransition();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<DoctorStatusFilter>("all");
+  const [showFilters, setShowFilters] = useState(false);
+  const [openAddModal, setOpenAddModal] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [saving, setSaving] = useState(false);
+  const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const allDoctors = useMemo(
+    () => initialDoctors.filter((doctor) => matchesDoctorSearch(doctor, searchTerm)),
+    [initialDoctors, searchTerm],
+  );
+
+  const doctors = useMemo(() => {
+    if (statusFilter === "all") return allDoctors;
+
+    return allDoctors.filter((doctor) =>
+      statusFilter === "active" ? doctor.isActive : !doctor.isActive,
+    );
+  }, [allDoctors, statusFilter]);
+
+  const especialidadesUnicas = useMemo(
+    () => new Set(allDoctors.map((doctor) => doctor.especialidad)).size,
+    [allDoctors],
+  );
+  const activos = useMemo(
+    () => allDoctors.filter((doctor) => doctor.isActive).length,
+    [allDoctors],
+  );
+  const inactivos = useMemo(
+    () => allDoctors.filter((doctor) => !doctor.isActive).length,
+    [allDoctors],
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(doctors.length / pageSize));
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
+  const paginatedDoctors = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return doctors.slice(start, start + pageSize);
+  }, [doctors, page, pageSize]);
+
+  const refreshDoctors = () => {
+    startRefreshTransition(() => {
+      router.refresh();
+    });
+  };
+
+  const handleAddDoctor = async (payload: CreateDoctorPayload) => {
+    setSaving(true);
+    const response = await createDoctor(payload);
+    setSaving(false);
+
+    if (!response.ok) {
+      toast.error(response.errors[0] ?? "No se pudo registrar el medico.");
+      return false;
+    }
+
+    toast.success("Medico registrado con exito.");
+    refreshDoctors();
+    return true;
+  };
+
+  const handleToggleDoctorStatus = async (doctor: UiDoctor) => {
+    setUpdatingStatusId(doctor.id);
+    const response = await updateDoctorStatus(doctor.id, !doctor.isActive);
+    setUpdatingStatusId(null);
+
+    if (!response.ok) {
+      toast.error(
+        response.errors[0] ?? "No se pudo actualizar el estatus del medico.",
+      );
+      return false;
+    }
+
+    toast.success(doctor.isActive ? "Medico suspendido." : "Medico reactivado.");
+    refreshDoctors();
+    return true;
+  };
+
+  const handleDeleteDoctor = async (doctor: UiDoctor) => {
+    const confirmed = await confirm({
+      title: "Eliminar medico",
+      message: `Se eliminara definitivamente a ${doctor.nombreCompleto}. Esta accion no se puede deshacer.`,
+      confirmLabel: "Eliminar medico",
+      tone: "danger",
+    });
+
+    if (!confirmed) return;
+
+    setDeletingId(doctor.id);
+    const response = await hardDeleteDoctor(doctor.id);
+    setDeletingId(null);
+
+    if (!response.ok) {
+      toast.error(response.errors[0] ?? "No se pudo eliminar el medico.");
+      return;
+    }
+
+    toast.success("Medico eliminado definitivamente.");
+    refreshDoctors();
+  };
+
+  return (
+    <div className="min-w-0">
+      <div className="mb-8 flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+        <div>
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
+            <span className="h-2 w-2 rounded-full bg-red-500" />
+            Directorio de medicos
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900">Medicos</h1>
+          <p className="mt-2 max-w-2xl text-gray-600">
+            Administra altas, edicion de perfil, cambios de estatus y control
+            del personal medico.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <button
+            className="app-action-button inline-flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-red-600/20 transition-all hover:bg-red-700"
+            onClick={() => setOpenAddModal(true)}
+          >
+            <Plus size={20} />
+            Nuevo medico
+          </button>
+
+          <CatalogExcelModal
+            title="Importacion y exportacion de medicos"
+            subtitle="Centraliza importaciones, exportaciones y vista previa sin recargar la pantalla principal."
+            trigger={
+              <button
+                type="button"
+                className="app-action-button inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-sm font-semibold text-amber-700 shadow-sm transition-all hover:bg-amber-100"
+              >
+                <FileSpreadsheet size={20} />
+                Importacion/Exportacion
+              </button>
+            }
+          >
+            <CatalogExcelManager
+              title="Carga masiva de medicos"
+              description="Sube directorios completos de medicos, revisa la vista previa y corrige cualquier fila antes de insertarla."
+              entityLabel="medicos"
+              columns={doctorExcelColumns}
+              createEmptyRow={createEmptyDoctorForm}
+              validateRow={(row) =>
+                Object.values(validateDoctorForm(row)).filter(
+                  (error): error is string => Boolean(error),
+                )
+              }
+              rowsForExport={doctors.map((doctor) => ({
+                nombre: doctor.nombre,
+                apellidoPaterno: doctor.apellidoPaterno,
+                apellidoMaterno:
+                  doctor.apellidoMaterno === "-" ? "" : doctor.apellidoMaterno,
+                especialidad:
+                  doctor.especialidad === "Sin especialidad"
+                    ? ""
+                    : doctor.especialidad,
+                cedulaProfesional: doctor.cedula === "-" ? "" : doctor.cedula,
+                telefono: doctor.telefono === "-" ? "" : doctor.telefono,
+                email: doctor.email === "-" ? "" : doctor.email,
+                notas: doctor.notas,
+              }))}
+              exportFileName="medicos.xlsx"
+              exportSheetName="Medicos"
+              templateFileName="plantilla-medicos.xlsx"
+              templateSheetName="Plantilla medicos"
+              onImportRow={async (row) => {
+                const response = await createDoctor(mapFormToPayload(row));
+                if (!response.ok) {
+                  return {
+                    ok: false,
+                    error:
+                      response.errors[0] ?? "No se pudo importar el medico.",
+                  };
+                }
+
+                return { ok: true };
+              }}
+              onImportFinished={refreshDoctors}
+              layout="flat"
+            />
+          </CatalogExcelModal>
+        </div>
+      </div>
+
+      {initialError ? (
+        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {initialError}
+        </div>
+      ) : null}
+
+      <div className="app-panel-surface mb-6 overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm">
+        <div className="border-b border-gray-100 bg-gradient-to-r from-white via-red-50/60 to-white px-6 py-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Buscar por nombre, especialidad, cedula, telefono o correo..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full rounded-2xl border border-gray-200 bg-white px-12 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowFilters((current) => !current)}
+              className="app-action-button inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-200 px-4 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            >
+              <Filter size={18} />
+              Filtros
+            </button>
+          </div>
+        </div>
+
+        {showFilters ? (
+          <div className="px-6 py-4">
+            <div className="flex flex-wrap gap-2">
+              {statusOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setStatusFilter(option.value)}
+                  className={`app-chip-button rounded-full px-4 py-2 text-sm font-medium transition-all ${
+                    statusFilter === option.value
+                      ? "bg-red-600 text-white shadow-md shadow-red-600/20"
+                      : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="app-panel-surface rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Total medicos</p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">
+                {allDoctors.length}
+              </p>
+            </div>
+            <div className="rounded-2xl bg-blue-100 p-3">
+              <User className="h-5 w-5 text-blue-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="app-panel-surface rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Activos</p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">{activos}</p>
+            </div>
+            <div className="rounded-2xl bg-emerald-100 p-3">
+              <BadgeCheck className="h-5 w-5 text-emerald-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="app-panel-surface rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Inactivos</p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">
+                {inactivos}
+              </p>
+            </div>
+            <div className="rounded-2xl bg-red-100 p-3">
+              <ShieldX className="h-5 w-5 text-red-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="app-panel-surface rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">
+                Especialidades
+              </p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">
+                {especialidadesUnicas}
+              </p>
+            </div>
+            <div className="rounded-2xl bg-purple-100 p-3">
+              <Stethoscope className="h-5 w-5 text-purple-600" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {isRefreshing ? (
+        <div className="mb-3 flex items-center gap-2 text-xs text-gray-500">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Sincronizando cambios...
+        </div>
+      ) : null}
+
+      {doctors.length === 0 ? (
+        <div className="rounded-3xl border border-gray-200 bg-white p-10 text-center text-gray-600 shadow-sm">
+          {initialError && initialDoctors.length === 0
+            ? "No fue posible cargar medicos en este momento."
+            : "No hay medicos para el filtro seleccionado."}
+        </div>
+      ) : (
+        <>
+          <div className="hidden overflow-visible rounded-[2rem] border border-gray-200 bg-white shadow-sm 2xl:block">
+            <div className="grid grid-cols-12 gap-4 border-b border-gray-200 bg-gray-50 px-6 py-4 text-sm font-semibold text-gray-700">
+              <div className="col-span-3">Medico</div>
+              <div className="col-span-2">Especialidad</div>
+              <div className="col-span-2">Cedula</div>
+              <div className="col-span-2">Contacto</div>
+              <div className="col-span-1">Estatus</div>
+              <div className="col-span-1">Registro</div>
+              <div className="col-span-1">Acciones</div>
+            </div>
+
+            <div className="divide-y divide-gray-200">
+              {paginatedDoctors.map((medico) => (
+                <div
+                  key={medico.id}
+                  className="grid grid-cols-12 gap-4 px-6 py-5 transition-colors hover:bg-gray-50"
+                >
+                  <div className="col-span-3">
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      {medico.nombreCompleto}
+                    </h3>
+                  </div>
+
+                  <div className="col-span-2">
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${getEspecialidadColor(medico.especialidad)}`}
+                    >
+                      {medico.especialidad}
+                    </span>
+                  </div>
+
+                  <div className="col-span-2">
+                    <p className="text-sm font-medium text-gray-900">
+                      {medico.cedula}
+                    </p>
+                  </div>
+
+                  <div className="col-span-2">
+                    <div className="mb-1 flex items-center gap-2">
+                      <Phone size={14} className="text-gray-400" />
+                      <span className="text-sm text-gray-900">
+                        {medico.telefono}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Mail size={14} className="text-gray-400" />
+                      <span className="truncate text-sm text-gray-900">
+                        {medico.email}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="col-span-1">
+                    <span
+                      className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getStatusColor(medico.estatus)}`}
+                    >
+                      {medico.estatus}
+                    </span>
+                  </div>
+
+                  <div className="col-span-1">
+                    <p className="text-sm text-gray-900">
+                      {formatDate(medico.fechaRegistro)}
+                    </p>
+                  </div>
+
+                  <div className="col-span-1 flex justify-end">
+                    <EntityActionsMenu
+                      buttonLabel="Acciones"
+                      items={[
+                        {
+                          label: "Ver detalle",
+                          href: `/medicos/detalle/${medico.id}#resumen-perfil`,
+                          icon: <Eye size={16} />,
+                        },
+                        {
+                          label: "Editar medico",
+                          href: `/medicos/detalle/${medico.id}?modo=editar#perfil-completo`,
+                          icon: <PencilLine size={16} />,
+                        },
+                        {
+                          label: medico.isActive
+                            ? "Suspender medico"
+                            : "Reactivar medico",
+                          onClick: () => void handleToggleDoctorStatus(medico),
+                          icon: medico.isActive ? (
+                            <ShieldX size={16} />
+                          ) : (
+                            <BadgeCheck size={16} />
+                          ),
+                          disabled: updatingStatusId === medico.id,
+                        },
+                        {
+                          label: "Eliminar medico",
+                          onClick: () => void handleDeleteDoctor(medico),
+                          icon: <Trash2 size={16} />,
+                          destructive: true,
+                          disabled: deletingId === medico.id,
+                        },
+                      ]}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <TablePagination
+              page={page}
+              pageSize={pageSize}
+              totalItems={doctors.length}
+              itemLabel="registros"
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-2 2xl:hidden">
+            {paginatedDoctors.map((medico) => (
+              <div
+                key={medico.id}
+                className="app-panel-surface rounded-3xl border border-gray-200 bg-white p-5 shadow-sm"
+              >
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      {medico.nombreCompleto}
+                    </h3>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {medico.especialidad}
+                    </p>
+                  </div>
+                  <span
+                    className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getStatusColor(medico.estatus)}`}
+                  >
+                    {medico.estatus}
+                  </span>
+                </div>
+
+                <div className="mb-4 grid grid-cols-2 gap-3 text-sm">
+                  <div className="rounded-2xl bg-gray-50 p-3">
+                    <p className="text-xs text-gray-500">Cedula</p>
+                    <p className="mt-1 font-semibold text-gray-900">
+                      {medico.cedula}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-gray-50 p-3">
+                    <p className="text-xs text-gray-500">Registro</p>
+                    <p className="mt-1 font-semibold text-gray-900">
+                      {formatDate(medico.fechaRegistro)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mb-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Phone size={14} className="text-gray-400" />
+                    <span className="text-sm text-gray-900">
+                      {medico.telefono}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Mail size={14} className="text-gray-400" />
+                    <span className="truncate text-sm text-gray-900">
+                      {medico.email}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-gray-200 pt-4">
+                  <div className="text-xs text-gray-500">ID #{medico.id}</div>
+                  <EntityActionsMenu
+                    buttonLabel="Acciones"
+                    items={[
+                      {
+                        label: "Ver detalle",
+                        href: `/medicos/detalle/${medico.id}#resumen-perfil`,
+                        icon: <Eye size={16} />,
+                      },
+                      {
+                        label: "Editar medico",
+                        href: `/medicos/detalle/${medico.id}?modo=editar#perfil-completo`,
+                        icon: <PencilLine size={16} />,
+                      },
+                      {
+                        label: medico.isActive
+                          ? "Suspender medico"
+                          : "Reactivar medico",
+                        onClick: () => void handleToggleDoctorStatus(medico),
+                        icon: medico.isActive ? (
+                          <ShieldX size={16} />
+                        ) : (
+                          <BadgeCheck size={16} />
+                        ),
+                        disabled: updatingStatusId === medico.id,
+                      },
+                      {
+                        label: "Eliminar medico",
+                        onClick: () => void handleDeleteDoctor(medico),
+                        icon: <Trash2 size={16} />,
+                        destructive: true,
+                        disabled: deletingId === medico.id,
+                      },
+                    ]}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm 2xl:hidden">
+            <TablePagination
+              page={page}
+              pageSize={pageSize}
+              totalItems={doctors.length}
+              itemLabel="registros"
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          </div>
+        </>
+      )}
+
+      {openAddModal ? (
+        <AddDoctorModal
+          setOpen={setOpenAddModal}
+          addDoctor={async (payload) => {
+            const ok = await handleAddDoctor(payload);
+            if (ok) {
+              setOpenAddModal(false);
+            }
+            return ok;
+          }}
+          isSaving={saving}
+        />
+      ) : null}
+    </div>
+  );
+}
