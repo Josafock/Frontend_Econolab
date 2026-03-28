@@ -49,7 +49,7 @@ const rangeOptions = [
   { value: '7d', label: '7 dias' },
   { value: '30d', label: '1 mes' },
   { value: '90d', label: '3 meses' },
-  { value: 'year', label: '1 ano' },
+  { value: 'year', label: '1 año' },
 ] as const;
 
 const receptionistShortcuts = [
