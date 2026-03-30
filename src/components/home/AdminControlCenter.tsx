@@ -2,10 +2,10 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import type { DashboardOverview } from '@/actions/dashboard/dashboardActions';
-import type { AdminManagedUser } from '@/actions/users/adminUsersActions';
 import AdminRoleManager from '@/components/home/AdminRoleManager';
 import AppModal from '@/components/ui/AppModal';
+import type { AdminManagedUser } from '@/features/admin-users/api/admin-users';
+import type { DashboardOverview } from '@/features/dashboard/api/dashboard';
 import { formatDate, formatDateTime } from '@/helpers/date';
 import {
   ArrowRight,

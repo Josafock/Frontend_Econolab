@@ -2,8 +2,8 @@ import type {
   CreateServicePayload,
   ServiceItemPriceType,
   ServiceOrder,
-} from "@/actions/services/servicesActions";
-import type { Study } from "@/actions/studies/studiesActions";
+} from "@/features/services/api/services";
+import type { Study } from "@/features/studies/api/studies";
 import { toApiDateTime, toDateTimeLocalInput } from "@/helpers/date";
 
 export const SERVICE_BRANCH_OPTIONS = ["Matriz", "Unidad Movil"] as const;

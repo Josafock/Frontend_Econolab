@@ -1,7 +1,7 @@
 'use client';
 
 import type { ChangeEvent, FocusEvent, ReactNode } from 'react';
-import type { StudyDetail } from '@/actions/studies/studiesActions';
+import type { StudyDetail } from '@/features/studies/api/studies';
 import type {
   StudyDetailFormErrors,
   StudyDetailFormField,

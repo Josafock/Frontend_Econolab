@@ -9,7 +9,7 @@ import {
 } from "react";
 import { UserPlus } from "lucide-react";
 import { toast } from "react-toastify";
-import type { CreatePatientPayload } from "@/actions/patients/patientsActions";
+import type { CreatePatientPayload } from "@/features/patients/api/patients";
 import PatientFormFields from "@/components/pacientes/PatientFormFields";
 import {
   createEmptyPatientForm,

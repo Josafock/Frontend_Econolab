@@ -4,7 +4,6 @@ import {
   useEffect,
   useMemo,
   useState,
-  useTransition,
   type ChangeEvent,
   type FocusEvent,
 } from "react";
@@ -21,10 +20,11 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-toastify";
 import {
+  getDoctorById,
   updateDoctor,
   updateDoctorStatus,
   type Doctor,
-} from "@/actions/doctors/doctorsActions";
+} from "@/features/doctors/api/doctors";
 import DoctorFormFields from "@/components/medicos/DoctorFormFields";
 import { formatDateTime } from "@/helpers/date";
 import {
@@ -41,8 +41,6 @@ import { useHashSectionScroll } from "@/hooks/useHashSectionScroll";
 
 type DoctorDetailClientProps = {
   doctorId: number;
-  initialDoctor: Doctor | null;
-  initialError?: string | null;
   initialIsEditing?: boolean;
 };
 
@@ -61,19 +59,17 @@ function doctorFullName(doctor: Doctor | null) {
 
 export default function DoctorDetailClient({
   doctorId,
-  initialDoctor,
-  initialError = null,
   initialIsEditing = false,
 }: DoctorDetailClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [isRefreshing, startRefreshTransition] = useTransition();
   const [saving, setSaving] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [doctor, setDoctor] = useState<Doctor | null>(initialDoctor);
-  const [formData, setFormData] = useState<DoctorFormValues>(() =>
-    initialDoctor ? mapDoctorToForm(initialDoctor) : createEmptyDoctorForm(),
-  );
+  const [doctor, setDoctor] = useState<Doctor | null>(null);
+  const [initialError, setInitialError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [formData, setFormData] = useState<DoctorFormValues>(createEmptyDoctorForm());
   const [touched, setTouched] = useState<DoctorFormTouched>({});
   const [isEditing, setIsEditing] = useState(initialIsEditing);
   const errors = useMemo(() => validateDoctorForm(formData), [formData]);
@@ -84,19 +80,58 @@ export default function DoctorDetailClient({
     setIsEditing(searchParams.get("modo") === "editar");
   }, [searchParams]);
 
-  useEffect(() => {
-    setDoctor(initialDoctor);
-    setFormData(
-      initialDoctor ? mapDoctorToForm(initialDoctor) : createEmptyDoctorForm(),
-    );
-    setTouched({});
-  }, [initialDoctor]);
+  const refreshDoctor = async () => {
+    setIsRefreshing(true);
+    const response = await getDoctorById(doctorId);
+    setIsRefreshing(false);
 
-  const refreshRoute = () => {
-    startRefreshTransition(() => {
-      router.refresh();
-    });
+    if (!response.ok) {
+      setDoctor(null);
+      setInitialError(response.errors[0] ?? "No se pudo cargar el detalle del medico.");
+      setLoading(false);
+      return;
+    }
+
+    setDoctor(response.data);
+    setFormData(mapDoctorToForm(response.data));
+    setInitialError(null);
+    setLoading(false);
   };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const bootstrap = async () => {
+      if (!Number.isInteger(doctorId) || doctorId < 1) {
+        if (!cancelled) {
+          setInitialError("ID de medico invalido.");
+          setLoading(false);
+        }
+        return;
+      }
+
+      const response = await getDoctorById(doctorId);
+      if (cancelled) return;
+
+      if (!response.ok) {
+        setDoctor(null);
+        setInitialError(response.errors[0] ?? "No se pudo cargar el detalle del medico.");
+        setLoading(false);
+        return;
+      }
+
+      setDoctor(response.data);
+      setFormData(mapDoctorToForm(response.data));
+      setInitialError(null);
+      setLoading(false);
+    };
+
+    void bootstrap();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [doctorId]);
 
   const handleChange = (
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -147,7 +182,7 @@ export default function DoctorDetailClient({
     setIsEditing(false);
     toast.success("Medico actualizado con exito.");
     router.replace(`/medicos/detalle/${doctor.id}`);
-    refreshRoute();
+    await refreshDoctor();
   };
 
   const handleToggleStatus = async () => {
@@ -159,15 +194,13 @@ export default function DoctorDetailClient({
     setUpdatingStatus(false);
 
     if (!response.ok) {
-      toast.error(
-        response.errors[0] ?? "No se pudo actualizar el estatus del medico.",
-      );
+      toast.error(response.errors[0] ?? "No se pudo actualizar el estatus del medico.");
       return;
     }
 
     setDoctor(response.data.data);
     toast.success(nextStatus ? "Medico reactivado." : "Medico suspendido.");
-    refreshRoute();
+    await refreshDoctor();
   };
 
   const handleCancelEdit = () => {
@@ -179,6 +212,14 @@ export default function DoctorDetailClient({
     router.replace(`/medicos/detalle/${doctorId}`);
   };
 
+  if (loading) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center rounded-[2rem] border border-gray-200 bg-white text-sm text-gray-500 shadow-sm">
+        Cargando medico...
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -189,12 +230,9 @@ export default function DoctorDetailClient({
           >
             <ArrowLeft size={16} /> Regresar a medicos
           </Link>
-          <h1 className="mt-4 text-3xl font-bold text-gray-900">
-            Detalle de medico
-          </h1>
+          <h1 className="mt-4 text-3xl font-bold text-gray-900">Detalle de medico</h1>
           <p className="mt-2 text-gray-600">
-            Consulta el perfil y realiza cambios sin salir del expediente del
-            medico.
+            Consulta el perfil y realiza cambios sin salir del expediente del medico.
           </p>
         </div>
 
@@ -263,9 +301,7 @@ export default function DoctorDetailClient({
                   ) : (
                     <BadgeCheck className="h-4 w-4" />
                   )}
-                  {doctor.isActive !== false
-                    ? "Suspender medico"
-                    : "Reactivar medico"}
+                  {doctor.isActive !== false ? "Suspender medico" : "Reactivar medico"}
                 </button>
               </>
             )}
@@ -286,122 +322,71 @@ export default function DoctorDetailClient({
         </div>
       ) : doctor ? (
         <div className="space-y-6">
-          <div
-            id="resumen-perfil"
-            className="section-anchor-target grid gap-4 lg:grid-cols-[1.2fr_0.8fr]"
-          >
+          <div id="resumen-perfil" className="section-anchor-target grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
             <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
               <div className="mb-4 flex items-center gap-3">
                 <div className="rounded-2xl bg-red-50 p-3 text-red-600">
                   <FileText className="h-5 w-5" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    Resumen del perfil
-                  </h2>
-                  <p className="text-sm text-gray-500">
-                    Vista rapida del registro actual del medico.
-                  </p>
+                  <h2 className="text-lg font-semibold text-gray-900">Resumen del perfil</h2>
+                  <p className="text-sm text-gray-500">Vista rapida del registro actual del medico.</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-gray-500">
-                    Nombre completo
-                  </p>
-                  <p className="mt-2 text-base font-semibold text-gray-900">
-                    {doctorFullName(doctor)}
-                  </p>
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Nombre completo</p>
+                  <p className="mt-2 text-base font-semibold text-gray-900">{doctorFullName(doctor)}</p>
                 </div>
                 <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-gray-500">
-                    Especialidad
-                  </p>
-                  <p className="mt-2 text-base font-semibold text-gray-900">
-                    {doctor.specialty ?? "Sin especialidad"}
-                  </p>
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Especialidad</p>
+                  <p className="mt-2 text-base font-semibold text-gray-900">{doctor.specialty ?? "Sin especialidad"}</p>
                 </div>
                 <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-gray-500">
-                    Cedula profesional
-                  </p>
-                  <p className="mt-2 text-base font-semibold text-gray-900">
-                    {doctor.licenseNumber ?? "Sin cedula"}
-                  </p>
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Cedula profesional</p>
+                  <p className="mt-2 text-base font-semibold text-gray-900">{doctor.licenseNumber ?? "Sin cedula"}</p>
                 </div>
                 <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-gray-500">
-                    Telefono
-                  </p>
-                  <p className="mt-2 text-base font-semibold text-gray-900">
-                    {doctor.phone ?? "-"}
-                  </p>
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Telefono</p>
+                  <p className="mt-2 text-base font-semibold text-gray-900">{doctor.phone ?? "-"}</p>
                 </div>
                 <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-gray-500">
-                    Correo
-                  </p>
-                  <p className="mt-2 text-base font-semibold text-gray-900">
-                    {doctor.email ?? "-"}
-                  </p>
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Correo</p>
+                  <p className="mt-2 text-base font-semibold text-gray-900">{doctor.email ?? "-"}</p>
                 </div>
                 <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-gray-500">
-                    Notas
-                  </p>
-                  <p className="mt-2 text-base font-semibold text-gray-900">
-                    {doctor.notes ?? "Sin notas"}
-                  </p>
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Notas</p>
+                  <p className="mt-2 text-base font-semibold text-gray-900">{doctor.notes ?? "Sin notas"}</p>
                 </div>
               </div>
             </div>
 
             <div className="rounded-[2rem] border border-gray-200 bg-gradient-to-br from-red-600 via-red-500 to-rose-500 p-6 text-white shadow-lg shadow-red-600/20">
-              <p className="text-sm uppercase tracking-[0.2em] text-red-100">
-                Ficha rapida
-              </p>
-              <h2 className="mt-3 text-2xl font-semibold">
-                {doctorFullName(doctor)}
-              </h2>
-              <p className="mt-2 text-sm text-red-50">
-                Registrado el {formatDateTime(doctor.createdAt)}
-              </p>
+              <p className="text-sm uppercase tracking-[0.2em] text-red-100">Ficha rapida</p>
+              <h2 className="mt-3 text-2xl font-semibold">{doctorFullName(doctor)}</h2>
+              <p className="mt-2 text-sm text-red-50">Registrado el {formatDateTime(doctor.createdAt)}</p>
 
               <div className="mt-6 space-y-4 rounded-[1.5rem] bg-white/10 p-5 backdrop-blur-sm">
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-red-100">
-                    Especialidad
-                  </p>
-                  <p className="mt-1 text-sm font-medium text-white">
-                    {doctor.specialty ?? "Sin especialidad"}
-                  </p>
+                  <p className="text-xs uppercase tracking-wide text-red-100">Especialidad</p>
+                  <p className="mt-1 text-sm font-medium text-white">{doctor.specialty ?? "Sin especialidad"}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-red-100">
-                    Cedula
-                  </p>
-                  <p className="mt-1 text-sm font-medium text-white">
-                    {doctor.licenseNumber ?? "Sin cedula"}
-                  </p>
+                  <p className="text-xs uppercase tracking-wide text-red-100">Cedula</p>
+                  <p className="mt-1 text-sm font-medium text-white">{doctor.licenseNumber ?? "Sin cedula"}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-red-100">
-                    Contacto
-                  </p>
+                  <p className="text-xs uppercase tracking-wide text-red-100">Contacto</p>
                   <p className="mt-1 text-sm font-medium text-white">
-                    {[doctor.phone, doctor.email].filter(Boolean).join(" | ") ||
-                      "Sin contacto"}
+                    {[doctor.phone, doctor.email].filter(Boolean).join(" | ") || "Sin contacto"}
                   </p>
                 </div>
               </div>
             </div>
           </div>
 
-          <div
-            id="perfil-completo"
-            className="section-anchor-target rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm"
-          >
+          <div id="perfil-completo" className="section-anchor-target rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
             <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">

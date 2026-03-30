@@ -1,31 +1,39 @@
 "use client";
 
-import React, { useActionState, useEffect } from "react";
+import React, { useState } from "react";
 import { toast } from "react-toastify";
-import { forgotPassword } from "@/actions/auth/forgotPasswordAction";
+import { requestPasswordReset } from "@/features/auth/api/public-auth";
 import { Mail, Send, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 export default function ForgotPassForm() {
-  const [state, dispatch] = useActionState(forgotPassword, {
-    errors: [],
-    success: "",
-  });
   const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (state?.errors?.length) {
-      state.errors.forEach((error: string) => toast.error(error));
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (isSubmitting) {
+      return;
     }
-    if (state?.success) {
-      toast.success(state.success, {
-        onClose: () => {
-          router.push('/auth/new-password');
-        }
-      });
+
+    setIsSubmitting(true);
+    const response = await requestPasswordReset({ email });
+
+    if (!response.ok) {
+      response.errors.forEach((error) => toast.error(error));
+      setIsSubmitting(false);
+      return;
     }
-  }, [state, router]);
+
+    toast.success(response.data.message, {
+      onClose: () => {
+        router.push("/auth/new-password");
+      },
+    });
+    setIsSubmitting(false);
+  };
 
   const triangles = Array.from({ length: 120 });
 
@@ -78,7 +86,7 @@ export default function ForgotPassForm() {
             {/* Cuerpo */}
             <div className="grid gap-6 px-6 py-6 sm:grid-cols-5 sm:px-8 sm:py-8">
               {/* Formulario */}
-              <form action={dispatch} noValidate className="sm:col-span-3 space-y-5">
+              <form onSubmit={handleSubmit} noValidate className="sm:col-span-3 space-y-5">
                 <div>
                   <label htmlFor="email" className="mb-1 block text-sm font-medium text-gray-700">
                     Correo electrónico
@@ -91,6 +99,8 @@ export default function ForgotPassForm() {
                       type="email"
                       placeholder="usuario@correo.com"
                       autoComplete="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       className="w-full rounded-lg border border-gray-300 bg-white px-10 py-3 text-sm text-gray-900 shadow-sm outline-none transition focus:border-transparent focus:ring-2 focus:ring-red-500"
                       required
                     />
@@ -99,10 +109,11 @@ export default function ForgotPassForm() {
 
                 <button
                   type="submit"
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  disabled={isSubmitting}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Send className="h-4 w-4" />
-                  Enviar enlace de recuperación
+                  {isSubmitting ? "Enviando..." : "Enviar enlace de recuperación"}
                 </button>
 
                 <p className="text-center text-xs text-gray-500">

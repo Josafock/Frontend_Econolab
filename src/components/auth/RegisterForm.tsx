@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
 import {
@@ -13,7 +13,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import Link from 'next/link';
-import { register } from '@/actions/auth/registerAction';
+import { registerAccount } from '@/features/auth/api/public-auth';
 import {
   passwordRules,
   getPasswordStrength,
@@ -32,11 +32,7 @@ export default function RegisterForm() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [showPassword2, setShowPassword2] = useState(false);
-
-  const [state, dispatch, pending] = useActionState(register, {
-    errors: [],
-    success: '',
-  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 🔐 Fuerza de contraseña + reglas
   const strength = useMemo(
@@ -54,18 +50,6 @@ export default function RegisterForm() {
     !!formData.nombre.trim() &&
     !!formData.email.trim();
 
-  useEffect(() => {
-    if (state?.errors?.length) {
-      state.errors.forEach((error: string) => toast.error(error));
-    }
-    if (state?.success) {
-      toast.success(state.success, {
-        onClose: () => router.push('/auth/confirm-account'),
-      });
-      setFormData({ nombre: '', email: '', password: '', password2: '' });
-    }
-  }, [state, router]);
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
@@ -74,12 +58,26 @@ export default function RegisterForm() {
     }));
   };
 
-  const handleSubmit = async (formData_: FormData) => {
-    formData_.set('nombre', formData.nombre);
-    formData_.set('email', formData.email);
-    formData_.set('password', formData.password);
-    formData_.set('password2', formData.password2);
-    return await dispatch(formData_);
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (isSubmitting || !canSubmit) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    const response = await registerAccount(formData);
+
+    if (!response.ok) {
+      response.errors.forEach((error) => toast.error(error));
+      setIsSubmitting(false);
+      return;
+    }
+
+    toast.success(response.data.message, {
+      onClose: () => router.push('/auth/confirm-account'),
+    });
+    setFormData({ nombre: '', email: '', password: '', password2: '' });
+    setIsSubmitting(false);
   };
 
   const triangles = Array.from({ length: 120 });
@@ -144,7 +142,7 @@ export default function RegisterForm() {
             </div>
 
             {/* Formulario */}
-            <form action={handleSubmit} noValidate className="px-6 py-6 sm:px-8 sm:py-8">
+            <form onSubmit={handleSubmit} noValidate className="px-6 py-6 sm:px-8 sm:py-8">
               <div className="space-y-5">
                 {/* Nombre */}
                 <div>
@@ -310,10 +308,10 @@ export default function RegisterForm() {
                 {/* Submit */}
                 <button
                   type="submit"
-                  disabled={pending || !canSubmit}
+                  disabled={isSubmitting || !canSubmit}
                   className="inline-flex w-full items-center justify-center rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {pending ? 'Creando cuenta...' : 'Crear cuenta'}
+                  {isSubmitting ? 'Creando cuenta...' : 'Crear cuenta'}
                 </button>
 
                 {/* Link Login */}

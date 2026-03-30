@@ -17,10 +17,15 @@ import { toast } from "react-toastify";
 import {
   getHistoryDashboard,
   type HistoryDashboardResponse,
-} from "@/actions/history/historyActions";
+} from "@/features/history/api/history";
 import TablePagination from "@/components/ui/TablePagination";
 import { formatDate, formatDateTime } from "@/helpers/date";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useOffline } from "@/lib/offline/network-state";
+import {
+  readOfflineSnapshot,
+  writeOfflineSnapshot,
+} from "@/lib/offline/offline-store";
 
 function getTodayInputValue() {
   const formatter = new Intl.DateTimeFormat("en-CA", {
@@ -164,6 +169,14 @@ function wait(ms: number) {
   });
 }
 
+function buildHistorySnapshotKey(
+  fromDate: string,
+  toDate: string,
+  search: string,
+) {
+  return `history:dashboard:${fromDate}:${toDate}:${search || "all"}`;
+}
+
 function buildHistoryWorkbook(
   fromDate: string,
   toDate: string,
@@ -302,6 +315,7 @@ function LoadingPanel({
 
 export default function HistorialPage() {
   const hasLoadedDashboardRef = useRef(false);
+  const { isOnline, pendingCount } = useOffline();
   const [dateFrom, setDateFrom] = useState(getTodayInputValue());
   const [dateTo, setDateTo] = useState(getTodayInputValue());
   const [searchTerm, setSearchTerm] = useState("");
@@ -316,8 +330,14 @@ export default function HistorialPage() {
     label: string;
     percent: number;
   } | null>(null);
+  const [dataSource, setDataSource] = useState<"live" | "snapshot">("live");
+  const [snapshotUpdatedAt, setSnapshotUpdatedAt] = useState<number | null>(null);
 
   const debouncedSearch = useDebouncedValue(searchTerm.trim(), 350);
+  const snapshotKey = useMemo(
+    () => buildHistorySnapshotKey(dateFrom, dateTo, debouncedSearch),
+    [dateFrom, dateTo, debouncedSearch],
+  );
 
   useEffect(() => {
     const today = getTodayInputValue();
@@ -333,6 +353,28 @@ export default function HistorialPage() {
         setLoading(true);
       }
 
+      const cachedDashboard = readOfflineSnapshot<HistoryDashboardResponse>(
+        snapshotKey,
+      );
+
+      if (!isOnline) {
+        if (cachedDashboard) {
+          setDashboard(cachedDashboard.value);
+          setDataSource("snapshot");
+          setSnapshotUpdatedAt(cachedDashboard.updatedAt);
+          hasLoadedDashboardRef.current = true;
+        } else if (!options?.background) {
+          setDashboard(null);
+          toast.error(
+            "No hay conexion y tampoco existe un historial guardado para este rango.",
+          );
+        }
+
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+
       const response = await getHistoryDashboard({
         fromDate: dateFrom,
         toDate: dateTo,
@@ -340,9 +382,15 @@ export default function HistorialPage() {
       });
 
       if (!response.ok) {
-        toast.error(response.errors[0] ?? "No se pudo cargar el historial.");
-        if (!options?.background) {
-          setDashboard(null);
+        if (cachedDashboard) {
+          setDashboard(cachedDashboard.value);
+          setDataSource("snapshot");
+          setSnapshotUpdatedAt(cachedDashboard.updatedAt);
+        } else {
+          toast.error(response.errors[0] ?? "No se pudo cargar el historial.");
+          if (!options?.background) {
+            setDashboard(null);
+          }
         }
         setLoading(false);
         setRefreshing(false);
@@ -350,11 +398,14 @@ export default function HistorialPage() {
       }
 
       setDashboard(response.data);
+      const storedSnapshot = writeOfflineSnapshot(snapshotKey, response.data);
+      setDataSource("live");
+      setSnapshotUpdatedAt(storedSnapshot.updatedAt);
       hasLoadedDashboardRef.current = true;
       setLoading(false);
       setRefreshing(false);
     },
-    [dateFrom, dateTo, debouncedSearch],
+    [dateFrom, dateTo, debouncedSearch, isOnline, snapshotKey],
   );
 
   useEffect(() => {
@@ -493,6 +544,33 @@ export default function HistorialPage() {
         </div>
       ) : null}
 
+      {!isOnline || dataSource === "snapshot" ? (
+        <div className="mb-4 rounded-[1.5rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
+              <span className="font-semibold">
+                {dataSource === "snapshot"
+                  ? "Mostrando historial guardado localmente."
+                  : "Sin conexion detectada."}
+              </span>
+            </div>
+            <span className="text-xs font-medium text-amber-800">
+              {snapshotUpdatedAt
+                ? `Ultima copia local: ${formatDateTime(
+                    new Date(snapshotUpdatedAt).toISOString(),
+                  )}`
+                : "Aun no hay copia local para este rango."}
+            </span>
+          </div>
+          {pendingCount > 0 ? (
+            <p className="mt-2 text-xs text-amber-800">
+              Operaciones pendientes en cola: {pendingCount}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="app-panel-surface mb-4 overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm">
         <div className="bg-gradient-to-r from-white via-emerald-50/70 to-white p-6">
           <div className="grid gap-4 lg:grid-cols-[0.72fr_0.72fr_1.25fr_auto] lg:items-end">
@@ -579,6 +657,15 @@ export default function HistorialPage() {
         </span>
         <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700">
           Cortes: administralos desde el apartado dedicado
+        </span>
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+            dataSource === "snapshot"
+              ? "bg-amber-100 text-amber-800"
+              : "bg-emerald-100 text-emerald-700"
+          }`}
+        >
+          Fuente: {dataSource === "snapshot" ? "copia local" : "conexion activa"}
         </span>
       </div>
 

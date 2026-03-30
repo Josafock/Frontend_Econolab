@@ -1,7 +1,7 @@
 'use client';
 
-import { getDoctors, type Doctor } from '@/actions/doctors/doctorsActions';
-import { getPatients, type Patient } from '@/actions/patients/patientsActions';
+import { getDoctors, type Doctor } from '@/features/doctors/api/doctors';
+import { getPatients, type Patient } from '@/features/patients/api/patients';
 import {
   createService,
   getServices,
@@ -11,14 +11,25 @@ import {
   type ServiceOrder,
   type ServiceStatus,
   type UpdateServicePayload,
-} from '@/actions/services/servicesActions';
-import { getStudies, type Study } from '@/actions/studies/studiesActions';
+} from '@/features/services/api/services';
+import { getStudies, type Study } from '@/features/studies/api/studies';
+import { getStudyPriceByType } from '@/components/servicios/serviceFormUtils';
 import {
   clearQueryCacheByPrefix,
   getQueryCache,
   setQueryCache,
 } from '@/hooks/_lib/clientQueryCache';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useOffline } from '@/lib/offline/network-state';
+import {
+  readOfflineSnapshot,
+  writeOfflineSnapshot,
+} from '@/lib/offline/offline-store';
+import { enqueueSyncItem } from '@/lib/offline/sync-queue';
+import {
+  SYNC_QUEUE_EVENT,
+  type SyncQueueEventDetail,
+} from '@/lib/offline/sync-runner';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
 
@@ -34,6 +45,10 @@ export type UiService = {
   fechaMuestra: string;
   costo: string;
   status: ServiceStatus;
+  createdAtIso?: string | null;
+  deliveryAtIso?: string | null;
+  syncState?: 'synced' | 'pending';
+  localOnly?: boolean;
 };
 
 export type ServicesFilters = {
@@ -51,6 +66,8 @@ type CatalogsState = {
 
 const SERVICES_CACHE_PREFIX = 'services:list:';
 const CATALOGS_CACHE_KEY = 'services:catalogs';
+const SERVICES_SNAPSHOT_PREFIX = 'services:list:';
+const SERVICES_CATALOGS_SNAPSHOT_KEY = 'services:catalogs';
 
 function formatDateTime(value?: string | null): string {
   if (!value) return 'N/D';
@@ -98,11 +115,128 @@ function toUiService(service: ServiceOrder): UiService {
     fechaMuestra: formatDateTime(service.sampleAt),
     costo: Number(service.totalAmount).toFixed(2),
     status: service.status,
+    createdAtIso: service.createdAt,
+    deliveryAtIso: service.deliveryAt ?? service.completedAt ?? null,
+    syncState: 'synced',
+    localOnly: false,
   };
 }
 
 function getServicesCacheKey(search: string, filters: ServicesFilters): string {
   return `${SERVICES_CACHE_PREFIX}${JSON.stringify({ search, ...filters })}`;
+}
+
+function getServicesSnapshotKey(search: string, filters: ServicesFilters): string {
+  return `${SERVICES_SNAPSHOT_PREFIX}${JSON.stringify({ search, ...filters })}`;
+}
+
+function normalizeSearch(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function matchesServiceFilters(
+  service: UiService,
+  search: string,
+  filters: ServicesFilters,
+): boolean {
+  if (filters.status !== 'all' && service.status !== filters.status) {
+    return false;
+  }
+
+  if (
+    filters.branchName &&
+    filters.branchName !== 'all' &&
+    service.sucursal !== filters.branchName
+  ) {
+    return false;
+  }
+
+  const createdDate = service.createdAtIso?.slice(0, 10) ?? null;
+  if (filters.fromDate && createdDate && createdDate < filters.fromDate) {
+    return false;
+  }
+
+  if (filters.toDate && createdDate && createdDate > filters.toDate) {
+    return false;
+  }
+
+  const normalizedSearch = normalizeSearch(search);
+  if (!normalizedSearch) {
+    return true;
+  }
+
+  return [service.folio, service.estudio, service.paciente, service.telefono, service.sucursal]
+    .join(' ')
+    .toLowerCase()
+    .includes(normalizedSearch);
+}
+
+function buildOfflineServiceTotal(
+  payload: CreateServicePayload,
+  studies: Study[],
+): number {
+  const subtotal = payload.items.reduce((acc, item) => {
+    const study = studies.find((candidate) => candidate.id === item.studyId);
+    if (!study) {
+      return acc;
+    }
+
+    const unitPrice = getStudyPriceByType(study, item.priceType);
+    const baseAmount = unitPrice * item.quantity;
+    const discountAmount = baseAmount * ((item.discountPercent ?? 0) / 100);
+    return acc + (baseAmount - discountAmount);
+  }, 0);
+
+  const courtesyPercent = Number(payload.courtesyPercent ?? 0);
+  const courtesyAmount = subtotal * (courtesyPercent / 100);
+  return Math.max(subtotal - courtesyAmount, 0);
+}
+
+function buildOfflineStudySummary(
+  payload: CreateServicePayload,
+  studies: Study[],
+): string {
+  return payload.items
+    .map((item) => {
+      const study = studies.find((candidate) => candidate.id === item.studyId);
+      return study?.name ?? `Estudio ${item.studyId}`;
+    })
+    .join(' | ');
+}
+
+function createOfflineUiService(
+  payload: CreateServicePayload,
+  catalogs: CatalogsState,
+): UiService {
+  const nowIso = new Date().toISOString();
+  const patient =
+    catalogs.patients.find((candidate) => candidate.id === payload.patientId) ?? null;
+  const totalAmount = buildOfflineServiceTotal(payload, catalogs.studies);
+  const localId = -Date.now();
+  const fallbackFolio = `LOCAL-${String(Math.abs(localId)).slice(-8)}`;
+
+  return {
+    id: localId,
+    folio:
+      payload.autoGenerateFolio || !payload.folio.trim()
+        ? fallbackFolio
+        : payload.folio.trim().toUpperCase(),
+    estudio: buildOfflineStudySummary(payload, catalogs.studies) || 'Sin estudios',
+    paciente: patient
+      ? `${patient.firstName} ${patient.lastName} ${patient.middleName ?? ''}`.trim()
+      : 'Paciente local',
+    telefono: patient?.phone ?? '-',
+    sucursal: payload.branchName?.trim() || 'Sin sucursal',
+    fechaCreacion: formatDateTime(nowIso),
+    fechaEntrega: formatDateTime(payload.deliveryAt ?? null),
+    fechaMuestra: formatDateTime(payload.sampleAt ?? null),
+    costo: totalAmount.toFixed(2),
+    status: payload.status ?? 'pending',
+    createdAtIso: nowIso,
+    deliveryAtIso: payload.deliveryAt ?? null,
+    syncState: 'pending',
+    localOnly: true,
+  };
 }
 
 function statusMessage(status: ServiceStatus): string {
@@ -117,6 +251,7 @@ function statusMessage(status: ServiceStatus): string {
 }
 
 export function useServicesData(searchTerm: string, filters: ServicesFilters) {
+  const { isOnline } = useOffline();
   const [services, setServices] = useState<UiService[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -129,8 +264,28 @@ export function useServicesData(searchTerm: string, filters: ServicesFilters) {
     doctors: [],
     studies: [],
   });
+  const [dataSource, setDataSource] = useState<'live' | 'snapshot'>('live');
+  const [snapshotUpdatedAt, setSnapshotUpdatedAt] = useState<number | null>(null);
 
   const debouncedSearch = useDebouncedValue(searchTerm.trim(), 350);
+  const servicesCacheKey = useMemo(
+    () => getServicesCacheKey(debouncedSearch, filters),
+    [debouncedSearch, filters],
+  );
+  const servicesSnapshotKey = useMemo(
+    () => getServicesSnapshotKey(debouncedSearch, filters),
+    [debouncedSearch, filters],
+  );
+
+  const persistServicesLocally = useCallback(
+    (nextServices: UiService[]) => {
+      setQueryCache(servicesCacheKey, nextServices);
+      const storedSnapshot = writeOfflineSnapshot(servicesSnapshotKey, nextServices);
+      setSnapshotUpdatedAt(storedSnapshot.updatedAt);
+      return storedSnapshot;
+    },
+    [servicesCacheKey, servicesSnapshotKey],
+  );
 
   const fetchServices = useCallback(
     async (
@@ -142,6 +297,27 @@ export function useServicesData(searchTerm: string, filters: ServicesFilters) {
         setRefreshing(true);
       } else {
         setLoading(true);
+      }
+
+      const snapshotKey = getServicesSnapshotKey(search, nextFilters);
+      const cacheKey = getServicesCacheKey(search, nextFilters);
+      const cachedSnapshot = readOfflineSnapshot<UiService[]>(snapshotKey);
+
+      if (!isOnline) {
+        if (cachedSnapshot) {
+          setServices(cachedSnapshot.value);
+          setDataSource('snapshot');
+          setSnapshotUpdatedAt(cachedSnapshot.updatedAt);
+        } else if (!options?.background) {
+          setServices([]);
+          toast.error(
+            'No hay conexion y tampoco existe una lista local para este filtro.',
+          );
+        }
+
+        setLoading(false);
+        setRefreshing(false);
+        return;
       }
 
       const response = await getServices({
@@ -157,12 +333,18 @@ export function useServicesData(searchTerm: string, filters: ServicesFilters) {
       });
 
       if (!response.ok) {
-        if (!options?.silent) {
-          toast.error(response.errors[0] ?? 'No se pudieron cargar servicios.');
-        }
+        if (cachedSnapshot) {
+          setServices(cachedSnapshot.value);
+          setDataSource('snapshot');
+          setSnapshotUpdatedAt(cachedSnapshot.updatedAt);
+        } else {
+          if (!options?.silent) {
+            toast.error(response.errors[0] ?? 'No se pudieron cargar servicios.');
+          }
 
-        if (!options?.background) {
-          setServices([]);
+          if (!options?.background) {
+            setServices([]);
+          }
         }
 
         setLoading(false);
@@ -172,11 +354,14 @@ export function useServicesData(searchTerm: string, filters: ServicesFilters) {
 
       const mapped = response.data.data.map(toUiService);
       setServices(mapped);
-      setQueryCache(getServicesCacheKey(search, nextFilters), mapped);
+      setQueryCache(cacheKey, mapped);
+      const storedSnapshot = writeOfflineSnapshot(snapshotKey, mapped);
+      setDataSource('live');
+      setSnapshotUpdatedAt(storedSnapshot.updatedAt);
       setLoading(false);
       setRefreshing(false);
     },
-    [],
+    [isOnline],
   );
 
   const loadFormCatalogs = useCallback(async () => {
@@ -195,6 +380,17 @@ export function useServicesData(searchTerm: string, filters: ServicesFilters) {
       setCatalogs(cachedCatalogs);
       setCatalogsLoading(false);
       setCatalogsLoaded(true);
+      return;
+    }
+
+    const cachedSnapshot = readOfflineSnapshot<CatalogsState>(
+      SERVICES_CATALOGS_SNAPSHOT_KEY,
+    );
+    if (!isOnline && cachedSnapshot) {
+      setCatalogs(cachedSnapshot.value);
+      setCatalogsLoading(false);
+      setCatalogsLoaded(true);
+      setQueryCache(CATALOGS_CACHE_KEY, cachedSnapshot.value);
       return;
     }
 
@@ -218,25 +414,106 @@ export function useServicesData(searchTerm: string, filters: ServicesFilters) {
     setCatalogsLoading(false);
     setCatalogsLoaded(hasSuccessfulCatalogLoad);
     setQueryCache(CATALOGS_CACHE_KEY, nextCatalogs);
-  }, [catalogsLoaded]);
+    if (hasSuccessfulCatalogLoad) {
+      writeOfflineSnapshot(SERVICES_CATALOGS_SNAPSHOT_KEY, nextCatalogs);
+    } else if (cachedSnapshot) {
+      setCatalogs(cachedSnapshot.value);
+      setCatalogsLoaded(true);
+    }
+  }, [catalogsLoaded, isOnline]);
 
   useEffect(() => {
-    const cacheKey = getServicesCacheKey(debouncedSearch, filters);
-    const cached = getQueryCache<UiService[]>(cacheKey);
+    const cached = getQueryCache<UiService[]>(servicesCacheKey);
 
     if (cached) {
       setServices(cached.data);
       setLoading(false);
+      setDataSource('live');
       void fetchServices(debouncedSearch, filters, { background: true, silent: true });
       return;
     }
 
     void fetchServices(debouncedSearch, filters);
-  }, [debouncedSearch, fetchServices, filters]);
+  }, [debouncedSearch, fetchServices, filters, servicesCacheKey]);
+
+  useEffect(() => {
+    const handleSyncEvent = (event: Event) => {
+      const detail = (event as CustomEvent<SyncQueueEventDetail>).detail;
+      if (detail.status !== 'completed' || detail.item.scope !== 'services') {
+        return;
+      }
+
+      const syncedService = detail.result as ServiceOrder | undefined;
+      if (!syncedService) {
+        return;
+      }
+
+      setServices((current) => {
+        if (detail.item.operation === 'create') {
+          const withoutLocal = current.filter(
+            (service) => service.id !== detail.item.entityId,
+          );
+          const nextService = toUiService(syncedService);
+          const nextServices = matchesServiceFilters(
+            nextService,
+            debouncedSearch,
+            filters,
+          )
+            ? [nextService, ...withoutLocal]
+            : withoutLocal;
+          persistServicesLocally(nextServices);
+          return nextServices;
+        }
+
+        const nextServices = current.map((service) =>
+          service.id === syncedService.id ? toUiService(syncedService) : service,
+        );
+        persistServicesLocally(nextServices);
+        return nextServices;
+      });
+    };
+
+    window.addEventListener(SYNC_QUEUE_EVENT, handleSyncEvent as EventListener);
+
+    return () => {
+      window.removeEventListener(
+        SYNC_QUEUE_EVENT,
+        handleSyncEvent as EventListener,
+      );
+    };
+  }, [debouncedSearch, filters, persistServicesLocally]);
 
   const saveService = useCallback(
     async (payload: CreateServicePayload) => {
       setSaving(true);
+
+      if (!isOnline) {
+        const offlineService = createOfflineUiService(payload, catalogs);
+        const queuedItem = enqueueSyncItem({
+          scope: 'services',
+          entityType: 'service-order',
+          entityId: offlineService.id,
+          operation: 'create',
+          payload,
+        });
+        const nextServices = matchesServiceFilters(
+          offlineService,
+          debouncedSearch,
+          filters,
+        )
+          ? [offlineService, ...services]
+          : services;
+
+        setServices(nextServices);
+        persistServicesLocally(nextServices);
+        clearQueryCacheByPrefix(SERVICES_CACHE_PREFIX);
+        setSaving(false);
+        toast.success(
+          `Servicio ${offlineService.folio} guardado localmente. Pendiente de sincronizacion.`,
+        );
+        return Boolean(queuedItem.id);
+      }
+
       const response = await createService(payload);
 
       if (!response.ok) {
@@ -251,12 +528,49 @@ export function useServicesData(searchTerm: string, filters: ServicesFilters) {
       setSaving(false);
       return true;
     },
-    [debouncedSearch, fetchServices, filters],
+    [
+      catalogs,
+      debouncedSearch,
+      fetchServices,
+      filters,
+      isOnline,
+      persistServicesLocally,
+      services,
+    ],
   );
 
   const saveServiceChanges = useCallback(
     async (serviceId: number, payload: UpdateServicePayload) => {
       setSaving(true);
+
+      if (!isOnline) {
+        enqueueSyncItem({
+          scope: 'services',
+          entityType: 'service-order',
+          entityId: serviceId,
+          operation: 'update',
+          payload,
+        });
+
+        const nextServices = services.map((service) =>
+          service.id === serviceId
+            ? {
+                ...service,
+                folio: payload.folio?.trim().toUpperCase() || service.folio,
+                sucursal: payload.branchName?.trim() || service.sucursal,
+                status: payload.status ?? service.status,
+                syncState: 'pending' as const,
+              }
+            : service,
+        );
+
+        setServices(nextServices);
+        persistServicesLocally(nextServices);
+        setSaving(false);
+        toast.success('Cambios del servicio guardados localmente. Pendientes de sincronizacion.');
+        return true;
+      }
+
       const response = await updateService(serviceId, payload);
 
       if (!response.ok) {
@@ -271,7 +585,14 @@ export function useServicesData(searchTerm: string, filters: ServicesFilters) {
       setSaving(false);
       return true;
     },
-    [debouncedSearch, fetchServices, filters],
+    [
+      debouncedSearch,
+      fetchServices,
+      filters,
+      isOnline,
+      persistServicesLocally,
+      services,
+    ],
   );
 
   const stats = useMemo(() => {
@@ -291,6 +612,40 @@ export function useServicesData(searchTerm: string, filters: ServicesFilters) {
     async (serviceId: number, nextStatus: ServiceStatus) => {
       setUpdatingStatusId(serviceId);
 
+      if (!isOnline) {
+        const targetService = services.find((service) => service.id === serviceId);
+
+        if (targetService?.localOnly) {
+          toast.info(
+            'Este servicio aun es local. Su estatus final se confirmara al sincronizarse.',
+          );
+          setUpdatingStatusId(null);
+          return false;
+        }
+
+        enqueueSyncItem({
+          scope: 'services',
+          entityType: 'service-order',
+          entityId: serviceId,
+          operation: 'update',
+          payload: { status: nextStatus },
+        });
+
+        const nextServices = services.map((service) =>
+          service.id === serviceId
+            ? { ...service, status: nextStatus, syncState: 'pending' as const }
+            : service,
+        );
+
+        setServices(nextServices);
+        persistServicesLocally(nextServices);
+        toast.success(
+          `Estatus actualizado localmente a ${statusMessage(nextStatus)}. Pendiente de sincronizacion.`,
+        );
+        setUpdatingStatusId(null);
+        return true;
+      }
+
       const response = await updateServiceStatus(serviceId, nextStatus);
       if (!response.ok) {
         toast.error(response.errors[0] ?? 'No se pudo actualizar el estatus del servicio.');
@@ -304,7 +659,14 @@ export function useServicesData(searchTerm: string, filters: ServicesFilters) {
       setUpdatingStatusId(null);
       return true;
     },
-    [debouncedSearch, fetchServices, filters],
+    [
+      debouncedSearch,
+      fetchServices,
+      filters,
+      isOnline,
+      persistServicesLocally,
+      services,
+    ],
   );
 
   return {
@@ -316,6 +678,8 @@ export function useServicesData(searchTerm: string, filters: ServicesFilters) {
     stats,
     catalogs,
     catalogsLoading,
+    dataSource,
+    snapshotUpdatedAt,
     loadFormCatalogs,
     saveService,
     saveServiceChanges,

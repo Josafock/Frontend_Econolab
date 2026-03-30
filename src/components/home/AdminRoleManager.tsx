@@ -3,12 +3,12 @@
 import { useState, useTransition } from 'react';
 import { toast } from 'react-toastify';
 import {
-  getUnassignedUsersAction,
-  getUsersWithRoleAction,
-  updateUserRoleAction,
+  getUnassignedUsers,
+  getUsersWithRole,
+  updateUserRole,
   type AdminAssignableRole,
   type AdminManagedUser,
-} from '@/actions/users/adminUsersActions';
+} from '@/features/admin-users/api/admin-users';
 import { formatDate } from '@/helpers/date';
 import { Loader2, RefreshCw, ShieldAlert, ShieldCheck, UserCog, Users } from 'lucide-react';
 
@@ -49,8 +49,8 @@ export default function AdminRoleManager({
   const refreshUsers = () => {
     startRefreshTransition(async () => {
       const [pendingResponse, withRoleResponse] = await Promise.all([
-        getUnassignedUsersAction(),
-        getUsersWithRoleAction(),
+        getUnassignedUsers(),
+        getUsersWithRole(),
       ]);
 
       if (!pendingResponse.ok) {
@@ -73,7 +73,7 @@ export default function AdminRoleManager({
     setLoadingUserId(userId);
 
     startSavingTransition(async () => {
-      const response = await updateUserRoleAction(userId, rol);
+      const response = await updateUserRole(userId, rol);
 
       if (!response.ok) {
         toast.error(response.errors[0] ?? 'No se pudo actualizar el rol.');

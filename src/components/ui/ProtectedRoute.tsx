@@ -1,5 +1,8 @@
-import { redirect } from "next/navigation";
-import { verifySession } from "@/auth/dal";
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth/use-auth";
 import type { User } from "@/schemas";
 
 type ProtectedRouteProps = {
@@ -7,14 +10,42 @@ type ProtectedRouteProps = {
   allowedRoles?: User["rol"][];
 };
 
-export default async function ProtectedRoute({
+export default function ProtectedRoute({
   children,
   allowedRoles,
 }: ProtectedRouteProps) {
-  const { user } = await verifySession();
+  const router = useRouter();
+  const { isAuthenticated, isLoading, user } = useAuth();
+
+  useEffect(() => {
+    if (isLoading) {
+      return;
+    }
+
+    if (!isAuthenticated || !user) {
+      router.replace("/auth/login");
+      return;
+    }
+
+    if (allowedRoles && !allowedRoles.includes(user.rol)) {
+      router.replace("/home");
+    }
+  }, [allowedRoles, isAuthenticated, isLoading, router, user]);
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[30vh] items-center justify-center text-sm text-gray-500">
+        Validando sesion...
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || !user) {
+    return null;
+  }
 
   if (allowedRoles && !allowedRoles.includes(user.rol)) {
-    redirect("/home");
+    return null;
   }
 
   return <>{children}</>;

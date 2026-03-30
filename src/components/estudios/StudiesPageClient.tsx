@@ -1,8 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BadgeCheck,
   Eye,
@@ -20,13 +19,14 @@ import {
 import { toast } from "react-toastify";
 import {
   createStudy,
+  getStudies,
   removeStudy,
   updateStudyStatus,
   type CreateStudyPayload,
   type Study,
   type StudyStatusFilter,
   type StudyTypeFilter,
-} from "@/actions/studies/studiesActions";
+} from "@/features/studies/api/studies";
 import {
   createEmptyStudyForm,
   mapFormToCreateStudyPayload,
@@ -36,6 +36,7 @@ import {
 } from "@/components/estudios/studyFormUtils";
 import CatalogExcelModal from "@/components/ui/CatalogExcelModal";
 import { useConfirmDialog } from "@/components/ui/ConfirmDialogProvider";
+import { CollectionContentSkeleton } from "@/components/ui/PageSkeletons";
 import EntityActionsMenu from "@/components/ui/EntityActionsMenu";
 import TablePagination from "@/components/ui/TablePagination";
 import type { ExcelColumn } from "@/helpers/excel";
@@ -54,9 +55,9 @@ const CatalogExcelManager = dynamic(
   () => import("@/components/ui/CatalogExcelManager"),
 ) as typeof import("@/components/ui/CatalogExcelManager").default;
 
-type StudiesPageClientProps = {
-  initialStudies: Study[];
-  initialError?: string | null;
+type StudiesState = {
+  studies: Study[];
+  error: string | null;
 };
 
 const statusOptions: Array<{ value: StudyStatusFilter; label: string }> = [
@@ -102,13 +103,28 @@ function matchesStudySearch(study: Study, searchTerm: string) {
   ].some((value) => value.toLowerCase().includes(normalized));
 }
 
-export default function StudiesPageClient({
-  initialStudies,
-  initialError = null,
-}: StudiesPageClientProps) {
-  const router = useRouter();
+async function loadStudiesCatalog(): Promise<StudiesState> {
+  const response = await getStudies({ limit: 1000 });
+
+  if (!response.ok) {
+    return {
+      studies: [],
+      error:
+        response.errors[0] ??
+        "No se pudieron cargar los estudios en este momento.",
+    };
+  }
+
+  return {
+    studies: response.data.data,
+    error: null,
+  };
+}
+
+export default function StudiesPageClient() {
   const confirm = useConfirmDialog();
-  const [isRefreshing, startRefreshTransition] = useTransition();
+  const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<StudyStatusFilter>("all");
   const [typeFilter, setTypeFilter] = useState<StudyTypeFilter>("all");
@@ -120,10 +136,31 @@ export default function StudiesPageClient({
   const [saving, setSaving] = useState(false);
   const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
   const [removingId, setRemovingId] = useState<number | null>(null);
+  const [initialError, setInitialError] = useState<string | null>(null);
+  const [catalogStudies, setCatalogStudies] = useState<Study[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const bootstrap = async () => {
+      const result = await loadStudiesCatalog();
+      if (cancelled) return;
+
+      setCatalogStudies(result.studies);
+      setInitialError(result.error);
+      setLoading(false);
+    };
+
+    void bootstrap();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const allStudies = useMemo(
-    () => initialStudies.filter((study) => matchesStudySearch(study, searchTerm)),
-    [initialStudies, searchTerm],
+    () => catalogStudies.filter((study) => matchesStudySearch(study, searchTerm)),
+    [catalogStudies, searchTerm],
   );
 
   const studies = useMemo(
@@ -171,10 +208,12 @@ export default function StudiesPageClient({
     return studies.slice(start, start + pageSize);
   }, [page, pageSize, studies]);
 
-  const refreshStudies = () => {
-    startRefreshTransition(() => {
-      router.refresh();
-    });
+  const refreshStudies = async () => {
+    setIsRefreshing(true);
+    const result = await loadStudiesCatalog();
+    setCatalogStudies(result.studies);
+    setInitialError(result.error);
+    setIsRefreshing(false);
   };
 
   const handleAddStudy = async (payload: CreateStudyPayload) => {
@@ -188,7 +227,7 @@ export default function StudiesPageClient({
     }
 
     toast.success("Estudio registrado con exito.");
-    refreshStudies();
+    await refreshStudies();
     return true;
   };
 
@@ -209,7 +248,7 @@ export default function StudiesPageClient({
     toast.success(
       nextStatus === "active" ? "Estudio activado." : "Estudio suspendido.",
     );
-    refreshStudies();
+    await refreshStudies();
     return true;
   };
 
@@ -233,8 +272,12 @@ export default function StudiesPageClient({
     }
 
     toast.success("Estudio eliminado del catalogo.");
-    refreshStudies();
+    await refreshStudies();
   };
+
+  if (loading) {
+    return <CollectionContentSkeleton statCards={4} rows={6} />;
+  }
 
   return (
     <div className="min-w-0">
@@ -295,7 +338,7 @@ export default function StudiesPageClient({
 
                 return { ok: true };
               }}
-              onImportFinished={refreshStudies}
+              onImportFinished={() => void refreshStudies()}
               layout="flat"
             />
           </CatalogExcelModal>
@@ -473,7 +516,7 @@ export default function StudiesPageClient({
 
       {studies.length === 0 ? (
         <div className="rounded-3xl border border-gray-200 bg-white p-10 text-center text-gray-600 shadow-sm">
-          {initialError && initialStudies.length === 0
+          {initialError && catalogStudies.length === 0
             ? "No fue posible cargar estudios en este momento."
             : "No hay estudios para el filtro seleccionado."}
         </div>

@@ -1,8 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BadgeCheck,
   Eye,
@@ -21,10 +20,12 @@ import {
 import { toast } from "react-toastify";
 import {
   createPatient,
+  getPatients,
   updatePatientStatus,
   type CreatePatientPayload,
   type PatientStatusFilter,
-} from "@/actions/patients/patientsActions";
+} from "@/features/patients/api/patients";
+import { toUiPatient, type UiPatient } from "@/features/patients/model/ui-patient";
 import {
   calculateAge,
   createEmptyPatientForm,
@@ -33,6 +34,7 @@ import {
   type PatientFormValues,
 } from "@/components/pacientes/patientFormUtils";
 import CatalogExcelModal from "@/components/ui/CatalogExcelModal";
+import { CollectionContentSkeleton } from "@/components/ui/PageSkeletons";
 import EntityActionsMenu from "@/components/ui/EntityActionsMenu";
 import TablePagination from "@/components/ui/TablePagination";
 import { formatDate } from "@/helpers/date";
@@ -45,30 +47,9 @@ const CatalogExcelManager = dynamic(
   () => import("@/components/ui/CatalogExcelManager"),
 ) as typeof import("@/components/ui/CatalogExcelManager").default;
 
-type UiPatient = {
-  id: number;
-  nombre: string;
-  apellidoPaterno: string;
-  apellidoMaterno: string;
-  nombreCompleto: string;
-  fechaNacimiento: string;
-  genero: "Femenino" | "Masculino" | "Otro";
-  telefono: string;
-  email: string;
-  direccion: string;
-  entreCalles: string;
-  ciudad: string;
-  estado: string;
-  codigoPostal: string;
-  documento: string;
-  fechaRegistro: string;
-  estatus: "Activo" | "Inactivo";
-  isActive: boolean;
-};
-
-type PatientsPageClientProps = {
-  initialPatients: UiPatient[];
-  initialError?: string | null;
+type PatientsState = {
+  patients: UiPatient[];
+  error: string | null;
 };
 
 const statusOptions: Array<{ value: PatientStatusFilter; label: string }> = [
@@ -227,12 +208,27 @@ function matchesPatientSearch(patient: UiPatient, searchTerm: string) {
   ].some((value) => value.toLowerCase().includes(normalizedSearch));
 }
 
-export default function PatientsPageClient({
-  initialPatients,
-  initialError = null,
-}: PatientsPageClientProps) {
-  const router = useRouter();
-  const [isRefreshing, startRefreshTransition] = useTransition();
+async function loadPatientsCatalog(): Promise<PatientsState> {
+  const response = await getPatients({ limit: 1000, status: "all" });
+
+  if (!response.ok) {
+    return {
+      patients: [],
+      error:
+        response.errors[0] ??
+        "No se pudieron cargar los pacientes en este momento.",
+    };
+  }
+
+  return {
+    patients: response.data.data.map(toUiPatient),
+    error: null,
+  };
+}
+
+export default function PatientsPageClient() {
+  const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<PatientStatusFilter>("all");
   const [showFilters, setShowFilters] = useState(false);
@@ -241,11 +237,34 @@ export default function PatientsPageClient({
   const [pageSize, setPageSize] = useState(10);
   const [saving, setSaving] = useState(false);
   const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
+  const [initialError, setInitialError] = useState<string | null>(null);
+  const [catalogPatients, setCatalogPatients] = useState<UiPatient[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const bootstrap = async () => {
+      const result = await loadPatientsCatalog();
+      if (cancelled) return;
+
+      setCatalogPatients(result.patients);
+      setInitialError(result.error);
+      setLoading(false);
+    };
+
+    void bootstrap();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const allPatients = useMemo(
     () =>
-      initialPatients.filter((patient) => matchesPatientSearch(patient, searchTerm)),
-    [initialPatients, searchTerm],
+      catalogPatients.filter((patient) =>
+        matchesPatientSearch(patient, searchTerm),
+      ),
+    [catalogPatients, searchTerm],
   );
 
   const patients = useMemo(() => {
@@ -259,8 +278,10 @@ export default function PatientsPageClient({
   const promedioEdad = useMemo(() => {
     if (!patients.length) return 0;
     return Math.round(
-      patients.reduce((acc, patient) => acc + calculateAge(patient.fechaNacimiento), 0) /
-        patients.length,
+      patients.reduce(
+        (acc, patient) => acc + calculateAge(patient.fechaNacimiento),
+        0,
+      ) / patients.length,
     );
   }, [patients]);
   const activos = useMemo(
@@ -289,10 +310,12 @@ export default function PatientsPageClient({
     return patients.slice(start, start + pageSize);
   }, [page, pageSize, patients]);
 
-  const refreshPatients = () => {
-    startRefreshTransition(() => {
-      router.refresh();
-    });
+  const refreshPatients = async () => {
+    setIsRefreshing(true);
+    const result = await loadPatientsCatalog();
+    setCatalogPatients(result.patients);
+    setInitialError(result.error);
+    setIsRefreshing(false);
   };
 
   const handleAddPatient = async (payload: CreatePatientPayload) => {
@@ -306,7 +329,7 @@ export default function PatientsPageClient({
     }
 
     toast.success("Paciente registrado con exito.");
-    refreshPatients();
+    await refreshPatients();
     return true;
   };
 
@@ -325,9 +348,13 @@ export default function PatientsPageClient({
     toast.success(
       patient.isActive ? "Paciente suspendido." : "Paciente reactivado.",
     );
-    refreshPatients();
+    await refreshPatients();
     return true;
   };
+
+  if (loading) {
+    return <CollectionContentSkeleton statCards={4} rows={6} />;
+  }
 
   return (
     <div className="min-w-0">
@@ -422,7 +449,7 @@ export default function PatientsPageClient({
 
                 return { ok: true };
               }}
-              onImportFinished={refreshPatients}
+              onImportFinished={() => void refreshPatients()}
               layout="flat"
             />
           </CatalogExcelModal>
@@ -549,7 +576,7 @@ export default function PatientsPageClient({
 
       {patients.length === 0 ? (
         <div className="rounded-3xl border border-gray-200 bg-white p-10 text-center text-gray-600 shadow-sm">
-          {initialError && initialPatients.length === 0
+          {initialError && catalogPatients.length === 0
             ? "No fue posible cargar pacientes en este momento."
             : "No hay pacientes para el filtro seleccionado."}
         </div>
@@ -578,7 +605,7 @@ export default function PatientsPageClient({
                     </h3>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
-                        {calculateAge(paciente.fechaNacimiento)} años
+                        {calculateAge(paciente.fechaNacimiento)} anos
                       </span>
                       <span
                         className={`rounded-full px-2.5 py-1 text-xs font-medium ${getGeneroColor(paciente.genero)}`}
@@ -714,7 +741,7 @@ export default function PatientsPageClient({
                   <div className="rounded-2xl bg-gray-50 p-3">
                     <p className="text-xs text-gray-500">Edad</p>
                     <p className="mt-1 font-semibold text-gray-900">
-                      {calculateAge(paciente.fechaNacimiento)} años
+                      {calculateAge(paciente.fechaNacimiento)} anos
                     </p>
                   </div>
                   <div className="rounded-2xl bg-gray-50 p-3">

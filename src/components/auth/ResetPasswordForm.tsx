@@ -1,9 +1,9 @@
 'use client';
 
-import { useActionState, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Eye, EyeOff, Shield, CheckCircle2, XCircle } from 'lucide-react';
 import { toast } from 'react-toastify';
-import { resetPasswordAction } from '@/actions/auth/resetPasswordAction';
+import { resetPasswordWithToken } from '@/features/auth/api/public-auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -20,22 +20,7 @@ export default function ResetPasswordForm({ token }: { token: string }) {
 
   const [showPassword, setShowPassword] = useState(false);
   const [showPassword2, setShowPassword2] = useState(false);
-
-  const resetPassWithToken = resetPasswordAction.bind(null, token);
-  const [state, dispatch] = useActionState(resetPassWithToken, {
-    errors: [],
-    success: '',
-  });
-
-  useEffect(() => {
-    if (state?.errors?.length) state.errors.forEach((e: string) => toast.error(e));
-    if (state?.success) {
-      toast.success(state.success, {
-        onClose: () => router.push('/auth/login'),
-        onClick: () => router.push('/auth/login'),
-      });
-    }
-  }, [state, router]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 🔐 Reglas de contraseña usando el helper compartido
   const strength = useMemo(
@@ -46,6 +31,31 @@ export default function ResetPasswordForm({ token }: { token: string }) {
   const allRulesOk = isPasswordStrong(password);
   const passwordsMatch = !!confirmPassword && confirmPassword === password;
   const canSubmit = allRulesOk && passwordsMatch;
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (isSubmitting || !canSubmit) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    const response = await resetPasswordWithToken(token, {
+      password,
+      confirmPassword,
+    });
+
+    if (!response.ok) {
+      response.errors.forEach((error) => toast.error(error));
+      setIsSubmitting(false);
+      return;
+    }
+
+    toast.success(response.data.message, {
+      onClose: () => router.push('/auth/login'),
+      onClick: () => router.push('/auth/login'),
+    });
+    setIsSubmitting(false);
+  };
 
   const triangles = Array.from({ length: 120 });
 
@@ -101,7 +111,7 @@ export default function ResetPasswordForm({ token }: { token: string }) {
                 </div>
               </div>
 
-              <form className="space-y-5" action={dispatch} noValidate>
+              <form className="space-y-5" onSubmit={handleSubmit} noValidate>
                 {/* Nueva contraseña */}
                 <div>
                   <label
@@ -215,7 +225,7 @@ export default function ResetPasswordForm({ token }: { token: string }) {
                 <button
                   type="submit"
                   className="inline-flex w-full items-center justify-center rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-60 disabled:cursor-not-allowed"
-                  disabled={!canSubmit}
+                  disabled={!canSubmit || isSubmitting}
                 >
                   Actualizar contraseña
                 </button>

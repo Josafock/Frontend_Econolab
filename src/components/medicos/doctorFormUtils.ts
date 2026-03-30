@@ -1,7 +1,7 @@
 import type {
   CreateDoctorPayload,
   Doctor,
-} from '@/actions/doctors/doctorsActions';
+} from '@/features/doctors/api/doctors';
 
 export type DoctorFormValues = {
   nombre: string;

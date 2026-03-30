@@ -1,9 +1,13 @@
-import { redirect } from "next/navigation";
-import { verifySession } from "@/auth/dal";
-import Breadcrumbs from "@/components/ui/BreadCrumbs";
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { ConfirmDialogProvider } from "@/components/ui/ConfirmDialogProvider";
+import Breadcrumbs from "@/components/ui/BreadCrumbs";
 import { Sidebar } from "@/components/ui/sidebar";
+import SyncQueuePanel from "@/components/ui/SyncQueuePanel";
 import ToastNotification from "@/components/ui/ToastNotification";
+import { useAuth } from "@/lib/auth/use-auth";
 import type { User } from "@/schemas";
 
 type ProtectedAppLayoutProps = {
@@ -11,14 +15,42 @@ type ProtectedAppLayoutProps = {
   allowedRoles?: User["rol"][];
 };
 
-export default async function ProtectedAppLayout({
+export default function ProtectedAppLayout({
   children,
   allowedRoles,
 }: ProtectedAppLayoutProps) {
-  const { user } = await verifySession();
+  const router = useRouter();
+  const { isAuthenticated, isLoading, user } = useAuth();
+
+  useEffect(() => {
+    if (isLoading) {
+      return;
+    }
+
+    if (!isAuthenticated || !user) {
+      router.replace("/auth/login");
+      return;
+    }
+
+    if (allowedRoles && !allowedRoles.includes(user.rol)) {
+      router.replace("/home");
+    }
+  }, [allowedRoles, isAuthenticated, isLoading, router, user]);
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4 text-sm text-gray-500">
+        Preparando tu sesion...
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || !user) {
+    return null;
+  }
 
   if (allowedRoles && !allowedRoles.includes(user.rol)) {
-    redirect("/home");
+    return null;
   }
 
   return (
@@ -39,6 +71,7 @@ export default async function ProtectedAppLayout({
         </div>
 
         <ToastNotification />
+        <SyncQueuePanel />
       </div>
     </ConfirmDialogProvider>
   );

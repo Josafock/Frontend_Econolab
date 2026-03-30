@@ -3,7 +3,7 @@ import type {
   StudyDetail,
   StudyDetailDataType,
   UpdateStudyDetailPayload,
-} from "@/actions/studies/studiesActions";
+} from "@/features/studies/api/studies";
 
 export type StudyDetailFormValues = {
   dataType: StudyDetailDataType;

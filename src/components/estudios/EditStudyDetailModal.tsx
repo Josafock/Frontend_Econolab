@@ -12,7 +12,7 @@ import { toast } from "react-toastify";
 import type {
   StudyDetail,
   UpdateStudyDetailPayload,
-} from "@/actions/studies/studiesActions";
+} from "@/features/studies/api/studies";
 import StudyDetailFormFields from "@/components/estudios/StudyDetailFormFields";
 import {
   createTouchedStudyDetailForm,

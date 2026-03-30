@@ -13,8 +13,8 @@ import { toast } from "react-toastify";
 import type {
   CreateStudyPayload,
   StudyType,
-} from "@/actions/studies/studiesActions";
-import { getSuggestedStudyCode } from "@/actions/studies/studiesActions";
+} from "@/features/studies/api/studies";
+import { getSuggestedStudyCode } from "@/features/studies/api/studies";
 import StudyFormFields from "@/components/estudios/StudyFormFields";
 import {
   createEmptyStudyForm,

@@ -4,7 +4,6 @@ import {
   useEffect,
   useMemo,
   useState,
-  useTransition,
   type ChangeEvent,
   type FocusEvent,
 } from "react";
@@ -21,11 +20,13 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-toastify";
 import {
+  getPatientById,
   updatePatient,
   updatePatientStatus,
   type Patient,
-} from "@/actions/patients/patientsActions";
+} from "@/features/patients/api/patients";
 import PatientFormFields from "@/components/pacientes/PatientFormFields";
+import { DetailPageSkeleton } from "@/components/ui/PageSkeletons";
 import { formatDateTime } from "@/helpers/date";
 import {
   calculateAge,
@@ -42,8 +43,6 @@ import { useHashSectionScroll } from "@/hooks/useHashSectionScroll";
 
 type PatientDetailClientProps = {
   patientId: number;
-  initialPatient: Patient | null;
-  initialError?: string | null;
   initialIsEditing?: boolean;
 };
 
@@ -68,19 +67,17 @@ function formatDocument(patient: Patient | null) {
 
 export default function PatientDetailClient({
   patientId,
-  initialPatient,
-  initialError = null,
   initialIsEditing = false,
 }: PatientDetailClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [isRefreshing, startRefreshTransition] = useTransition();
   const [saving, setSaving] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [patient, setPatient] = useState<Patient | null>(initialPatient);
-  const [formData, setFormData] = useState<PatientFormValues>(() =>
-    initialPatient ? mapPatientToForm(initialPatient) : createEmptyPatientForm(),
-  );
+  const [patient, setPatient] = useState<Patient | null>(null);
+  const [initialError, setInitialError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [formData, setFormData] = useState<PatientFormValues>(createEmptyPatientForm());
   const [touched, setTouched] = useState<PatientFormTouched>({});
   const [isEditing, setIsEditing] = useState(initialIsEditing);
   const errors = useMemo(() => validatePatientForm(formData), [formData]);
@@ -91,24 +88,67 @@ export default function PatientDetailClient({
     setIsEditing(searchParams.get("modo") === "editar");
   }, [searchParams]);
 
-  useEffect(() => {
-    setPatient(initialPatient);
-    setFormData(
-      initialPatient ? mapPatientToForm(initialPatient) : createEmptyPatientForm(),
-    );
-    setTouched({});
-  }, [initialPatient]);
-
   const age = useMemo(
     () => calculateAge(formData.fechaNacimiento),
     [formData.fechaNacimiento],
   );
 
-  const refreshRoute = () => {
-    startRefreshTransition(() => {
-      router.refresh();
-    });
+  const refreshPatient = async () => {
+    setIsRefreshing(true);
+    const response = await getPatientById(patientId);
+    setIsRefreshing(false);
+
+    if (!response.ok) {
+      setPatient(null);
+      setInitialError(
+        response.errors[0] ?? "No se pudo cargar el detalle del paciente.",
+      );
+      setLoading(false);
+      return;
+    }
+
+    setPatient(response.data);
+    setFormData(mapPatientToForm(response.data));
+    setInitialError(null);
+    setLoading(false);
   };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const bootstrap = async () => {
+      if (!Number.isInteger(patientId) || patientId < 1) {
+        if (!cancelled) {
+          setInitialError("ID de paciente invalido.");
+          setLoading(false);
+        }
+        return;
+      }
+
+      const response = await getPatientById(patientId);
+      if (cancelled) return;
+
+      if (!response.ok) {
+        setPatient(null);
+        setInitialError(
+          response.errors[0] ?? "No se pudo cargar el detalle del paciente.",
+        );
+        setLoading(false);
+        return;
+      }
+
+      setPatient(response.data);
+      setFormData(mapPatientToForm(response.data));
+      setInitialError(null);
+      setLoading(false);
+    };
+
+    void bootstrap();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [patientId]);
 
   const handleChange = (
     e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
@@ -161,7 +201,7 @@ export default function PatientDetailClient({
     setIsEditing(false);
     toast.success("Paciente actualizado con exito.");
     router.replace(`/pacientes/detalle/${patient.id}`);
-    refreshRoute();
+    await refreshPatient();
   };
 
   const handleToggleStatus = async () => {
@@ -181,7 +221,7 @@ export default function PatientDetailClient({
 
     setPatient(response.data.data);
     toast.success(nextStatus ? "Paciente reactivado." : "Paciente suspendido.");
-    refreshRoute();
+    await refreshPatient();
   };
 
   const handleCancelEdit = () => {
@@ -192,6 +232,14 @@ export default function PatientDetailClient({
     setIsEditing(false);
     router.replace(`/pacientes/detalle/${patientId}`);
   };
+
+  if (loading) {
+    return (
+      <div className="p-4 sm:p-6 lg:p-8">
+        <DetailPageSkeleton sections={3} />
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
@@ -355,7 +403,7 @@ export default function PatientDetailClient({
                     Edad actual
                   </p>
                   <p className="mt-2 text-base font-semibold text-gray-900">
-                    {age} años
+                    {age} anos
                   </p>
                 </div>
                 <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">

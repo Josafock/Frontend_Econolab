@@ -1,8 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { FileDown, SlidersHorizontal, X } from "lucide-react";
+import { useState } from "react";
+import { FileDown, Loader2, SlidersHorizontal, X } from "lucide-react";
 import AppModal from "@/components/ui/AppModal";
+import { toast } from "react-toastify";
+import { getServiceResultsPdfFile } from "@/features/services/api/service-documents";
+import { appFileService } from "@/lib/files/file-service";
 
 type ResultSignatureMode = "with" | "without";
 type ResultCategoryLayout = "continuous" | "page-per-category";
@@ -33,23 +36,10 @@ export default function ResultsPdfOptionsModal({
   serviceId,
   serviceLabel,
 }: ResultsPdfOptionsModalProps) {
+  const [openingPdf, setOpeningPdf] = useState(false);
   const [printOptions, setPrintOptions] = useState<ResultPrintOptions>(
     DEFAULT_PRINT_OPTIONS,
   );
-
-  const pdfHref = useMemo(() => {
-    if (!serviceId) {
-      return "#";
-    }
-
-    const params = new URLSearchParams({
-      signature: printOptions.signature,
-      categoryLayout: printOptions.categoryLayout,
-      studyLayout: printOptions.studyLayout,
-    });
-
-    return `/api/services/${serviceId}/results?${params.toString()}`;
-  }, [printOptions, serviceId]);
 
   const updatePrintOption = <K extends keyof ResultPrintOptions>(
     key: K,
@@ -59,6 +49,26 @@ export default function ResultsPdfOptionsModal({
       ...current,
       [key]: value,
     }));
+  };
+
+  const handleOpenPdf = async () => {
+    if (!serviceId) {
+      return;
+    }
+
+    setOpeningPdf(true);
+    const response = await getServiceResultsPdfFile(serviceId, printOptions);
+    setOpeningPdf(false);
+
+    if (!response.ok) {
+      toast.error(
+        response.errors[0] ?? "No se pudo generar el PDF de resultados.",
+      );
+      return;
+    }
+
+    await appFileService.open(response.data);
+    onClose();
   };
 
   if (!open || !serviceId) {
@@ -193,16 +203,19 @@ export default function ResultsPdfOptionsModal({
                 Cancelar
               </button>
 
-              <a
-                href={pdfHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={onClose}
+              <button
+                type="button"
+                onClick={() => void handleOpenPdf()}
                 className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-emerald-700"
+                disabled={openingPdf}
               >
-                <FileDown className="h-4 w-4" />
-                Abrir PDF de resultados
-              </a>
+                {openingPdf ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <FileDown className="h-4 w-4" />
+                )}
+                {openingPdf ? "Abriendo PDF..." : "Abrir PDF de resultados"}
+              </button>
             </div>
           </div>
         </div>

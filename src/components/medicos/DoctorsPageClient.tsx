@@ -1,8 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BadgeCheck,
   Eye,
@@ -22,11 +21,13 @@ import {
 import { toast } from "react-toastify";
 import {
   createDoctor,
+  getDoctors,
   hardDeleteDoctor,
   updateDoctorStatus,
   type CreateDoctorPayload,
   type DoctorStatusFilter,
-} from "@/actions/doctors/doctorsActions";
+} from "@/features/doctors/api/doctors";
+import { toUiDoctor, type UiDoctor } from "@/features/doctors/model/ui-doctor";
 import {
   createEmptyDoctorForm,
   mapFormToPayload,
@@ -40,33 +41,10 @@ import TablePagination from "@/components/ui/TablePagination";
 import { formatDate } from "@/helpers/date";
 import type { ExcelColumn } from "@/helpers/excel";
 
-const AddDoctorModal = dynamic(
-  () => import("@/components/medicos/AddDoctorModal"),
-);
+const AddDoctorModal = dynamic(() => import("@/components/medicos/AddDoctorModal"));
 const CatalogExcelManager = dynamic(
   () => import("@/components/ui/CatalogExcelManager"),
 ) as typeof import("@/components/ui/CatalogExcelManager").default;
-
-type UiDoctor = {
-  id: number;
-  nombre: string;
-  apellidoPaterno: string;
-  apellidoMaterno: string;
-  nombreCompleto: string;
-  especialidad: string;
-  cedula: string;
-  telefono: string;
-  email: string;
-  notas: string;
-  fechaRegistro: string;
-  estatus: "Activo" | "Inactivo";
-  isActive: boolean;
-};
-
-type DoctorsPageClientProps = {
-  initialDoctors: UiDoctor[];
-  initialError?: string | null;
-};
 
 const statusOptions: Array<{ value: DoctorStatusFilter; label: string }> = [
   { value: "all", label: "Todos" },
@@ -75,65 +53,14 @@ const statusOptions: Array<{ value: DoctorStatusFilter; label: string }> = [
 ];
 
 const doctorExcelColumns: ExcelColumn<DoctorFormValues>[] = [
-  {
-    key: "nombre",
-    label: "Nombre",
-    required: true,
-    description: "Nombre del medico.",
-    example: "MARIA",
-    width: 18,
-  },
-  {
-    key: "apellidoPaterno",
-    label: "Apellido paterno",
-    required: true,
-    description: "Apellido paterno del medico.",
-    example: "GOMEZ",
-    width: 22,
-  },
-  {
-    key: "apellidoMaterno",
-    label: "Apellido materno",
-    description: "Apellido materno si aplica.",
-    example: "RUIZ",
-    width: 22,
-  },
-  {
-    key: "especialidad",
-    label: "Especialidad",
-    description: "Especialidad principal.",
-    example: "CARDIOLOGIA",
-    width: 24,
-  },
-  {
-    key: "cedulaProfesional",
-    label: "Cedula profesional",
-    description: "Cedula o licencia.",
-    example: "1234567",
-    width: 20,
-  },
-  {
-    key: "telefono",
-    label: "Telefono",
-    description: "Solo numeros entre 7 y 15 digitos.",
-    example: "5512345678",
-    width: 18,
-  },
-  {
-    key: "email",
-    label: "Email",
-    description: "Correo del medico.",
-    example: "medico@dominio.com",
-    inputType: "email",
-    width: 28,
-  },
-  {
-    key: "notas",
-    label: "Notas",
-    description: "Observaciones internas opcionales.",
-    example: "Disponibilidad por las tardes",
-    width: 34,
-  },
+  { key: "nombre", label: "Nombre", required: true, description: "Nombre del medico.", example: "MARIA", width: 18 },
+  { key: "apellidoPaterno", label: "Apellido paterno", required: true, description: "Apellido paterno del medico.", example: "GOMEZ", width: 22 },
+  { key: "apellidoMaterno", label: "Apellido materno", description: "Apellido materno si aplica.", example: "RUIZ", width: 22 },
+  { key: "especialidad", label: "Especialidad", description: "Especialidad principal.", example: "CARDIOLOGIA", width: 24 },
+  { key: "cedulaProfesional", label: "Cedula profesional", description: "Cedula o licencia.", example: "1234567", width: 20 },
+  { key: "telefono", label: "Telefono", description: "Solo numeros entre 7 y 15 digitos.", example: "5512345678", width: 18 },
+  { key: "email", label: "Email", description: "Correo del medico.", example: "medico@dominio.com", inputType: "email", width: 28 },
+  { key: "notas", label: "Notas", description: "Observaciones internas opcionales.", example: "Disponibilidad por las tardes", width: 34 },
 ];
 
 function getEspecialidadColor(especialidad: string): string {
@@ -169,13 +96,31 @@ function matchesDoctorSearch(doctor: UiDoctor, searchTerm: string) {
   ].some((value) => value.toLowerCase().includes(normalizedSearch));
 }
 
-export default function DoctorsPageClient({
-  initialDoctors,
-  initialError = null,
-}: DoctorsPageClientProps) {
-  const router = useRouter();
+type DoctorsState = {
+  doctors: UiDoctor[];
+  error: string | null;
+};
+
+async function loadDoctorsCatalog(): Promise<DoctorsState> {
+  const response = await getDoctors({ limit: 1000, status: "all" });
+
+  if (!response.ok) {
+    return {
+      doctors: [],
+      error: response.errors[0] ?? "No se pudieron cargar los medicos en este momento.",
+    };
+  }
+
+  return {
+    doctors: response.data.data.map(toUiDoctor),
+    error: null,
+  };
+}
+
+export default function DoctorsPageClient() {
   const confirm = useConfirmDialog();
-  const [isRefreshing, startRefreshTransition] = useTransition();
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<DoctorStatusFilter>("all");
   const [showFilters, setShowFilters] = useState(false);
@@ -185,15 +130,43 @@ export default function DoctorsPageClient({
   const [saving, setSaving] = useState(false);
   const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [initialError, setInitialError] = useState<string | null>(null);
+  const [catalogDoctors, setCatalogDoctors] = useState<UiDoctor[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const bootstrap = async () => {
+      const result = await loadDoctorsCatalog();
+      if (cancelled) return;
+
+      setCatalogDoctors(result.doctors);
+      setInitialError(result.error);
+      setLoading(false);
+    };
+
+    void bootstrap();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const refreshDoctors = async () => {
+    setRefreshing(true);
+    const result = await loadDoctorsCatalog();
+    setCatalogDoctors(result.doctors);
+    setInitialError(result.error);
+    setRefreshing(false);
+  };
 
   const allDoctors = useMemo(
-    () => initialDoctors.filter((doctor) => matchesDoctorSearch(doctor, searchTerm)),
-    [initialDoctors, searchTerm],
+    () => catalogDoctors.filter((doctor) => matchesDoctorSearch(doctor, searchTerm)),
+    [catalogDoctors, searchTerm],
   );
 
   const doctors = useMemo(() => {
     if (statusFilter === "all") return allDoctors;
-
     return allDoctors.filter((doctor) =>
       statusFilter === "active" ? doctor.isActive : !doctor.isActive,
     );
@@ -203,14 +176,8 @@ export default function DoctorsPageClient({
     () => new Set(allDoctors.map((doctor) => doctor.especialidad)).size,
     [allDoctors],
   );
-  const activos = useMemo(
-    () => allDoctors.filter((doctor) => doctor.isActive).length,
-    [allDoctors],
-  );
-  const inactivos = useMemo(
-    () => allDoctors.filter((doctor) => !doctor.isActive).length,
-    [allDoctors],
-  );
+  const activos = useMemo(() => allDoctors.filter((doctor) => doctor.isActive).length, [allDoctors]);
+  const inactivos = useMemo(() => allDoctors.filter((doctor) => !doctor.isActive).length, [allDoctors]);
 
   useEffect(() => {
     setPage(1);
@@ -229,12 +196,6 @@ export default function DoctorsPageClient({
     return doctors.slice(start, start + pageSize);
   }, [doctors, page, pageSize]);
 
-  const refreshDoctors = () => {
-    startRefreshTransition(() => {
-      router.refresh();
-    });
-  };
-
   const handleAddDoctor = async (payload: CreateDoctorPayload) => {
     setSaving(true);
     const response = await createDoctor(payload);
@@ -246,7 +207,7 @@ export default function DoctorsPageClient({
     }
 
     toast.success("Medico registrado con exito.");
-    refreshDoctors();
+    await refreshDoctors();
     return true;
   };
 
@@ -256,14 +217,12 @@ export default function DoctorsPageClient({
     setUpdatingStatusId(null);
 
     if (!response.ok) {
-      toast.error(
-        response.errors[0] ?? "No se pudo actualizar el estatus del medico.",
-      );
+      toast.error(response.errors[0] ?? "No se pudo actualizar el estatus del medico.");
       return false;
     }
 
     toast.success(doctor.isActive ? "Medico suspendido." : "Medico reactivado.");
-    refreshDoctors();
+    await refreshDoctors();
     return true;
   };
 
@@ -287,8 +246,16 @@ export default function DoctorsPageClient({
     }
 
     toast.success("Medico eliminado definitivamente.");
-    refreshDoctors();
+    await refreshDoctors();
   };
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center rounded-[2rem] border border-gray-200 bg-white text-sm text-gray-500 shadow-sm">
+        Cargando medicos...
+      </div>
+    );
+  }
 
   return (
     <div className="min-w-0">
@@ -300,8 +267,7 @@ export default function DoctorsPageClient({
           </div>
           <h1 className="text-3xl font-bold text-gray-900">Medicos</h1>
           <p className="mt-2 max-w-2xl text-gray-600">
-            Administra altas, edicion de perfil, cambios de estatus y control
-            del personal medico.
+            Administra altas, edicion de perfil, cambios de estatus y control del personal medico.
           </p>
         </div>
 
@@ -341,12 +307,8 @@ export default function DoctorsPageClient({
               rowsForExport={doctors.map((doctor) => ({
                 nombre: doctor.nombre,
                 apellidoPaterno: doctor.apellidoPaterno,
-                apellidoMaterno:
-                  doctor.apellidoMaterno === "-" ? "" : doctor.apellidoMaterno,
-                especialidad:
-                  doctor.especialidad === "Sin especialidad"
-                    ? ""
-                    : doctor.especialidad,
+                apellidoMaterno: doctor.apellidoMaterno === "-" ? "" : doctor.apellidoMaterno,
+                especialidad: doctor.especialidad === "Sin especialidad" ? "" : doctor.especialidad,
                 cedulaProfesional: doctor.cedula === "-" ? "" : doctor.cedula,
                 telefono: doctor.telefono === "-" ? "" : doctor.telefono,
                 email: doctor.email === "-" ? "" : doctor.email,
@@ -361,14 +323,12 @@ export default function DoctorsPageClient({
                 if (!response.ok) {
                   return {
                     ok: false,
-                    error:
-                      response.errors[0] ?? "No se pudo importar el medico.",
+                    error: response.errors[0] ?? "No se pudo importar el medico.",
                   };
                 }
-
                 return { ok: true };
               }}
-              onImportFinished={refreshDoctors}
+              onImportFinished={() => void refreshDoctors()}
               layout="flat"
             />
           </CatalogExcelModal>
@@ -433,9 +393,7 @@ export default function DoctorsPageClient({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Total medicos</p>
-              <p className="mt-1 text-3xl font-bold text-gray-900">
-                {allDoctors.length}
-              </p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">{allDoctors.length}</p>
             </div>
             <div className="rounded-2xl bg-blue-100 p-3">
               <User className="h-5 w-5 text-blue-600" />
@@ -459,9 +417,7 @@ export default function DoctorsPageClient({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Inactivos</p>
-              <p className="mt-1 text-3xl font-bold text-gray-900">
-                {inactivos}
-              </p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">{inactivos}</p>
             </div>
             <div className="rounded-2xl bg-red-100 p-3">
               <ShieldX className="h-5 w-5 text-red-600" />
@@ -472,12 +428,8 @@ export default function DoctorsPageClient({
         <div className="app-panel-surface rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">
-                Especialidades
-              </p>
-              <p className="mt-1 text-3xl font-bold text-gray-900">
-                {especialidadesUnicas}
-              </p>
+              <p className="text-sm font-medium text-gray-600">Especialidades</p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">{especialidadesUnicas}</p>
             </div>
             <div className="rounded-2xl bg-purple-100 p-3">
               <Stethoscope className="h-5 w-5 text-purple-600" />
@@ -486,7 +438,7 @@ export default function DoctorsPageClient({
         </div>
       </div>
 
-      {isRefreshing ? (
+      {refreshing ? (
         <div className="mb-3 flex items-center gap-2 text-xs text-gray-500">
           <Loader2 className="h-4 w-4 animate-spin" />
           Sincronizando cambios...
@@ -495,7 +447,7 @@ export default function DoctorsPageClient({
 
       {doctors.length === 0 ? (
         <div className="rounded-3xl border border-gray-200 bg-white p-10 text-center text-gray-600 shadow-sm">
-          {initialError && initialDoctors.length === 0
+          {initialError && catalogDoctors.length === 0
             ? "No fue posible cargar medicos en este momento."
             : "No hay medicos para el filtro seleccionado."}
         </div>
@@ -514,83 +466,46 @@ export default function DoctorsPageClient({
 
             <div className="divide-y divide-gray-200">
               {paginatedDoctors.map((medico) => (
-                <div
-                  key={medico.id}
-                  className="grid grid-cols-12 gap-4 px-6 py-5 transition-colors hover:bg-gray-50"
-                >
+                <div key={medico.id} className="grid grid-cols-12 gap-4 px-6 py-5 transition-colors hover:bg-gray-50">
                   <div className="col-span-3">
-                    <h3 className="text-sm font-semibold text-gray-900">
-                      {medico.nombreCompleto}
-                    </h3>
+                    <h3 className="text-sm font-semibold text-gray-900">{medico.nombreCompleto}</h3>
                   </div>
-
                   <div className="col-span-2">
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${getEspecialidadColor(medico.especialidad)}`}
-                    >
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${getEspecialidadColor(medico.especialidad)}`}>
                       {medico.especialidad}
                     </span>
                   </div>
-
                   <div className="col-span-2">
-                    <p className="text-sm font-medium text-gray-900">
-                      {medico.cedula}
-                    </p>
+                    <p className="text-sm font-medium text-gray-900">{medico.cedula}</p>
                   </div>
-
                   <div className="col-span-2">
                     <div className="mb-1 flex items-center gap-2">
                       <Phone size={14} className="text-gray-400" />
-                      <span className="text-sm text-gray-900">
-                        {medico.telefono}
-                      </span>
+                      <span className="text-sm text-gray-900">{medico.telefono}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Mail size={14} className="text-gray-400" />
-                      <span className="truncate text-sm text-gray-900">
-                        {medico.email}
-                      </span>
+                      <span className="truncate text-sm text-gray-900">{medico.email}</span>
                     </div>
                   </div>
-
                   <div className="col-span-1">
-                    <span
-                      className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getStatusColor(medico.estatus)}`}
-                    >
+                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getStatusColor(medico.estatus)}`}>
                       {medico.estatus}
                     </span>
                   </div>
-
                   <div className="col-span-1">
-                    <p className="text-sm text-gray-900">
-                      {formatDate(medico.fechaRegistro)}
-                    </p>
+                    <p className="text-sm text-gray-900">{formatDate(medico.fechaRegistro)}</p>
                   </div>
-
                   <div className="col-span-1 flex justify-end">
                     <EntityActionsMenu
                       buttonLabel="Acciones"
                       items={[
+                        { label: "Ver detalle", href: `/medicos/detalle/${medico.id}#resumen-perfil`, icon: <Eye size={16} /> },
+                        { label: "Editar medico", href: `/medicos/detalle/${medico.id}?modo=editar#perfil-completo`, icon: <PencilLine size={16} /> },
                         {
-                          label: "Ver detalle",
-                          href: `/medicos/detalle/${medico.id}#resumen-perfil`,
-                          icon: <Eye size={16} />,
-                        },
-                        {
-                          label: "Editar medico",
-                          href: `/medicos/detalle/${medico.id}?modo=editar#perfil-completo`,
-                          icon: <PencilLine size={16} />,
-                        },
-                        {
-                          label: medico.isActive
-                            ? "Suspender medico"
-                            : "Reactivar medico",
+                          label: medico.isActive ? "Suspender medico" : "Reactivar medico",
                           onClick: () => void handleToggleDoctorStatus(medico),
-                          icon: medico.isActive ? (
-                            <ShieldX size={16} />
-                          ) : (
-                            <BadgeCheck size={16} />
-                          ),
+                          icon: medico.isActive ? <ShieldX size={16} /> : <BadgeCheck size={16} />,
                           disabled: updatingStatusId === medico.id,
                         },
                         {
@@ -607,93 +522,52 @@ export default function DoctorsPageClient({
               ))}
             </div>
 
-            <TablePagination
-              page={page}
-              pageSize={pageSize}
-              totalItems={doctors.length}
-              itemLabel="registros"
-              onPageChange={setPage}
-              onPageSizeChange={setPageSize}
-            />
+            <TablePagination page={page} pageSize={pageSize} totalItems={doctors.length} itemLabel="registros" onPageChange={setPage} onPageSizeChange={setPageSize} />
           </div>
 
           <div className="grid gap-4 xl:grid-cols-2 2xl:hidden">
             {paginatedDoctors.map((medico) => (
-              <div
-                key={medico.id}
-                className="app-panel-surface rounded-3xl border border-gray-200 bg-white p-5 shadow-sm"
-              >
+              <div key={medico.id} className="app-panel-surface rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-900">
-                      {medico.nombreCompleto}
-                    </h3>
-                    <p className="mt-1 text-xs text-gray-500">
-                      {medico.especialidad}
-                    </p>
+                    <h3 className="text-sm font-semibold text-gray-900">{medico.nombreCompleto}</h3>
+                    <p className="mt-1 text-xs text-gray-500">{medico.especialidad}</p>
                   </div>
-                  <span
-                    className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getStatusColor(medico.estatus)}`}
-                  >
+                  <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getStatusColor(medico.estatus)}`}>
                     {medico.estatus}
                   </span>
                 </div>
-
                 <div className="mb-4 grid grid-cols-2 gap-3 text-sm">
                   <div className="rounded-2xl bg-gray-50 p-3">
                     <p className="text-xs text-gray-500">Cedula</p>
-                    <p className="mt-1 font-semibold text-gray-900">
-                      {medico.cedula}
-                    </p>
+                    <p className="mt-1 font-semibold text-gray-900">{medico.cedula}</p>
                   </div>
                   <div className="rounded-2xl bg-gray-50 p-3">
                     <p className="text-xs text-gray-500">Registro</p>
-                    <p className="mt-1 font-semibold text-gray-900">
-                      {formatDate(medico.fechaRegistro)}
-                    </p>
+                    <p className="mt-1 font-semibold text-gray-900">{formatDate(medico.fechaRegistro)}</p>
                   </div>
                 </div>
-
                 <div className="mb-4 space-y-2">
                   <div className="flex items-center gap-2">
                     <Phone size={14} className="text-gray-400" />
-                    <span className="text-sm text-gray-900">
-                      {medico.telefono}
-                    </span>
+                    <span className="text-sm text-gray-900">{medico.telefono}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Mail size={14} className="text-gray-400" />
-                    <span className="truncate text-sm text-gray-900">
-                      {medico.email}
-                    </span>
+                    <span className="truncate text-sm text-gray-900">{medico.email}</span>
                   </div>
                 </div>
-
                 <div className="flex items-center justify-between border-t border-gray-200 pt-4">
                   <div className="text-xs text-gray-500">ID #{medico.id}</div>
                   <EntityActionsMenu
                     buttonLabel="Acciones"
                     items={[
+                      { label: "Ver detalle", href: `/medicos/detalle/${medico.id}#resumen-perfil`, icon: <Eye size={16} /> },
+                      { label: "Editar medico", href: `/medicos/detalle/${medico.id}?modo=editar#perfil-completo`, icon: <PencilLine size={16} /> },
                       {
-                        label: "Ver detalle",
-                        href: `/medicos/detalle/${medico.id}#resumen-perfil`,
-                        icon: <Eye size={16} />,
-                      },
-                      {
-                        label: "Editar medico",
-                        href: `/medicos/detalle/${medico.id}?modo=editar#perfil-completo`,
-                        icon: <PencilLine size={16} />,
-                      },
-                      {
-                        label: medico.isActive
-                          ? "Suspender medico"
-                          : "Reactivar medico",
+                        label: medico.isActive ? "Suspender medico" : "Reactivar medico",
                         onClick: () => void handleToggleDoctorStatus(medico),
-                        icon: medico.isActive ? (
-                          <ShieldX size={16} />
-                        ) : (
-                          <BadgeCheck size={16} />
-                        ),
+                        icon: medico.isActive ? <ShieldX size={16} /> : <BadgeCheck size={16} />,
                         disabled: updatingStatusId === medico.id,
                       },
                       {
@@ -711,14 +585,7 @@ export default function DoctorsPageClient({
           </div>
 
           <div className="overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm 2xl:hidden">
-            <TablePagination
-              page={page}
-              pageSize={pageSize}
-              totalItems={doctors.length}
-              itemLabel="registros"
-              onPageChange={setPage}
-              onPageSizeChange={setPageSize}
-            />
+            <TablePagination page={page} pageSize={pageSize} totalItems={doctors.length} itemLabel="registros" onPageChange={setPage} onPageSizeChange={setPageSize} />
           </div>
         </>
       )}
@@ -728,9 +595,7 @@ export default function DoctorsPageClient({
           setOpen={setOpenAddModal}
           addDoctor={async (payload) => {
             const ok = await handleAddDoctor(payload);
-            if (ok) {
-              setOpenAddModal(false);
-            }
+            if (ok) setOpenAddModal(false);
             return ok;
           }}
           isSaving={saving}

@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   ArrowLeft,
@@ -18,33 +18,47 @@ import {
   UserRound,
 } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { toast } from "react-toastify";
-import { getDoctors, type Doctor } from "@/actions/doctors/doctorsActions";
+import { getDoctors, type Doctor } from "@/features/doctors/api/doctors";
 import {
   getOrCreateResultByServiceItem,
   type StudyResult,
-} from "@/actions/results/resultsActions";
+} from "@/features/results/api/results";
 import {
   getServiceById,
+  type UpdateServicePayload,
   updateService,
   updateServiceStatus,
   type ServiceOrder,
   type ServiceStatus,
-} from "@/actions/services/servicesActions";
+} from "@/features/services/api/services";
 import {
   getStudies,
   getStudyDetails,
   type Study,
   type StudyDetail,
-} from "@/actions/studies/studiesActions";
-import { getPatients, type Patient } from "@/actions/patients/patientsActions";
+} from "@/features/studies/api/studies";
+import { getPatients, type Patient } from "@/features/patients/api/patients";
 import ResultsPdfOptionsModal from "@/components/servicios/ResultsPdfOptionsModal";
 import ServiceResultEditor from "@/components/servicios/ServiceResultEditor";
 import { DetailPageSkeleton } from "@/components/ui/PageSkeletons";
 import { mapServiceToForm } from "@/components/servicios/serviceFormUtils";
+import { getServiceReceiptFile } from "@/features/services/api/service-documents";
+import { appFileService } from "@/lib/files/file-service";
 import { formatDateTime } from "@/helpers/date";
 import { useHashSectionScroll } from "@/hooks/useHashSectionScroll";
+import { getStudyPriceByType } from "@/components/servicios/serviceFormUtils";
+import { useOffline } from "@/lib/offline/network-state";
+import {
+  readOfflineSnapshot,
+  writeOfflineSnapshot,
+} from "@/lib/offline/offline-store";
+import { enqueueSyncItem } from "@/lib/offline/sync-queue";
+import {
+  SYNC_QUEUE_EVENT,
+  type SyncQueueEventDetail,
+} from "@/lib/offline/sync-runner";
 
 const AddServiceModal = dynamic(
   () => import("@/components/servicios/AgregarServicioModal"),
@@ -81,6 +95,99 @@ type CatalogsState = {
 type ResultState = Record<number, StudyResult>;
 type DetailState = Record<number, StudyDetail[]>;
 
+type ServiceDetailSnapshot = {
+  service: ServiceOrder;
+  resultDrafts: ResultState;
+  studyDetailsMap: DetailState;
+};
+
+function buildServiceDetailSnapshotKey(serviceId: number) {
+  return `services:detail:${serviceId}`;
+}
+
+function buildLocalServiceItems(
+  currentService: ServiceOrder,
+  payload: UpdateServicePayload,
+  catalogs: CatalogsState,
+) {
+  if (!payload.items?.length) {
+    return currentService.items;
+  }
+
+  return payload.items.map((item, index) => {
+    const study = catalogs.studies.find(
+      (candidate) => candidate.id === item.studyId,
+    );
+    const unitPrice = study ? getStudyPriceByType(study, item.priceType) : 0;
+    const discountPercent = Number(item.discountPercent ?? 0);
+    const baseAmount = unitPrice * item.quantity;
+    const subtotalAmount = baseAmount - baseAmount * (discountPercent / 100);
+
+    return {
+      id: currentService.items[index]?.id ?? -(Date.now() + index),
+      studyId: item.studyId,
+      studyNameSnapshot: study?.name ?? `Estudio ${item.studyId}`,
+      sourcePackageId:
+        study?.type === "package" ? study.id : currentService.items[index]?.sourcePackageId,
+      sourcePackageNameSnapshot:
+        study?.type === "package"
+          ? study.name
+          : currentService.items[index]?.sourcePackageNameSnapshot,
+      priceType: item.priceType,
+      unitPrice,
+      quantity: item.quantity,
+      discountPercent,
+      subtotalAmount,
+    };
+  });
+}
+
+function applyLocalServiceUpdate(
+  currentService: ServiceOrder,
+  payload: UpdateServicePayload,
+  catalogs: CatalogsState,
+): ServiceOrder {
+  const items = buildLocalServiceItems(currentService, payload, catalogs);
+  const subtotalAmount = items.reduce((acc, item) => acc + item.subtotalAmount, 0);
+  const courtesyPercent = Number(
+    payload.courtesyPercent ?? currentService.courtesyPercent ?? 0,
+  );
+  const discountAmount = subtotalAmount * (courtesyPercent / 100);
+  const totalAmount = Math.max(subtotalAmount - discountAmount, 0);
+
+  const patientId = payload.patientId ?? currentService.patientId;
+  const doctorId =
+    payload.doctorId === undefined ? currentService.doctorId : payload.doctorId;
+  const patient =
+    catalogs.patients.find((candidate) => candidate.id === patientId) ??
+    currentService.patient;
+  const doctor =
+    doctorId == null
+      ? null
+      : catalogs.doctors.find((candidate) => candidate.id === doctorId) ??
+        currentService.doctor;
+
+  return {
+    ...currentService,
+    folio: payload.folio?.trim().toUpperCase() || currentService.folio,
+    patientId,
+    doctorId: doctorId ?? null,
+    branchName: payload.branchName?.trim() || currentService.branchName,
+    sampleAt: payload.sampleAt ?? currentService.sampleAt,
+    deliveryAt: payload.deliveryAt ?? currentService.deliveryAt,
+    status: payload.status ?? currentService.status,
+    courtesyPercent,
+    notes:
+      payload.notes === undefined ? currentService.notes : payload.notes ?? null,
+    subtotalAmount,
+    discountAmount,
+    totalAmount,
+    patient,
+    doctor,
+    items,
+  };
+}
+
 function summarizeItems(service: ServiceOrder): string {
   const packageGroups = new Map<string, string[]>();
   const standalone: string[] = [];
@@ -106,7 +213,10 @@ function summarizeItems(service: ServiceOrder): string {
 
 export default function ServiceDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const id = Number(params.id);
+  const { isOnline, pendingCount } = useOffline();
+  const snapshotKey = useMemo(() => buildServiceDetailSnapshotKey(id), [id]);
 
   const [loading, setLoading] = useState(true);
   const [resultsLoading, setResultsLoading] = useState(true);
@@ -125,8 +235,34 @@ export default function ServiceDetailPage() {
   const [studyDetailsMap, setStudyDetailsMap] = useState<DetailState>({});
   const [openEditModal, setOpenEditModal] = useState(false);
   const [openResultsPdfModal, setOpenResultsPdfModal] = useState(false);
+  const [dataSource, setDataSource] = useState<"live" | "snapshot">("live");
+  const [snapshotUpdatedAt, setSnapshotUpdatedAt] = useState<number | null>(null);
 
   useHashSectionScroll({ enabled: !loading });
+
+  const persistServiceSnapshot = useCallback(
+    (
+      nextService: ServiceOrder | null,
+      nextResults: ResultState,
+      nextStudyDetails: DetailState,
+    ) => {
+      if (!nextService || Number.isNaN(nextService.id)) {
+        return null;
+      }
+
+      const storedSnapshot = writeOfflineSnapshot<ServiceDetailSnapshot>(
+        snapshotKey,
+        {
+          service: nextService,
+          resultDrafts: nextResults,
+          studyDetailsMap: nextStudyDetails,
+        },
+      );
+      setSnapshotUpdatedAt(storedSnapshot.updatedAt);
+      return storedSnapshot;
+    },
+    [snapshotKey],
+  );
 
   useEffect(() => {
     if (Number.isNaN(id)) {
@@ -135,24 +271,69 @@ export default function ServiceDetailPage() {
       return;
     }
 
+    const cachedSnapshot =
+      readOfflineSnapshot<ServiceDetailSnapshot>(snapshotKey);
+
+    if (!isOnline) {
+      if (cachedSnapshot) {
+        setService(cachedSnapshot.value.service);
+        setResultDrafts(cachedSnapshot.value.resultDrafts);
+        setStudyDetailsMap(cachedSnapshot.value.studyDetailsMap);
+        setDataSource("snapshot");
+        setSnapshotUpdatedAt(cachedSnapshot.updatedAt);
+        setLoading(false);
+        setResultsLoading(false);
+      } else {
+        setError(
+          "No hay conexion y tampoco existe una copia local de este servicio.",
+        );
+        setLoading(false);
+      }
+      return;
+    }
+
     const load = async () => {
       const serviceResponse = await getServiceById(id);
 
       if (!serviceResponse.ok) {
-        setError(serviceResponse.errors[0] ?? "No se pudo cargar el servicio.");
+        if (cachedSnapshot) {
+          setService(cachedSnapshot.value.service);
+          setResultDrafts(cachedSnapshot.value.resultDrafts);
+          setStudyDetailsMap(cachedSnapshot.value.studyDetailsMap);
+          setDataSource("snapshot");
+          setSnapshotUpdatedAt(cachedSnapshot.updatedAt);
+        } else {
+          setError(serviceResponse.errors[0] ?? "No se pudo cargar el servicio.");
+        }
         setLoading(false);
         return;
       }
 
       setService(serviceResponse.data);
+      setDataSource("live");
+      setError("");
       setLoading(false);
     };
 
     void load();
-  }, [id]);
+  }, [id, isOnline, snapshotKey]);
 
   useEffect(() => {
     if (!service) return;
+
+    const cachedSnapshot =
+      readOfflineSnapshot<ServiceDetailSnapshot>(snapshotKey);
+
+    if (!isOnline) {
+      if (cachedSnapshot) {
+        setResultDrafts(cachedSnapshot.value.resultDrafts);
+        setStudyDetailsMap(cachedSnapshot.value.studyDetailsMap);
+        setDataSource("snapshot");
+        setSnapshotUpdatedAt(cachedSnapshot.updatedAt);
+      }
+      setResultsLoading(false);
+      return;
+    }
 
     const loadOperationalData = async () => {
       setResultsLoading(true);
@@ -191,14 +372,25 @@ export default function ServiceDetailPage() {
 
       setStudyDetailsMap(nextDetailsMap);
       setResultDrafts(nextResultMap);
+      persistServiceSnapshot(service, nextResultMap, nextDetailsMap);
+      setDataSource("live");
       setResultsLoading(false);
     };
 
     void loadOperationalData();
-  }, [service]);
+  }, [isOnline, persistServiceSnapshot, service, snapshotKey]);
 
   useEffect(() => {
     if (!openEditModal || catalogsLoaded) {
+      return;
+    }
+
+    const cachedCatalogs = readOfflineSnapshot<CatalogsState>("services:catalogs");
+
+    if (!isOnline && cachedCatalogs) {
+      setCatalogs(cachedCatalogs.value);
+      setCatalogsLoaded(true);
+      setCatalogsLoading(false);
       return;
     }
 
@@ -221,10 +413,79 @@ export default function ServiceDetailPage() {
       });
       setCatalogsLoaded(hasSuccessfulCatalogLoad);
       setCatalogsLoading(false);
+
+      if (hasSuccessfulCatalogLoad) {
+        writeOfflineSnapshot("services:catalogs", {
+          patients: patientsResponse.ok ? patientsResponse.data.data : [],
+          doctors: doctorsResponse.ok ? doctorsResponse.data.data : [],
+          studies: studiesResponse.ok ? studiesResponse.data.data : [],
+        });
+      } else if (cachedCatalogs) {
+        setCatalogs(cachedCatalogs.value);
+        setCatalogsLoaded(true);
+      }
     };
 
     void loadCatalogs();
-  }, [catalogsLoaded, openEditModal]);
+  }, [catalogsLoaded, isOnline, openEditModal]);
+
+  useEffect(() => {
+    const handleSyncEvent = (event: Event) => {
+      const detail = (event as CustomEvent<SyncQueueEventDetail>).detail;
+      if (detail.status !== "completed" || !service) {
+        return;
+      }
+
+      if (
+        detail.item.scope === "services" &&
+        detail.item.entityType === "service-order"
+      ) {
+        const syncedService = detail.result as ServiceOrder | undefined;
+        if (!syncedService) {
+          return;
+        }
+
+        if (detail.item.operation === "create" && detail.item.entityId === service.id) {
+          router.replace(`/servicios/detalle/${syncedService.id}`);
+          return;
+        }
+
+        if (syncedService.id === service.id) {
+          setService(syncedService);
+          persistServiceSnapshot(syncedService, resultDrafts, studyDetailsMap);
+        }
+      }
+
+      if (
+        detail.item.scope === "results" &&
+        detail.item.entityType === "study-result"
+      ) {
+        const syncedResult = detail.result as StudyResult | undefined;
+        if (!syncedResult) {
+          return;
+        }
+
+        setResultDrafts((current) => {
+          const nextDrafts = { ...current };
+          const serviceItemId = syncedResult.serviceOrderItemId;
+          if (serviceItemId in nextDrafts) {
+            nextDrafts[serviceItemId] = syncedResult;
+          }
+          persistServiceSnapshot(service, nextDrafts, studyDetailsMap);
+          return nextDrafts;
+        });
+      }
+    };
+
+    window.addEventListener(SYNC_QUEUE_EVENT, handleSyncEvent as EventListener);
+
+    return () => {
+      window.removeEventListener(
+        SYNC_QUEUE_EVENT,
+        handleSyncEvent as EventListener,
+      );
+    };
+  }, [persistServiceSnapshot, resultDrafts, router, service, studyDetailsMap]);
 
   const totalStudies = service?.items?.length ?? 0;
   const closedResults = useMemo(
@@ -235,6 +496,24 @@ export default function ServiceDetailPage() {
 
   const handleStatusChange = async (nextStatus: ServiceStatus) => {
     if (!service) return;
+
+    if (!isOnline) {
+      enqueueSyncItem({
+        scope: "services",
+        entityType: "service-order",
+        entityId: service.id,
+        operation: "update",
+        payload: { status: nextStatus },
+      });
+
+      const nextService = { ...service, status: nextStatus };
+      setService(nextService);
+      persistServiceSnapshot(nextService, resultDrafts, studyDetailsMap);
+      toast.success(
+        `Estatus guardado localmente como ${getStatusLabel(nextStatus).toLowerCase()}.`,
+      );
+      return;
+    }
 
     setUpdatingStatus(true);
     const response = await updateServiceStatus(service.id, nextStatus);
@@ -248,6 +527,7 @@ export default function ServiceDetailPage() {
     }
 
     setService(response.data.data);
+    persistServiceSnapshot(response.data.data, resultDrafts, studyDetailsMap);
     toast.success(
       `Servicio marcado como ${getStatusLabel(nextStatus).toLowerCase()}.`,
     );
@@ -259,6 +539,22 @@ export default function ServiceDetailPage() {
   ) => {
     if (!service) return false;
 
+    if (!isOnline) {
+      enqueueSyncItem({
+        scope: "services",
+        entityType: "service-order",
+        entityId: service.id,
+        operation: "update",
+        payload,
+      });
+
+      const nextService = applyLocalServiceUpdate(service, payload, catalogs);
+      setService(nextService);
+      persistServiceSnapshot(nextService, resultDrafts, studyDetailsMap);
+      toast.success("Cambios del servicio guardados localmente.");
+      return true;
+    }
+
     setSavingService(true);
     const response = await updateService(service.id, payload);
 
@@ -269,9 +565,22 @@ export default function ServiceDetailPage() {
     }
 
     setService(response.data.data);
+    persistServiceSnapshot(response.data.data, resultDrafts, studyDetailsMap);
     toast.success("Servicio actualizado con exito.");
     setSavingService(false);
     return true;
+  };
+
+  const handleOpenReceipt = async () => {
+    if (!service) return;
+
+    const response = await getServiceReceiptFile(service.id);
+    if (!response.ok) {
+      toast.error(response.errors[0] ?? "No se pudo generar el recibo.");
+      return;
+    }
+
+    await appFileService.open(response.data);
   };
 
   if (loading) {
@@ -357,6 +666,33 @@ export default function ServiceDetailPage() {
           </button>
         </div>
       </div>
+
+      {!isOnline || dataSource === "snapshot" ? (
+        <div className="mb-4 rounded-[1.5rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
+              <span className="font-semibold">
+                {dataSource === "snapshot"
+                  ? "Mostrando detalle guardado localmente."
+                  : "Sin conexion detectada."}
+              </span>
+            </div>
+            <span className="text-xs font-medium text-amber-800">
+              {snapshotUpdatedAt
+                ? `Ultima copia local: ${formatDateTime(
+                    new Date(snapshotUpdatedAt).toISOString(),
+                  )}`
+                : "Aun no hay copia local de este servicio."}
+            </span>
+          </div>
+          {pendingCount > 0 ? (
+            <p className="mt-2 text-xs text-amber-800">
+              Operaciones pendientes en cola: {pendingCount}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="space-y-6">
         <div
@@ -496,19 +832,20 @@ export default function ServiceDetailPage() {
             </div>
 
             <div className="mt-5 flex flex-col gap-3">
-              <a
-                href={`/api/services/${service.id}/receipt`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-red-700 transition-all hover:bg-red-50"
-              >
+          <button
+            type="button"
+            onClick={() => void handleOpenReceipt()}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-red-700 transition-all hover:bg-red-50 disabled:opacity-50"
+            disabled={!isOnline}
+          >
                 <Ticket className="h-4 w-4" />
                 Recibo
-              </a>
+              </button>
               <button
                 type="button"
                 onClick={() => setOpenResultsPdfModal(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-white/20"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-white/20 disabled:opacity-50"
+                disabled={!isOnline}
               >
                 <Stethoscope className="h-4 w-4" />
                 PDF de resultados
@@ -603,12 +940,16 @@ export default function ServiceDetailPage() {
                     initialResult={result}
                     studyDetails={studyDetailsMap[item.studyId] ?? []}
                     onOpenPdfOptions={() => setOpenResultsPdfModal(true)}
-                    onSaved={(nextResult) =>
-                      setResultDrafts((current) => ({
-                        ...current,
-                        [item.id]: nextResult,
-                      }))
-                    }
+                    onSaved={(nextResult) => {
+                      setResultDrafts((current) => {
+                        const nextDrafts = {
+                          ...current,
+                          [item.id]: nextResult,
+                        };
+                        persistServiceSnapshot(service, nextDrafts, studyDetailsMap);
+                        return nextDrafts;
+                      });
+                    }}
                   />
                 );
               })}

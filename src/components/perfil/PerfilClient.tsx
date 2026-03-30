@@ -11,31 +11,43 @@ import {
   ShieldCheck,
   UserRound,
 } from 'lucide-react';
-import { useMemo, useRef, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { toast } from 'react-toastify';
-import {
-  updateProfileAction,
-  updateProfileImageAction,
-  type ProfileUser,
-} from '@/actions/users/profileActions';
+import { getCurrentProfile } from '@/features/auth/api/get-profile';
+import { updateCurrentPassword } from '@/features/auth/api/update-password';
+import { updateCurrentProfile } from '@/features/auth/api/update-profile';
+import { updateCurrentProfileImage } from '@/features/auth/api/update-profile-image';
+import type { ProfileResponsePayload } from '@/features/auth/model/auth-types';
+import { useAuth } from '@/lib/auth/use-auth';
 import { formatDate } from '@/helpers/date';
-import { updatePasswordAction } from '@/actions/users/updatePasswordAction';
 import { getPasswordStrength, passwordRules } from '@/helpers/passwordRules';
-
-type PerfilClientProps = {
-  user: ProfileUser;
-};
 
 type ProfileTab = 'overview' | 'security';
 
-export default function PerfilClient({ user }: PerfilClientProps) {
-  const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [profile, setProfile] = useState<ProfileUser>(user);
-  const [profileForm, setProfileForm] = useState({
+function buildFallbackProfile(
+  user: NonNullable<ReturnType<typeof useAuth>['user']>,
+): ProfileResponsePayload {
+  return {
+    id: user.id,
     nombre: user.nombre,
     email: user.email,
+    rol: user.rol,
+    confirmed: true,
+    createdAt: undefined,
+    updatedAt: undefined,
+    profileImageUrl: null,
+    authProvider: 'local',
+  };
+}
+
+export default function PerfilClient() {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { user, isLoading: authLoading, refreshProfile } = useAuth();
+  const [profile, setProfile] = useState<ProfileResponsePayload | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [profileForm, setProfileForm] = useState({
+    nombre: '',
+    email: '',
   });
   const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
   const [isSavingProfile, startProfileTransition] = useTransition();
@@ -46,6 +58,69 @@ export default function PerfilClient({ user }: PerfilClientProps) {
     newPassword: '',
     confirmPassword: '',
   });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadProfile = async () => {
+      if (authLoading) {
+        return;
+      }
+
+      if (!user) {
+        if (!cancelled) {
+          setProfile(null);
+          setLoadingProfile(false);
+        }
+        return;
+      }
+
+      const fallback = buildFallbackProfile(user);
+      if (!cancelled) {
+        setProfile(fallback);
+        setProfileForm({
+          nombre: fallback.nombre,
+          email: fallback.email,
+        });
+      }
+
+      const response = await getCurrentProfile();
+      if (cancelled) {
+        return;
+      }
+
+      if (!response.ok) {
+        setLoadingProfile(false);
+        return;
+      }
+
+      setProfile(response.data);
+      setProfileForm({
+        nombre: response.data.nombre,
+        email: response.data.email,
+      });
+      setLoadingProfile(false);
+    };
+
+    void loadProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, user]);
+
+  const strength = useMemo(
+    () => getPasswordStrength(passwordData.newPassword),
+    [passwordData.newPassword],
+  );
+
+  if (authLoading || loadingProfile || !profile) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center rounded-[2rem] border border-gray-200 bg-white text-sm text-gray-500 shadow-sm">
+        Cargando perfil...
+      </div>
+    );
+  }
 
   const roleLabel =
     profile.rol === 'admin'
@@ -63,17 +138,13 @@ export default function PerfilClient({ user }: PerfilClientProps) {
     .map((part) => part[0]?.toUpperCase() ?? '')
     .join('');
 
-  const strength = useMemo(
-    () => getPasswordStrength(passwordData.newPassword),
-    [passwordData.newPassword],
-  );
   const hasProfileChanges =
     profileForm.nombre.trim() !== profile.nombre ||
     profileForm.email.trim().toLowerCase() !== profile.email;
 
   const handleProfileSave = () => {
     startProfileTransition(async () => {
-      const response = await updateProfileAction(profileForm);
+      const response = await updateCurrentProfile(profileForm);
 
       if (!response.ok) {
         toast.error(response.errors[0] ?? 'No se pudo actualizar la informacion del perfil.');
@@ -85,14 +156,14 @@ export default function PerfilClient({ user }: PerfilClientProps) {
         nombre: response.data.user.nombre,
         email: response.data.user.email,
       });
+      await refreshProfile();
       toast.success(response.data.message ?? 'Perfil actualizado.');
-      router.refresh();
     });
   };
 
   const handlePasswordChange = () => {
     startTransition(async () => {
-      const response = await updatePasswordAction(passwordData);
+      const response = await updateCurrentPassword(passwordData);
 
       if (!response.ok) {
         toast.error(response.errors[0] ?? 'No se pudo actualizar la contrasena.');
@@ -120,11 +191,8 @@ export default function PerfilClient({ user }: PerfilClientProps) {
       return;
     }
 
-    const formData = new FormData();
-    formData.set('image', image);
-
     setIsUploadingImage(true);
-    const response = await updateProfileImageAction(formData);
+    const response = await updateCurrentProfileImage(image);
     setIsUploadingImage(false);
 
     if (!response.ok) {
@@ -133,8 +201,8 @@ export default function PerfilClient({ user }: PerfilClientProps) {
     }
 
     setProfile(response.data.user);
+    await refreshProfile();
     toast.success(response.data.message ?? 'Foto de perfil actualizada.');
-    router.refresh();
   };
 
   return (

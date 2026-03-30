@@ -22,7 +22,16 @@ import EntityActionsMenu from "@/components/ui/EntityActionsMenu";
 import TablePagination from "@/components/ui/TablePagination";
 import { SERVICE_BRANCH_OPTIONS } from "@/components/servicios/serviceFormUtils";
 import { useServicesData, type ServicesFilters } from "@/hooks/useServicesData";
-import type { ServiceStatus } from "@/actions/services/servicesActions";
+import type { ServiceStatus } from "@/features/services/api/services";
+import {
+  getServiceLabelsFile,
+  getServiceReceiptFile,
+  getServiceTicketFile,
+} from "@/features/services/api/service-documents";
+import { appFileService } from "@/lib/files/file-service";
+import { useOffline } from "@/lib/offline/network-state";
+import { formatDateTime } from "@/helpers/date";
+import { toast } from "react-toastify";
 
 const AddServiceModal = dynamic(
   () => import("@/components/servicios/AgregarServicioModal"),
@@ -63,6 +72,7 @@ const statusLabel = (status: ServiceStatus) => {
 };
 
 export default function ServiciosPage() {
+  const { isOnline, pendingCount } = useOffline();
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [openServiceModal, setOpenServiceModal] = useState(false);
@@ -88,6 +98,8 @@ export default function ServiciosPage() {
     stats,
     catalogs,
     catalogsLoading,
+    dataSource,
+    snapshotUpdatedAt,
     loadFormCatalogs,
     saveService,
     changeServiceStatus,
@@ -118,75 +130,155 @@ export default function ServiciosPage() {
     return services.slice(start, start + pageSize);
   }, [page, pageSize, services]);
 
+  const openServicePdf = async (
+    loader: (serviceId: number) => Promise<
+      Awaited<ReturnType<typeof getServiceReceiptFile>>
+    >,
+    serviceId: number,
+    fallbackError: string,
+  ) => {
+    const response = await loader(serviceId);
+    if (!response.ok) {
+      toast.error(response.errors[0] ?? fallbackError);
+      return;
+    }
+
+    await appFileService.open(response.data);
+  };
+
   const buildServiceActions = (service: {
     id: number;
     status: ServiceStatus;
     folio: string;
     estudio: string;
+    localOnly?: boolean;
+    syncState?: "synced" | "pending";
   }) => [
     {
       label: "Ver detalle",
       href: `/servicios/detalle/${service.id}#resumen-operativo`,
-      hint: "Disponible",
+      disabled: service.localOnly,
+      hint: service.localOnly ? "Pendiente de sincronizar" : "Disponible",
       icon: <Eye size={16} />,
     },
     {
       label: "Capturar resultados",
       href: `/servicios/detalle/${service.id}#resultados`,
-      hint: "Disponible",
+      disabled: service.localOnly,
+      hint: service.localOnly ? "Pendiente de sincronizar" : "Disponible",
       icon: <Activity size={16} />,
     },
     {
       label: "Marcar en curso",
       onClick: () => void changeServiceStatus(service.id, "in_progress"),
       disabled:
-        service.status === "in_progress" || updatingStatusId === service.id,
-      hint: updatingStatusId === service.id ? "Actualizando..." : "Disponible",
+        service.status === "in_progress" ||
+        updatingStatusId === service.id ||
+        service.localOnly,
+      hint: service.localOnly
+        ? "Pendiente de sincronizar"
+        : updatingStatusId === service.id
+          ? "Actualizando..."
+          : isOnline
+            ? "Disponible"
+            : "Se guardara en cola",
       icon: <Clock3 size={16} />,
     },
     {
       label: "Marcar concluido",
       onClick: () => void changeServiceStatus(service.id, "completed"),
       disabled:
-        service.status === "completed" || updatingStatusId === service.id,
-      hint: updatingStatusId === service.id ? "Actualizando..." : "Disponible",
+        service.status === "completed" ||
+        updatingStatusId === service.id ||
+        service.localOnly,
+      hint: service.localOnly
+        ? "Pendiente de sincronizar"
+        : updatingStatusId === service.id
+          ? "Actualizando..."
+          : isOnline
+            ? "Disponible"
+            : "Se guardara en cola",
       icon: <BadgeCheck size={16} />,
     },
     {
       label: "Marcar retrasado",
       onClick: () => void changeServiceStatus(service.id, "delayed"),
-      disabled: service.status === "delayed" || updatingStatusId === service.id,
-      hint: updatingStatusId === service.id ? "Actualizando..." : "Disponible",
+      disabled:
+        service.status === "delayed" ||
+        updatingStatusId === service.id ||
+        service.localOnly,
+      hint: service.localOnly
+        ? "Pendiente de sincronizar"
+        : updatingStatusId === service.id
+          ? "Actualizando..."
+          : isOnline
+            ? "Disponible"
+            : "Se guardara en cola",
       icon: <TriangleAlert size={16} />,
     },
     {
       label: "Cancelar servicio",
       onClick: () => void changeServiceStatus(service.id, "cancelled"),
       disabled:
-        service.status === "cancelled" || updatingStatusId === service.id,
+        service.status === "cancelled" ||
+        updatingStatusId === service.id ||
+        service.localOnly,
       destructive: true,
-      hint: updatingStatusId === service.id ? "Actualizando..." : "Disponible",
+      hint: service.localOnly
+        ? "Pendiente de sincronizar"
+        : updatingStatusId === service.id
+          ? "Actualizando..."
+          : isOnline
+            ? "Disponible"
+            : "Se guardara en cola",
       icon: <XCircle size={16} />,
     },
     {
       label: "Etiquetas",
-      href: `/api/services/${service.id}/labels`,
-      newTab: true,
-      hint: "PDF",
+      onClick: () =>
+        void openServicePdf(
+          getServiceLabelsFile,
+          service.id,
+          "No se pudieron generar las etiquetas.",
+        ),
+      disabled: !isOnline || service.localOnly,
+      hint: !isOnline
+        ? "Requiere conexion"
+        : service.localOnly
+          ? "Pendiente de sincronizar"
+          : "PDF",
       icon: <Ticket size={16} />,
     },
     {
       label: "Recibo",
-      href: `/api/services/${service.id}/receipt`,
-      newTab: true,
-      hint: "PDF",
+      onClick: () =>
+        void openServicePdf(
+          getServiceReceiptFile,
+          service.id,
+          "No se pudo generar el recibo.",
+        ),
+      disabled: !isOnline || service.localOnly,
+      hint: !isOnline
+        ? "Requiere conexion"
+        : service.localOnly
+          ? "Pendiente de sincronizar"
+          : "PDF",
       icon: <Ticket size={16} />,
     },
     {
       label: "Ticket",
-      href: `/api/services/${service.id}/ticket`,
-      newTab: true,
-      hint: "PDF",
+      onClick: () =>
+        void openServicePdf(
+          getServiceTicketFile,
+          service.id,
+          "No se pudo generar el ticket.",
+        ),
+      disabled: !isOnline || service.localOnly,
+      hint: !isOnline
+        ? "Requiere conexion"
+        : service.localOnly
+          ? "Pendiente de sincronizar"
+          : "PDF",
       icon: <Ticket size={16} />,
     },
     {
@@ -196,7 +288,12 @@ export default function ServiciosPage() {
           id: service.id,
           label: `${service.folio} · ${service.estudio}`,
         }),
-      hint: "PDF",
+      disabled: !isOnline || service.localOnly,
+      hint: !isOnline
+        ? "Requiere conexion"
+        : service.localOnly
+          ? "Pendiente de sincronizar"
+          : "PDF",
       icon: <Activity size={16} />,
     },
   ];
@@ -224,6 +321,33 @@ export default function ServiciosPage() {
           Nuevo servicio
         </button>
       </div>
+
+      {!isOnline || dataSource === "snapshot" ? (
+        <div className="mb-4 rounded-[1.5rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
+              <span className="font-semibold">
+                {dataSource === "snapshot"
+                  ? "Mostrando servicios guardados localmente."
+                  : "Sin conexion detectada."}
+              </span>
+            </div>
+            <span className="text-xs font-medium text-amber-800">
+              {snapshotUpdatedAt
+                ? `Ultima copia local: ${formatDateTime(
+                    new Date(snapshotUpdatedAt).toISOString(),
+                  )}`
+                : "Aun no hay copia local para este filtro."}
+            </span>
+          </div>
+          {pendingCount > 0 ? (
+            <p className="mt-2 text-xs text-amber-800">
+              Operaciones pendientes en cola: {pendingCount}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="app-panel-surface mb-6 overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-100 bg-gradient-to-r from-white via-red-50/60 to-white px-6 py-5">
@@ -401,6 +525,21 @@ export default function ServiciosPage() {
         </div>
       </div>
 
+      <div className="mb-6 flex flex-wrap gap-2">
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+            dataSource === "snapshot"
+              ? "bg-amber-100 text-amber-800"
+              : "bg-emerald-100 text-emerald-700"
+          }`}
+        >
+          Fuente: {dataSource === "snapshot" ? "copia local" : "conexion activa"}
+        </span>
+        <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-700">
+          Cola offline: {pendingCount}
+        </span>
+      </div>
+
       {refreshing && !loading ? (
         <div className="mb-3 flex items-center gap-2 text-xs text-gray-500">
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -439,6 +578,11 @@ export default function ServiciosPage() {
                     <span className="inline-flex max-w-full items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
                       {service.folio}
                     </span>
+                    {service.syncState === "pending" ? (
+                      <span className="ml-2 inline-flex max-w-full items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                        Pendiente sync
+                      </span>
+                    ) : null}
                   </div>
 
                   <div className="min-w-0">
@@ -482,6 +626,11 @@ export default function ServiciosPage() {
                     >
                       {statusLabel(service.status)}
                     </span>
+                    {service.syncState === "pending" ? (
+                      <p className="mt-2 text-[11px] font-medium text-amber-700">
+                        Cambio local pendiente
+                      </p>
+                    ) : null}
                   </div>
 
                   <div className="flex justify-end">
@@ -525,6 +674,12 @@ export default function ServiciosPage() {
                     {statusLabel(service.status)}
                   </span>
                 </div>
+
+                {service.syncState === "pending" ? (
+                  <div className="mb-3 rounded-2xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                    Cambio local pendiente de sincronizacion
+                  </div>
+                ) : null}
 
                 <div className="mb-4 grid grid-cols-2 gap-3 text-sm">
                   <div className="rounded-2xl bg-gray-50 p-3">

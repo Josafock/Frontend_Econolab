@@ -3,11 +3,13 @@
 import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-toastify";
-import { googleCallbackAction } from "@/actions/auth/googleCallbackAction";
+import { authStore } from "@/lib/auth/auth-store";
+import { useAuth } from "@/lib/auth/use-auth";
 
 export default function GoogleOAuthPage() {
   const router = useRouter();
   const params = useSearchParams();
+  const { refreshProfile } = useAuth();
 
   useEffect(() => {
     const token = params.get("token");
@@ -25,22 +27,32 @@ export default function GoogleOAuthPage() {
     }
 
     if (!token) {
-      toast.error("No se pudo completar el inicio de sesión con Google");
+      toast.error("No se pudo completar el inicio de sesion con Google");
       router.replace("/auth/login");
       return;
     }
 
-    googleCallbackAction(token).then(() => {
-      // Si quieres, puedes hacer lógica por rol:
-      // if (rol === "admin") return router.replace("/admin");
+    void (async () => {
+      await authStore.setSession({
+        token,
+        user: null,
+      });
+
+      const profileResult = await refreshProfile();
+      if (!profileResult.ok) {
+        profileResult.errors.forEach((entry) => toast.error(entry));
+        router.replace("/auth/login");
+        return;
+      }
+
       router.replace("/home");
-    });
-  }, [params, router]);
+    })();
+  }, [params, refreshProfile, router]);
 
   return (
     <div className="flex min-h-screen items-center justify-center">
       <p className="text-sm text-gray-600">
-        Procesando inicio de sesión con Google...
+        Procesando inicio de sesion con Google...
       </p>
     </div>
   );

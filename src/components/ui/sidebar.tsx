@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { logout } from '@/actions/auth/logoutAction';
+import { useAuth } from '@/lib/auth/use-auth';
 import { User as UserType } from '@/schemas';
 
 type MenuItem = {
@@ -30,6 +30,7 @@ export function Sidebar(user: UserType) {
   const [isMobile, setIsMobile] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const { logout: logoutSession } = useAuth();
 
   const rol =
     user.rol === 'admin'
@@ -78,7 +79,9 @@ export function Sidebar(user: UserType) {
   };
 
   const handleLogout = () => {
-    void logout();
+    void logoutSession().finally(() => {
+      router.replace('/auth/login');
+    });
   };
 
   const isItemActive = (path: string) => {

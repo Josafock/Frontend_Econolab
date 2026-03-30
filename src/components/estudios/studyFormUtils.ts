@@ -4,7 +4,7 @@ import type {
   StudyStatus,
   StudyType,
   UpdateStudyPayload,
-} from "@/actions/studies/studiesActions";
+} from "@/features/studies/api/studies";
 import { minutesToTimeValue, timeValueToMinutes } from "@/helpers/studies";
 
 const AUTO_STUDY_CODE_PREFIX: Record<StudyType, string> = {

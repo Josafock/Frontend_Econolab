@@ -1,45 +1,52 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { toast } from 'react-toastify';
-import { Eye, EyeOff, User, Lock } from 'lucide-react';
-import { FcGoogle } from 'react-icons/fc';
-import { login } from '@/actions/auth/loginAction';
+import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Eye, EyeOff, Lock, User } from 'lucide-react';
+import { FcGoogle } from 'react-icons/fc';
+import { toast } from 'react-toastify';
+import { useAuth } from '@/lib/auth/use-auth';
 
 export default function LoginForm() {
   const router = useRouter();
-
-  const [state, dispatch, pending] = useActionState(login, {
-    errors: [],
-    success: '',
-    rol: '',
-  });
-
-  useEffect(() => {
-    if (state?.errors?.length) {
-      state.errors.forEach((error: string) => toast.error(error));
-    }
-
-    // ✅ Login normal
-    if (state?.success) {
-      toast.success(state.success, {
-        onClose: () => router.push('/home'),
-      });
-    }
-  }, [state, router]);
-
+  const { login } = useAuth();
+  const [pending, setPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const triangles = Array.from({ length: 120 });
 
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (pending) {
+      return;
+    }
+
+    setPending(true);
+
+    const formData = new FormData(event.currentTarget);
+    const result = await login({
+      email: String(formData.get('email') ?? ''),
+      password: String(formData.get('password') ?? ''),
+    });
+
+    setPending(false);
+
+    if (!result.ok) {
+      result.errors.forEach((error) => toast.error(error));
+      return;
+    }
+
+    toast.success('Inicio de sesion completado.', {
+      onClose: () => router.push('/home'),
+    });
+  };
+
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-white">
-      {/* Fondo limpio */}
       <div className="absolute inset-0 z-0 bg-gradient-to-br from-white to-gray-50" />
 
-      {/* Campo de triángulos izquierdo */}
       <div className="pointer-events-none absolute inset-y-0 left-0 hidden w-1/2 overflow-hidden opacity-30 lg:block">
         <div className="grid h-full w-full grid-cols-8 gap-3">
           {triangles.map((_, i) => (
@@ -48,7 +55,6 @@ export default function LoginForm() {
         </div>
       </div>
 
-      {/* Campo de triángulos derecho */}
       <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-1/2 overflow-hidden opacity-30 lg:block">
         <div className="grid h-full w-full grid-cols-8 gap-3">
           {triangles.map((_, i) => (
@@ -58,15 +64,14 @@ export default function LoginForm() {
       </div>
 
       <style jsx>{`
-        .clip-triangle { clip-path: polygon(50% 0%, 0% 100%, 100% 100%); }
+        .clip-triangle {
+          clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+        }
       `}</style>
 
-      {/* Contenido */}
       <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-10">
         <div className="mx-auto w-full max-w-xl">
-          {/* Tarjeta */}
           <div className="rounded-2xl border border-gray-200 bg-white shadow-lg">
-            {/* Encabezado de marca */}
             <div className="flex flex-col items-center justify-center gap-4 border-b border-gray-100 px-8 py-8">
               <h1 className="text-4xl font-bold text-black">
                 <span className="text-red-600">ECONO</span>LAB
@@ -76,22 +81,23 @@ export default function LoginForm() {
                   <Lock className="h-6 w-6 text-red-600" />
                 </div>
                 <div className="text-left">
-                  <h1 className="text-lg font-semibold text-gray-900">Iniciar sesión</h1>
+                  <h1 className="text-lg font-semibold text-gray-900">Iniciar sesion</h1>
                   <p className="text-sm text-gray-500">Accede a tu cuenta</p>
                 </div>
               </div>
             </div>
 
-            {/* Formulario */}
-            <form action={dispatch} className="px-6 py-6 sm:px-8" noValidate>
+            <form onSubmit={handleSubmit} className="px-6 py-6 sm:px-8" noValidate>
               <div className="space-y-5">
-                {/* Email */}
                 <div>
                   <label htmlFor="email" className="mb-2 block text-sm font-medium text-gray-700">
-                    Correo electrónico
+                    Correo electronico
                   </label>
                   <div className="relative">
-                    <User className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <User
+                      className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                      size={18}
+                    />
                     <input
                       id="email"
                       name="email"
@@ -104,13 +110,15 @@ export default function LoginForm() {
                   </div>
                 </div>
 
-                {/* Password */}
                 <div>
                   <label htmlFor="password" className="mb-2 block text-sm font-medium text-gray-700">
-                    Contraseña
+                    Contrasena
                   </label>
                   <div className="relative">
-                    <Lock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <Lock
+                      className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                      size={18}
+                    />
                     <input
                       id="password"
                       name="password"
@@ -121,42 +129,39 @@ export default function LoginForm() {
                     />
                     <button
                       type="button"
-                      onClick={() => setShowPassword((v) => !v)}
-                      aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                      onClick={() => setShowPassword((value) => !value)}
+                      aria-label={showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition-colors hover:text-gray-600"
                     >
                       {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
                     </button>
                   </div>
                 </div>
 
-                {/* Utilidades */}
                 <div className="flex items-center justify-between">
                   <Link
                     href="/auth/forgot-password"
-                    className="text-sm font-medium text-red-600 hover:text-red-700 transition-colors"
+                    className="text-sm font-medium text-red-600 transition-colors hover:text-red-700"
                   >
-                    ¿Olvidaste tu contraseña?
+                    Olvidaste tu contrasena?
                   </Link>
                 </div>
 
-                {/* Submit - BOTÓN ACTUALIZADO */}
                 <button
                   type="submit"
                   disabled={pending}
-                  className="inline-flex w-full items-center justify-center rounded-lg bg-white px-4 py-3 text-sm font-semibold border border-red-500 text-red-500 shadow-sm transition-all hover:bg-red-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex w-full items-center justify-center rounded-lg border border-red-500 bg-white px-4 py-3 text-sm font-semibold text-red-500 shadow-sm transition-all hover:bg-red-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {pending ? (
                     <>
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-red-500 border-t-transparent mr-2" />
-                      Iniciando Sesión...
+                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-red-500 border-t-transparent" />
+                      Iniciando sesion...
                     </>
                   ) : (
-                    'Iniciar Sesión'
+                    'Iniciar sesion'
                   )}
                 </button>
 
-                {/* Divider */}
                 <div className="flex items-center gap-4 text-xs text-gray-400">
                   <div className="h-px w-full bg-gray-200" />
                   <span>o</span>
@@ -168,11 +173,10 @@ export default function LoginForm() {
                   onClick={() => {
                     const apiUrl = process.env.NEXT_PUBLIC_API_URL;
                     if (!apiUrl) {
-                      console.error("Falta NEXT_PUBLIC_API_URL");
+                      console.error('Falta NEXT_PUBLIC_API_URL');
                       return;
                     }
                     window.location.href = `${apiUrl}/auth/google`;
-                    // => http://localhost:3000/api/auth/google
                   }}
                   className="flex w-full items-center justify-center gap-3 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-100"
                 >
@@ -180,32 +184,35 @@ export default function LoginForm() {
                   Continuar con Google
                 </button>
 
-
-
-                {/* Registro */}
                 <p className="text-center text-sm text-gray-600">
-                  ¿No tienes una cuenta?{' '}
+                  No tienes una cuenta?{' '}
                   <Link
                     href="/auth/register"
-                    className="font-medium text-red-600 underline underline-offset-2 hover:text-red-700 transition-colors"
+                    className="font-medium text-red-600 underline underline-offset-2 transition-colors hover:text-red-700"
                   >
-                    Regístrate aquí
+                    Registrate aqui
                   </Link>
                 </p>
               </div>
             </form>
           </div>
 
-          {/* Nota legal */}
           <div className="mt-6 text-center text-xs text-gray-600">
-            Al iniciar sesión, aceptas nuestros{' '}
-            <Link href="/terms" className="text-red-600 hover:underline hover:text-red-700 transition-colors">
-              Términos de servicio
+            Al iniciar sesion, aceptas nuestros{' '}
+            <Link
+              href="/terms"
+              className="text-red-600 transition-colors hover:text-red-700 hover:underline"
+            >
+              Terminos de servicio
             </Link>{' '}
             y{' '}
-            <Link href="/privacy" className="text-red-600 hover:underline hover:text-red-700 transition-colors">
-              Política de privacidad
-            </Link>.
+            <Link
+              href="/privacy"
+              className="text-red-600 transition-colors hover:text-red-700 hover:underline"
+            >
+              Politica de privacidad
+            </Link>
+            .
           </div>
         </div>
       </div>

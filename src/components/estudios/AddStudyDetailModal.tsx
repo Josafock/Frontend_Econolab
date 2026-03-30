@@ -13,7 +13,7 @@ import { toast } from "react-toastify";
 import type {
   CreateStudyDetailPayload,
   StudyDetail,
-} from "@/actions/studies/studiesActions";
+} from "@/features/studies/api/studies";
 import {
   Modal,
   ModalBody,

@@ -1,7 +1,7 @@
 import type {
   CreatePatientPayload,
   Patient,
-} from "@/actions/patients/patientsActions";
+} from "@/features/patients/api/patients";
 
 export type PatientFormValues = {
   nombre: string;

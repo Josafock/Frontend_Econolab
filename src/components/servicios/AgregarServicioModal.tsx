@@ -21,14 +21,14 @@ import {
   createPatient,
   type CreatePatientPayload,
   type Patient,
-} from "@/actions/patients/patientsActions";
-import { getSuggestedServiceFolio } from "@/actions/services/servicesActions";
-import type { Study } from "@/actions/studies/studiesActions";
+} from "@/features/patients/api/patients";
 import {
   createDoctor,
   type CreateDoctorPayload,
   type Doctor,
-} from "@/actions/doctors/doctorsActions";
+} from "@/features/doctors/api/doctors";
+import { getSuggestedServiceFolio } from "@/features/services/api/services";
+import type { Study } from "@/features/studies/api/studies";
 import AppModal from "@/components/ui/AppModal";
 import { matchesNormalizedSearch, normalizeSearchText } from "@/helpers/search";
 import {

@@ -11,14 +11,17 @@ import {
 import type {
   StudyResult,
   StudyResultValue,
-} from "@/actions/results/resultsActions";
-import { updateStudyResult } from "@/actions/results/resultsActions";
-import type { StudyDetail } from "@/actions/studies/studiesActions";
+  UpdateStudyResultPayload,
+} from "@/features/results/api/results";
+import { updateStudyResult } from "@/features/results/api/results";
+import type { StudyDetail } from "@/features/studies/api/studies";
 import {
   formatDateTime,
   toApiDateTime,
   toDateTimeLocalInput,
 } from "@/helpers/date";
+import { useOffline } from "@/lib/offline/network-state";
+import { enqueueSyncItem } from "@/lib/offline/sync-queue";
 import { toast } from "react-toastify";
 
 type ServiceResultEditorProps = {
@@ -63,6 +66,33 @@ function mapResultValues(values: StudyResultValue[]): ResultFormValue[] {
     }));
 }
 
+function applyLocalResultUpdate(
+  currentResult: StudyResult,
+  payload: UpdateStudyResultPayload,
+): StudyResult {
+  return {
+    ...currentResult,
+    sampleAt: payload.sampleAt ?? currentResult.sampleAt,
+    reportedAt: payload.reportedAt ?? currentResult.reportedAt,
+    method: payload.method ?? currentResult.method,
+    observations: payload.observations ?? currentResult.observations,
+    isDraft: payload.isDraft ?? currentResult.isDraft,
+    values:
+      payload.values?.map((value, index) => ({
+        id: currentResult.values[index]?.id ?? -(Date.now() + index),
+        studyResultId: currentResult.id,
+        studyDetailId: value.studyDetailId ?? null,
+        label: value.label,
+        unit: value.unit ?? null,
+        referenceValue: value.referenceValue ?? null,
+        value: value.value ?? null,
+        sortOrder: value.sortOrder,
+        visible: value.visible,
+      })) ?? currentResult.values,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 export default function ServiceResultEditor({
   serviceId,
   serviceItem,
@@ -72,6 +102,7 @@ export default function ServiceResultEditor({
   onOpenPdfOptions,
   onSaved,
 }: ServiceResultEditorProps) {
+  const { isOnline } = useOffline();
   const [result, setResult] = useState(initialResult);
   const [sampleAt, setSampleAt] = useState(
     toDateTimeLocalInput(initialResult.sampleAt),
@@ -147,7 +178,7 @@ export default function ServiceResultEditor({
   const saveResult = async (mode: "draft" | "final") => {
     setSavingMode(mode);
 
-    const payload = {
+    const payload: UpdateStudyResultPayload = {
       serviceOrderId: serviceId,
       serviceOrderItemId: serviceItem.id,
       sampleAt: toApiDateTime(sampleAt),
@@ -170,6 +201,27 @@ export default function ServiceResultEditor({
         visible: value.visible,
       })),
     };
+
+    if (!isOnline) {
+      enqueueSyncItem({
+        scope: "results",
+        entityType: "study-result",
+        entityId: result.id,
+        operation: "update",
+        payload,
+      });
+
+      const nextResult = applyLocalResultUpdate(result, payload);
+      setResult(nextResult);
+      onSaved(nextResult);
+      toast.success(
+        mode === "final"
+          ? "Resultado guardado localmente y pendiente de sincronizacion."
+          : "Borrador guardado localmente.",
+      );
+      setSavingMode(null);
+      return;
+    }
 
     const response = await updateStudyResult(result.id, payload);
 

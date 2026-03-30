@@ -6,7 +6,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useTransition,
   type ChangeEvent,
   type FocusEvent,
 } from "react";
@@ -29,7 +28,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-toastify";
 import {
   createStudyDetail,
+  getStudyById,
   getStudyDetails,
+  getStudies,
   getSuggestedStudyCode,
   removeStudy,
   removeStudyDetail,
@@ -39,10 +40,11 @@ import {
   updateStudyStatus,
   type Study,
   type StudyDetail,
-} from "@/actions/studies/studiesActions";
+} from "@/features/studies/api/studies";
 import StudyFormFields from "@/components/estudios/StudyFormFields";
 import CatalogExcelModal from "@/components/ui/CatalogExcelModal";
 import { useConfirmDialog } from "@/components/ui/ConfirmDialogProvider";
+import { DetailPageSkeleton } from "@/components/ui/PageSkeletons";
 import {
   createEmptyStudyForm,
   createTouchedStudyForm,
@@ -143,33 +145,26 @@ const studyDetailExcelColumns: ExcelColumn<StudyDetailExcelRow>[] = [
 
 type StudyDetailClientProps = {
   studyId: number;
-  initialStudy: Study | null;
-  initialDetails: StudyDetail[];
-  initialAvailableStudies: Study[];
-  initialError?: string | null;
   initialIsEditing?: boolean;
 };
 
 export default function StudyDetailClient({
   studyId,
-  initialStudy,
-  initialDetails,
-  initialAvailableStudies,
-  initialError = null,
   initialIsEditing = false,
 }: StudyDetailClientProps) {
   const confirm = useConfirmDialog();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [isRefreshing, startRefreshTransition] = useTransition();
+  const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const [error, setError] = useState(initialError ?? "");
-  const [study, setStudy] = useState<Study | null>(initialStudy);
-  const [details, setDetails] = useState<StudyDetail[]>(initialDetails);
+  const [error, setError] = useState("");
+  const [study, setStudy] = useState<Study | null>(null);
+  const [details, setDetails] = useState<StudyDetail[]>([]);
   const entityLabel = study?.type === "package" ? "paquete" : "estudio";
 
   const [formData, setFormData] = useState<StudyFormValues>(
-    initialStudy ? mapStudyToForm(initialStudy) : createEmptyStudyForm(),
+    createEmptyStudyForm(),
   );
   const [useAutoCode, setUseAutoCode] = useState(false);
   const [touched, setTouched] = useState<StudyFormTouched>({});
@@ -188,12 +183,8 @@ export default function StudyDetailClient({
   const [creatingDetailType, setCreatingDetailType] = useState<
     "category" | "parameter" | null
   >(null);
-  const [availableStudies, setAvailableStudies] = useState<Study[]>(
-    initialAvailableStudies,
-  );
-  const [packageStudyIds, setPackageStudyIds] = useState<number[]>(
-    initialStudy?.packageStudyIds ?? [],
-  );
+  const [availableStudies, setAvailableStudies] = useState<Study[]>([]);
+  const [packageStudyIds, setPackageStudyIds] = useState<number[]>([]);
   const [packageStudySearch, setPackageStudySearch] = useState("");
   const [savingPackageStudies, setSavingPackageStudies] = useState(false);
   const detailImportCategoryMapRef = useRef<Map<string, number>>(new Map());
@@ -301,25 +292,158 @@ export default function StudyDetailClient({
     setIsEditing(searchParams.get("modo") === "editar");
   }, [searchParams]);
 
-  useEffect(() => {
-    setError(initialError ?? "");
-    setStudy(initialStudy);
-    setDetails(initialDetails);
-    setAvailableStudies(initialAvailableStudies);
-    setPackageStudyIds(initialStudy?.packageStudyIds ?? []);
-    setPackageStudySearch("");
-    setFormData(
-      initialStudy ? mapStudyToForm(initialStudy) : createEmptyStudyForm(),
-    );
-    setUseAutoCode(false);
-    setTouched({});
-  }, [initialAvailableStudies, initialDetails, initialError, initialStudy]);
+  const refreshStudyBundle = async (options?: {
+    silent?: boolean;
+    preserveForm?: boolean;
+  }) => {
+    setIsRefreshing(true);
 
-  const refreshRoute = () => {
-    startRefreshTransition(() => {
-      router.refresh();
-    });
+    const [studyResponse, detailsResponse, studiesCatalogResponse] =
+      await Promise.all([
+        getStudyById(studyId),
+        getStudyDetails(studyId),
+        getStudies({ limit: 500, type: "study" }),
+      ]);
+
+    setIsRefreshing(false);
+
+    if (!studyResponse.ok) {
+      const nextError =
+        studyResponse.errors[0] ?? "No se pudo cargar el estudio.";
+      setError(nextError);
+      setStudy(null);
+      if (!options?.silent) {
+        toast.error(nextError);
+      }
+      setLoading(false);
+      return false;
+    }
+
+    if (!detailsResponse.ok) {
+      const nextError =
+        detailsResponse.errors[0] ??
+        "No se pudo cargar la configuracion del estudio.";
+      setError(nextError);
+      if (!options?.silent) {
+        toast.error(nextError);
+      }
+      setLoading(false);
+      return false;
+    }
+
+    if (!studiesCatalogResponse.ok) {
+      const nextError =
+        studiesCatalogResponse.errors[0] ??
+        "No se pudo cargar el catalogo de estudios.";
+      setError(nextError);
+      if (!options?.silent) {
+        toast.error(nextError);
+      }
+      setLoading(false);
+      return false;
+    }
+
+    const nextStudy = studyResponse.data;
+    const nextDetails = detailsResponse.data;
+    const nextAvailableStudies = studiesCatalogResponse.data.data.filter(
+      (candidate) => candidate.id !== nextStudy.id,
+    );
+
+    setError("");
+    setStudy(nextStudy);
+    setDetails(nextDetails);
+    setAvailableStudies(nextAvailableStudies);
+    setPackageStudyIds(nextStudy.packageStudyIds ?? []);
+    setPackageStudySearch("");
+
+    if (!options?.preserveForm) {
+      setFormData(mapStudyToForm(nextStudy));
+      setUseAutoCode(false);
+      setTouched({});
+    }
+
+    setLoading(false);
+    return true;
   };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const bootstrap = async () => {
+      if (!Number.isInteger(studyId) || studyId < 1) {
+        if (!cancelled) {
+          setError("ID de estudio invalido.");
+          setLoading(false);
+        }
+        return;
+      }
+
+      setLoading(true);
+      setIsRefreshing(true);
+
+      const [studyResponse, detailsResponse, studiesCatalogResponse] =
+        await Promise.all([
+          getStudyById(studyId),
+          getStudyDetails(studyId),
+          getStudies({ limit: 500, type: "study" }),
+        ]);
+
+      if (cancelled) {
+        return;
+      }
+
+      setIsRefreshing(false);
+
+      if (!studyResponse.ok) {
+        setError(studyResponse.errors[0] ?? "No se pudo cargar el estudio.");
+        setStudy(null);
+        setLoading(false);
+        return;
+      }
+
+      if (!detailsResponse.ok) {
+        setError(
+          detailsResponse.errors[0] ??
+            "No se pudo cargar la configuracion del estudio.",
+        );
+        setStudy(null);
+        setLoading(false);
+        return;
+      }
+
+      if (!studiesCatalogResponse.ok) {
+        setError(
+          studiesCatalogResponse.errors[0] ??
+            "No se pudo cargar el catalogo de estudios.",
+        );
+        setStudy(null);
+        setLoading(false);
+        return;
+      }
+
+      const nextStudy = studyResponse.data;
+      setError("");
+      setStudy(nextStudy);
+      setDetails(detailsResponse.data);
+      setAvailableStudies(
+        studiesCatalogResponse.data.data.filter(
+          (candidate) => candidate.id !== nextStudy.id,
+        ),
+      );
+      setPackageStudyIds(nextStudy.packageStudyIds ?? []);
+      setPackageStudySearch("");
+      setFormData(mapStudyToForm(nextStudy));
+      setUseAutoCode(false);
+      setTouched({});
+      setLoading(false);
+    };
+
+    void bootstrap();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [studyId]);
 
   const refreshDetails = async (silent = false) => {
     const response = await getStudyDetails(studyId);
@@ -589,7 +713,7 @@ export default function StudyDetailClient({
     setPackageStudyIds(response.data.data.packageStudyIds ?? []);
     toast.success("Contenido del paquete actualizado con exito.");
     setSavingPackageStudies(false);
-    refreshRoute();
+    await refreshStudyBundle({ silent: true, preserveForm: true });
   };
 
   const handleSaveStudy = async () => {
@@ -624,7 +748,7 @@ export default function StudyDetailClient({
     toast.success("Estudio actualizado con exito.");
     router.replace(`/estudios/detalle/${study.id}`);
     setSavingStudy(false);
-    refreshRoute();
+    await refreshStudyBundle({ silent: true });
   };
 
   const handleToggleStatus = async () => {
@@ -648,7 +772,7 @@ export default function StudyDetailClient({
       nextStatus === "active" ? "Estudio reactivado." : "Estudio suspendido.",
     );
     setUpdatingStatus(false);
-    refreshRoute();
+    await refreshStudyBundle({ silent: true });
   };
 
   const handleDeleteStudy = async () => {
@@ -797,6 +921,14 @@ export default function StudyDetailClient({
       },
     ];
   };
+
+  if (loading) {
+    return (
+      <div className="p-4 sm:p-6 lg:p-8">
+        <DetailPageSkeleton sections={3} />
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">

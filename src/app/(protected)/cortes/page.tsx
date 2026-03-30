@@ -27,9 +27,14 @@ import {
   type DailyCutServiceSnapshot,
   type DailyCutsOverviewResponse,
   type HistoryDashboardResponse,
-} from "@/actions/history/historyActions";
+} from "@/features/history/api/history";
 import { useConfirmDialog } from "@/components/ui/ConfirmDialogProvider";
 import { formatDate, formatDateTime } from "@/helpers/date";
+import { useOffline } from "@/lib/offline/network-state";
+import {
+  readOfflineSnapshot,
+  writeOfflineSnapshot,
+} from "@/lib/offline/offline-store";
 
 function getTodayInputValue() {
   const formatter = new Intl.DateTimeFormat("en-CA", {
@@ -148,6 +153,14 @@ function formatStudySummaryForCard(summary?: string | null) {
     .map((segment) => segment.trim())
     .filter(Boolean)
     .join(" • ");
+}
+
+function buildCutsOverviewSnapshotKey(fromDate: string, toDate: string) {
+  return `cuts:overview:${fromDate}:${toDate}`;
+}
+
+function buildCutsDetailSnapshotKey(date: string, mode: "saved" | "live") {
+  return `cuts:detail:${date}:${mode}`;
 }
 
 function buildExecutiveSummaryRows(
@@ -421,6 +434,7 @@ function LoadingDetail() {
 export default function CortesPage() {
   const confirm = useConfirmDialog();
   const hasLoadedOverviewRef = useRef(false);
+  const { isOnline, pendingCount } = useOffline();
   const today = getTodayInputValue();
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
@@ -435,6 +449,23 @@ export default function CortesPage() {
   const [savingCut, setSavingCut] = useState(false);
   const [exportingCut, setExportingCut] = useState(false);
   const [deletingCutId, setDeletingCutId] = useState<number | null>(null);
+  const [overviewDataSource, setOverviewDataSource] = useState<
+    "live" | "snapshot"
+  >("live");
+  const [detailDataSource, setDetailDataSource] = useState<
+    "live" | "snapshot"
+  >("live");
+  const [overviewSnapshotUpdatedAt, setOverviewSnapshotUpdatedAt] = useState<
+    number | null
+  >(null);
+  const [detailSnapshotUpdatedAt, setDetailSnapshotUpdatedAt] = useState<
+    number | null
+  >(null);
+
+  const overviewSnapshotKey = useMemo(
+    () => buildCutsOverviewSnapshotKey(fromDate, toDate),
+    [fromDate, toDate],
+  );
 
   const selectedDayOverview = useMemo(
     () => overview?.days.find((day) => day.date === selectedDate) ?? null,
@@ -443,6 +474,14 @@ export default function CortesPage() {
   const selectedDateIndicator = useMemo(
     () => getCutDayIndicator(selectedDate),
     [selectedDate],
+  );
+  const detailSnapshotKey = useMemo(
+    () =>
+      buildCutsDetailSnapshotKey(
+        selectedDate,
+        selectedDayOverview?.isSaved ? "saved" : "live",
+      ),
+    [selectedDate, selectedDayOverview?.isSaved],
   );
 
   const handleApplyPreset = useCallback(
@@ -486,15 +525,66 @@ export default function CortesPage() {
         setLoadingOverview(true);
       }
 
+      const cachedOverview =
+        readOfflineSnapshot<DailyCutsOverviewResponse>(overviewSnapshotKey);
+
+      if (!isOnline) {
+        if (cachedOverview) {
+          setOverview(cachedOverview.value);
+          setOverviewDataSource("snapshot");
+          setOverviewSnapshotUpdatedAt(cachedOverview.updatedAt);
+          setSelectedDate((current) => {
+            if (
+              current >= cachedOverview.value.fromDate &&
+              current <= cachedOverview.value.toDate
+            ) {
+              return current;
+            }
+
+            return (
+              cachedOverview.value.days[0]?.date ?? cachedOverview.value.toDate
+            );
+          });
+          hasLoadedOverviewRef.current = true;
+        } else if (!options?.background) {
+          setOverview(null);
+          toast.error(
+            "No hay conexion y tampoco existe un resumen guardado para este periodo.",
+          );
+        }
+
+        setLoadingOverview(false);
+        setRefreshing(false);
+        return;
+      }
+
       const response = await getDailyCutsOverview({
         fromDate,
         toDate,
       });
 
       if (!response.ok) {
-        toast.error(response.errors[0] ?? "No se pudieron cargar los cortes.");
-        if (!options?.background) {
-          setOverview(null);
+        if (cachedOverview) {
+          setOverview(cachedOverview.value);
+          setOverviewDataSource("snapshot");
+          setOverviewSnapshotUpdatedAt(cachedOverview.updatedAt);
+          setSelectedDate((current) => {
+            if (
+              current >= cachedOverview.value.fromDate &&
+              current <= cachedOverview.value.toDate
+            ) {
+              return current;
+            }
+
+            return (
+              cachedOverview.value.days[0]?.date ?? cachedOverview.value.toDate
+            );
+          });
+        } else {
+          toast.error(response.errors[0] ?? "No se pudieron cargar los cortes.");
+          if (!options?.background) {
+            setOverview(null);
+          }
         }
         setLoadingOverview(false);
         setRefreshing(false);
@@ -502,6 +592,12 @@ export default function CortesPage() {
       }
 
       setOverview(response.data);
+      const storedSnapshot = writeOfflineSnapshot(
+        overviewSnapshotKey,
+        response.data,
+      );
+      setOverviewDataSource("live");
+      setOverviewSnapshotUpdatedAt(storedSnapshot.updatedAt);
       setSelectedDate((current) => {
         if (current >= response.data.fromDate && current <= response.data.toDate) {
           return current;
@@ -513,7 +609,7 @@ export default function CortesPage() {
       setLoadingOverview(false);
       setRefreshing(false);
     },
-    [fromDate, toDate],
+    [fromDate, isOnline, overviewSnapshotKey, toDate],
   );
 
   useEffect(() => {
@@ -525,37 +621,85 @@ export default function CortesPage() {
 
     setLoadingDetail(true);
 
+    const cachedDetail = readOfflineSnapshot<CutDetailView>(detailSnapshotKey);
+
+    if (!isOnline) {
+      if (cachedDetail) {
+        setDetail(cachedDetail.value);
+        setDetailDataSource("snapshot");
+        setDetailSnapshotUpdatedAt(cachedDetail.updatedAt);
+      } else {
+        setDetail(null);
+        toast.error(
+          "No hay conexion y tampoco existe un detalle guardado para este dia.",
+        );
+      }
+      setLoadingDetail(false);
+      return;
+    }
+
     if (selectedDayOverview?.isSaved && selectedDayOverview.savedCutId) {
       const response = await getDailyCutById(selectedDayOverview.savedCutId);
       if (!response.ok) {
-        toast.error(response.errors[0] ?? "No se pudo cargar el corte guardado.");
-        setDetail(null);
+        if (cachedDetail) {
+          setDetail(cachedDetail.value);
+          setDetailDataSource("snapshot");
+          setDetailSnapshotUpdatedAt(cachedDetail.updatedAt);
+        } else {
+          toast.error(
+            response.errors[0] ?? "No se pudo cargar el corte guardado.",
+          );
+          setDetail(null);
+        }
         setLoadingDetail(false);
         return;
       }
 
-      setDetail(buildDetailFromSavedCut(response.data));
+      const nextDetail = buildDetailFromSavedCut(response.data);
+      setDetail(nextDetail);
+      const storedSnapshot = writeOfflineSnapshot(detailSnapshotKey, nextDetail);
+      setDetailDataSource("live");
+      setDetailSnapshotUpdatedAt(storedSnapshot.updatedAt);
       setLoadingDetail(false);
       return;
     }
 
     const response = await getHistoryDashboard({ date: selectedDate });
     if (!response.ok) {
-      toast.error(response.errors[0] ?? "No se pudo cargar el dia seleccionado.");
-      setDetail(null);
+      if (cachedDetail) {
+        setDetail(cachedDetail.value);
+        setDetailDataSource("snapshot");
+        setDetailSnapshotUpdatedAt(cachedDetail.updatedAt);
+      } else {
+        toast.error(
+          response.errors[0] ?? "No se pudo cargar el dia seleccionado.",
+        );
+        setDetail(null);
+      }
       setLoadingDetail(false);
       return;
     }
 
-    setDetail(buildDetailFromDashboard(selectedDate, response.data));
+    const nextDetail = buildDetailFromDashboard(selectedDate, response.data);
+    setDetail(nextDetail);
+    const storedSnapshot = writeOfflineSnapshot(detailSnapshotKey, nextDetail);
+    setDetailDataSource("live");
+    setDetailSnapshotUpdatedAt(storedSnapshot.updatedAt);
     setLoadingDetail(false);
-  }, [selectedDate, selectedDayOverview]);
+  }, [detailSnapshotKey, isOnline, selectedDate, selectedDayOverview]);
 
   useEffect(() => {
     void loadDetail();
   }, [loadDetail]);
 
   const handleSaveCut = async () => {
+    if (!isOnline) {
+      toast.info(
+        "Guardar cortes sin conexion quedara disponible cuando activemos la sincronizacion.",
+      );
+      return;
+    }
+
     setSavingCut(true);
     const response = await generateDailyCut(selectedDate);
 
@@ -572,6 +716,13 @@ export default function CortesPage() {
 
   const handleDeleteCut = async () => {
     if (!detail?.cutId) return;
+
+    if (!isOnline) {
+      toast.info(
+        "Eliminar cortes sin conexion quedara disponible cuando activemos la sincronizacion.",
+      );
+      return;
+    }
 
     const confirmed = await confirm({
       title: "Eliminar corte guardado",
@@ -602,6 +753,11 @@ export default function CortesPage() {
       return;
     }
 
+    if (!isOnline) {
+      toast.info("La exportacion de cortes requiere conexion por ahora.");
+      return;
+    }
+
     setExportingCut(true);
     const response = await getDailyCutById(detail.cutId);
 
@@ -624,6 +780,10 @@ export default function CortesPage() {
   const rangeLabel = getRangeLabel(fromDate, toDate);
   const detailStatusLabel =
     detail?.source === "saved" ? "Corte guardado" : "Consulta del dia";
+  const activeSnapshotUpdatedAt =
+    detailDataSource === "snapshot"
+      ? detailSnapshotUpdatedAt
+      : overviewSnapshotUpdatedAt;
 
   return (
     <div className="min-w-0">
@@ -662,6 +822,36 @@ export default function CortesPage() {
           </button>
         </div>
       </div>
+
+      {!isOnline ||
+      overviewDataSource === "snapshot" ||
+      detailDataSource === "snapshot" ? (
+        <div className="mb-4 rounded-[1.5rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
+              <span className="font-semibold">
+                {overviewDataSource === "snapshot" ||
+                detailDataSource === "snapshot"
+                  ? "Mostrando informacion guardada localmente."
+                  : "Sin conexion detectada."}
+              </span>
+            </div>
+            <span className="text-xs font-medium text-amber-800">
+              {activeSnapshotUpdatedAt
+                ? `Ultima copia local: ${formatDateTime(
+                    new Date(activeSnapshotUpdatedAt).toISOString(),
+                  )}`
+                : "Aun no hay copia local para este corte o periodo."}
+            </span>
+          </div>
+          {pendingCount > 0 ? (
+            <p className="mt-2 text-xs text-amber-800">
+              Operaciones pendientes en cola: {pendingCount}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="app-panel-surface mb-6 overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm">
         <div className="bg-gradient-to-r from-white via-emerald-50/70 to-white p-6">
@@ -766,6 +956,29 @@ export default function CortesPage() {
           tone="bg-violet-100 text-violet-700"
           icon={<Wallet className="h-5 w-5" />}
         />
+      </div>
+
+      <div className="mb-6 flex flex-wrap gap-2">
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+            overviewDataSource === "snapshot"
+              ? "bg-amber-100 text-amber-800"
+              : "bg-emerald-100 text-emerald-700"
+          }`}
+        >
+          Resumen:{" "}
+          {overviewDataSource === "snapshot" ? "copia local" : "conexion activa"}
+        </span>
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+            detailDataSource === "snapshot"
+              ? "bg-amber-100 text-amber-800"
+              : "bg-sky-100 text-sky-700"
+          }`}
+        >
+          Detalle:{" "}
+          {detailDataSource === "snapshot" ? "copia local" : "conexion activa"}
+        </span>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[0.95fr_1.25fr]">
@@ -918,7 +1131,7 @@ export default function CortesPage() {
                     type="button"
                     onClick={() => void handleSaveCut()}
                     className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-600/20 transition-all hover:bg-emerald-700 disabled:opacity-50 sm:w-auto"
-                    disabled={savingCut || deletingCutId !== null}
+                    disabled={savingCut || deletingCutId !== null || !isOnline}
                   >
                     {savingCut ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -932,7 +1145,7 @@ export default function CortesPage() {
                     type="button"
                     onClick={() => void handleExportCut()}
                     className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50 sm:w-auto"
-                    disabled={!detail.cutId || exportingCut || savingCut}
+                    disabled={!detail.cutId || exportingCut || savingCut || !isOnline}
                   >
                     {exportingCut ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -947,7 +1160,7 @@ export default function CortesPage() {
                       type="button"
                       onClick={() => void handleDeleteCut()}
                       className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-100 disabled:opacity-50 sm:w-auto"
-                      disabled={deletingCutId !== null || savingCut}
+                      disabled={deletingCutId !== null || savingCut || !isOnline}
                     >
                       {deletingCutId === detail.cutId ? (
                         <Loader2 className="h-4 w-4 animate-spin" />

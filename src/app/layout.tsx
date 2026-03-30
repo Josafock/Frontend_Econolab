@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Questrial } from "next/font/google";
+import Providers from "@/app/providers";
 import "./globals.css";
 
 const questrial = Questrial({
@@ -21,7 +22,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={`${questrial.className} min-h-screen bg-slate-100 text-gray-900 antialiased`}>
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

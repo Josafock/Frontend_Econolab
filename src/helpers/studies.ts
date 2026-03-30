@@ -4,7 +4,7 @@ import type {
   StudyDetailDataType,
   StudyStatus,
   StudyType,
-} from "@/actions/studies/studiesActions";
+} from "@/features/studies/api/studies";
 
 export function formatStudyDuration(minutes?: number | null): string {
   const totalMinutes = Math.max(0, Number(minutes ?? 0));
