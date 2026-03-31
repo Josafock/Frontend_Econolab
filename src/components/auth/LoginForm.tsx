@@ -7,10 +7,14 @@ import { Eye, EyeOff, Lock, User } from 'lucide-react';
 import { FcGoogle } from 'react-icons/fc';
 import { toast } from 'react-toastify';
 import { useAuth } from '@/lib/auth/use-auth';
+import { useOffline } from '@/lib/offline/network-state';
+import { getRuntimeConfig } from '@/lib/runtime/runtime-config';
 
 export default function LoginForm() {
   const router = useRouter();
   const { login } = useAuth();
+  const { hasInternetConnection } = useOffline();
+  const runtime = getRuntimeConfig();
   const [pending, setPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -162,27 +166,37 @@ export default function LoginForm() {
                   )}
                 </button>
 
-                <div className="flex items-center gap-4 text-xs text-gray-400">
-                  <div className="h-px w-full bg-gray-200" />
-                  <span>o</span>
-                  <div className="h-px w-full bg-gray-200" />
-                </div>
+                {!runtime.isDesktop ? (
+                  <>
+                    <div className="flex items-center gap-4 text-xs text-gray-400">
+                      <div className="h-px w-full bg-gray-200" />
+                      <span>o</span>
+                      <div className="h-px w-full bg-gray-200" />
+                    </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-                    if (!apiUrl) {
-                      console.error('Falta NEXT_PUBLIC_API_URL');
-                      return;
-                    }
-                    window.location.href = `${apiUrl}/auth/google`;
-                  }}
-                  className="flex w-full items-center justify-center gap-3 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-100"
-                >
-                  <FcGoogle className="h-5 w-5" />
-                  Continuar con Google
-                </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!hasInternetConnection) {
+                          toast.info('Google Auth requiere conexion a internet.');
+                          return;
+                        }
+
+                        const apiUrl = runtime.apiBaseUrl;
+                        if (!apiUrl) {
+                          console.error('Falta la URL de la API para iniciar Google Auth');
+                          return;
+                        }
+                        window.location.href = `${apiUrl}/auth/google`;
+                      }}
+                      disabled={!hasInternetConnection}
+                      className="flex w-full items-center justify-center gap-3 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <FcGoogle className="h-5 w-5" />
+                      Continuar con Google
+                    </button>
+                  </>
+                ) : null}
 
                 <p className="text-center text-sm text-gray-600">
                   No tienes una cuenta?{' '}

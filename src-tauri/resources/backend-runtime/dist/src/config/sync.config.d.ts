@@ -1,0 +1,42 @@
+export declare function getSyncRuntimeConfig(env?: NodeJS.ProcessEnv): {
+    outboxEnabled: boolean;
+    defaultOrigin: string;
+    outboxBatchSize: number;
+    retryDelaySeconds: number;
+    machineAuthEnabled: boolean;
+    machineHeaderName: string;
+    machineToken: string | undefined;
+    remoteBaseUrl: string | undefined;
+    remoteTimeoutMs: number;
+    autoEnabled: boolean;
+    autoIntervalSeconds: number;
+    bootstrapBatchSize: number;
+};
+export type SyncRuntimeConfig = ReturnType<typeof getSyncRuntimeConfig>;
+export declare const syncConfig: (() => {
+    outboxEnabled: boolean;
+    defaultOrigin: string;
+    outboxBatchSize: number;
+    retryDelaySeconds: number;
+    machineAuthEnabled: boolean;
+    machineHeaderName: string;
+    machineToken: string | undefined;
+    remoteBaseUrl: string | undefined;
+    remoteTimeoutMs: number;
+    autoEnabled: boolean;
+    autoIntervalSeconds: number;
+    bootstrapBatchSize: number;
+}) & import("@nestjs/config").ConfigFactoryKeyHost<{
+    outboxEnabled: boolean;
+    defaultOrigin: string;
+    outboxBatchSize: number;
+    retryDelaySeconds: number;
+    machineAuthEnabled: boolean;
+    machineHeaderName: string;
+    machineToken: string | undefined;
+    remoteBaseUrl: string | undefined;
+    remoteTimeoutMs: number;
+    autoEnabled: boolean;
+    autoIntervalSeconds: number;
+    bootstrapBatchSize: number;
+}>;

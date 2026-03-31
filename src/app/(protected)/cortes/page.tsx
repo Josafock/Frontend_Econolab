@@ -29,8 +29,10 @@ import {
   type HistoryDashboardResponse,
 } from "@/features/history/api/history";
 import { useConfirmDialog } from "@/components/ui/ConfirmDialogProvider";
+import ConnectionStatusBanner from "@/components/ui/ConnectionStatusBanner";
 import { formatDate, formatDateTime } from "@/helpers/date";
 import { useOffline } from "@/lib/offline/network-state";
+import { buildServiceDetailHref } from "@/lib/routes/detail-routes";
 import {
   readOfflineSnapshot,
   writeOfflineSnapshot,
@@ -695,7 +697,7 @@ export default function CortesPage() {
   const handleSaveCut = async () => {
     if (!isOnline) {
       toast.info(
-        "Guardar cortes sin conexion quedara disponible cuando activemos la sincronizacion.",
+        "No se puede guardar el corte sin backend activo. Si estas en desktop, revisa que el backend local siga levantado.",
       );
       return;
     }
@@ -719,7 +721,7 @@ export default function CortesPage() {
 
     if (!isOnline) {
       toast.info(
-        "Eliminar cortes sin conexion quedara disponible cuando activemos la sincronizacion.",
+        "No se puede eliminar el corte sin backend activo. Si estas en desktop, revisa que el backend local siga levantado.",
       );
       return;
     }
@@ -754,7 +756,9 @@ export default function CortesPage() {
     }
 
     if (!isOnline) {
-      toast.info("La exportacion de cortes requiere conexion por ahora.");
+      toast.info(
+        "La exportacion del corte requiere que el backend este disponible.",
+      );
       return;
     }
 
@@ -767,9 +771,9 @@ export default function CortesPage() {
       return;
     }
 
-    const { downloadWorkbook } = await import("@/helpers/excel");
-    downloadWorkbook(
-      `corte-dia-${response.data.closingDate}.xlsx`,
+    const { downloadCsvFromSheets } = await import("@/helpers/excel");
+    await downloadCsvFromSheets(
+      `corte-dia-${response.data.closingDate}.csv`,
       buildDailyCutWorkbook(response.data),
     );
 
@@ -823,35 +827,15 @@ export default function CortesPage() {
         </div>
       </div>
 
-      {!isOnline ||
-      overviewDataSource === "snapshot" ||
-      detailDataSource === "snapshot" ? (
-        <div className="mb-4 rounded-[1.5rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
-              <span className="font-semibold">
-                {overviewDataSource === "snapshot" ||
-                detailDataSource === "snapshot"
-                  ? "Mostrando informacion guardada localmente."
-                  : "Sin conexion detectada."}
-              </span>
-            </div>
-            <span className="text-xs font-medium text-amber-800">
-              {activeSnapshotUpdatedAt
-                ? `Ultima copia local: ${formatDateTime(
-                    new Date(activeSnapshotUpdatedAt).toISOString(),
-                  )}`
-                : "Aun no hay copia local para este corte o periodo."}
-            </span>
-          </div>
-          {pendingCount > 0 ? (
-            <p className="mt-2 text-xs text-amber-800">
-              Operaciones pendientes en cola: {pendingCount}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
+      <ConnectionStatusBanner
+        showSnapshot={
+          overviewDataSource === "snapshot" || detailDataSource === "snapshot"
+        }
+        snapshotMessage="Mostrando informacion guardada localmente."
+        emptySnapshotMessage="No hay conexion con el backend y aun no existe una copia local para este corte o periodo."
+        snapshotUpdatedAt={activeSnapshotUpdatedAt}
+        pendingCount={pendingCount}
+      />
 
       <div className="app-panel-surface mb-6 overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm">
         <div className="bg-gradient-to-r from-white via-emerald-50/70 to-white p-6">
@@ -967,7 +951,7 @@ export default function CortesPage() {
           }`}
         >
           Resumen:{" "}
-          {overviewDataSource === "snapshot" ? "copia local" : "conexion activa"}
+          {overviewDataSource === "snapshot" ? "copia local" : "backend activo"}
         </span>
         <span
           className={`rounded-full px-3 py-1 text-xs font-semibold ${
@@ -977,7 +961,7 @@ export default function CortesPage() {
           }`}
         >
           Detalle:{" "}
-          {detailDataSource === "snapshot" ? "copia local" : "conexion activa"}
+          {detailDataSource === "snapshot" ? "copia local" : "backend activo"}
         </span>
       </div>
 
@@ -1264,7 +1248,7 @@ export default function CortesPage() {
                           {detail.servicesSnapshot.map((service) => (
                             <Link
                               key={`${service.serviceId}-${service.folio}`}
-                              href={`/servicios/detalle/${service.serviceId}`}
+                              href={buildServiceDetailHref(service.serviceId)}
                               className="block rounded-2xl border border-gray-200 bg-gray-50 p-4 transition-colors hover:border-emerald-200 hover:bg-emerald-50/50"
                             >
                               <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">

@@ -1,0 +1,41 @@
+import type { TypeOrmModuleOptions } from '@nestjs/typeorm';
+import type { DataSourceOptions } from 'typeorm';
+export type SupportedDatabaseType = 'postgres' | 'sqlite';
+export declare function getDatabaseRuntimeConfig(env?: NodeJS.ProcessEnv): {
+    type: SupportedDatabaseType;
+    host: string | undefined;
+    port: number;
+    username: string | undefined;
+    password: string | undefined;
+    name: string | undefined;
+    ssl: boolean;
+    logging: boolean;
+    synchronize: boolean;
+    sqlitePath: string;
+};
+export type DatabaseRuntimeConfig = ReturnType<typeof getDatabaseRuntimeConfig>;
+export declare const databaseConfig: (() => {
+    type: SupportedDatabaseType;
+    host: string | undefined;
+    port: number;
+    username: string | undefined;
+    password: string | undefined;
+    name: string | undefined;
+    ssl: boolean;
+    logging: boolean;
+    synchronize: boolean;
+    sqlitePath: string;
+}) & import("@nestjs/config").ConfigFactoryKeyHost<{
+    type: SupportedDatabaseType;
+    host: string | undefined;
+    port: number;
+    username: string | undefined;
+    password: string | undefined;
+    name: string | undefined;
+    ssl: boolean;
+    logging: boolean;
+    synchronize: boolean;
+    sqlitePath: string;
+}>;
+export declare function buildTypeOrmModuleOptions(database: DatabaseRuntimeConfig): TypeOrmModuleOptions;
+export declare function buildTypeOrmDataSourceOptions(database: DatabaseRuntimeConfig, entities: string[], migrations: string[]): DataSourceOptions;

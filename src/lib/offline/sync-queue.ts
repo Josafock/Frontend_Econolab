@@ -148,6 +148,20 @@ export function clearSyncQueue(): void {
   writeQueue([]);
 }
 
+export function clearFailedSyncQueueItems(): void {
+  writeQueue(readQueue().filter((item) => item.status !== "failed"));
+}
+
 export function getPendingSyncQueueItems(): SyncQueueItem[] {
-  return readQueue().filter((item) => item.status === "pending" || item.status === "failed");
+  return readQueue().filter((item) => item.status === "pending");
+}
+
+export function getFailedSyncQueueItems(): SyncQueueItem[] {
+  return readQueue().filter((item) => item.status === "failed");
+}
+
+export function getRetryableSyncQueueItems(): SyncQueueItem[] {
+  return readQueue().filter(
+    (item) => item.status === "pending" || item.status === "failed",
+  );
 }

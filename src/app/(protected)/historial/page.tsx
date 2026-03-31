@@ -18,10 +18,12 @@ import {
   getHistoryDashboard,
   type HistoryDashboardResponse,
 } from "@/features/history/api/history";
+import ConnectionStatusBanner from "@/components/ui/ConnectionStatusBanner";
 import TablePagination from "@/components/ui/TablePagination";
 import { formatDate, formatDateTime } from "@/helpers/date";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useOffline } from "@/lib/offline/network-state";
+import { buildServiceDetailHref } from "@/lib/routes/detail-routes";
 import {
   readOfflineSnapshot,
   writeOfflineSnapshot,
@@ -458,7 +460,7 @@ export default function HistorialPage() {
       return;
     }
 
-    const { downloadWorkbook } = await import("@/helpers/excel");
+    const { downloadCsvFromSheets } = await import("@/helpers/excel");
 
     setExportProgress({
       label: "Preparando historial del periodo...",
@@ -472,8 +474,8 @@ export default function HistorialPage() {
     });
     await wait(80);
 
-    downloadWorkbook(
-      `historial-${getRangeFileLabel(dateFrom, dateTo)}.xlsx`,
+    await downloadCsvFromSheets(
+      `historial-${getRangeFileLabel(dateFrom, dateTo)}.csv`,
       buildHistoryWorkbook(dateFrom, dateTo, dashboard),
     );
 
@@ -544,32 +546,13 @@ export default function HistorialPage() {
         </div>
       ) : null}
 
-      {!isOnline || dataSource === "snapshot" ? (
-        <div className="mb-4 rounded-[1.5rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
-              <span className="font-semibold">
-                {dataSource === "snapshot"
-                  ? "Mostrando historial guardado localmente."
-                  : "Sin conexion detectada."}
-              </span>
-            </div>
-            <span className="text-xs font-medium text-amber-800">
-              {snapshotUpdatedAt
-                ? `Ultima copia local: ${formatDateTime(
-                    new Date(snapshotUpdatedAt).toISOString(),
-                  )}`
-                : "Aun no hay copia local para este rango."}
-            </span>
-          </div>
-          {pendingCount > 0 ? (
-            <p className="mt-2 text-xs text-amber-800">
-              Operaciones pendientes en cola: {pendingCount}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
+      <ConnectionStatusBanner
+        showSnapshot={dataSource === "snapshot"}
+        snapshotMessage="Mostrando historial guardado localmente."
+        emptySnapshotMessage="No hay conexion con el backend y aun no existe una copia local para este rango."
+        snapshotUpdatedAt={snapshotUpdatedAt}
+        pendingCount={pendingCount}
+      />
 
       <div className="app-panel-surface mb-4 overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm">
         <div className="bg-gradient-to-r from-white via-emerald-50/70 to-white p-6">
@@ -665,7 +648,7 @@ export default function HistorialPage() {
               : "bg-emerald-100 text-emerald-700"
           }`}
         >
-          Fuente: {dataSource === "snapshot" ? "copia local" : "conexion activa"}
+          Fuente: {dataSource === "snapshot" ? "copia local" : "backend activo"}
         </span>
       </div>
 
@@ -875,7 +858,7 @@ export default function HistorialPage() {
                           </div>
                           <div className="text-right">
                             <Link
-                              href={`/servicios/detalle/${service.id}`}
+                              href={buildServiceDetailHref(service.id)}
                               className="inline-flex items-center rounded-xl border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50"
                             >
                               Ver
@@ -926,7 +909,7 @@ export default function HistorialPage() {
                             {service.sucursal}
                           </p>
                           <Link
-                            href={`/servicios/detalle/${service.id}`}
+                            href={buildServiceDetailHref(service.id)}
                             className="inline-flex items-center rounded-xl border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50"
                           >
                             Ver detalle

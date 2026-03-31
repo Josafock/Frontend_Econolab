@@ -40,6 +40,7 @@ import {
   type PatientFormValues,
 } from "@/components/pacientes/patientFormUtils";
 import { useHashSectionScroll } from "@/hooks/useHashSectionScroll";
+import { buildPatientDetailHref } from "@/lib/routes/detail-routes";
 
 type PatientDetailClientProps = {
   patientId: number;
@@ -172,7 +173,10 @@ export default function PatientDetailClient({
   const handleStartEdit = () => {
     setIsEditing(true);
     router.replace(
-      `/pacientes/detalle/${patientId}?modo=editar#expediente-completo`,
+      buildPatientDetailHref(patientId, {
+        mode: "editar",
+        hash: "expediente-completo",
+      }),
     );
   };
 
@@ -200,7 +204,7 @@ export default function PatientDetailClient({
     setTouched({});
     setIsEditing(false);
     toast.success("Paciente actualizado con exito.");
-    router.replace(`/pacientes/detalle/${patient.id}`);
+    router.replace(buildPatientDetailHref(patient.id));
     await refreshPatient();
   };
 
@@ -230,7 +234,7 @@ export default function PatientDetailClient({
     }
     setTouched({});
     setIsEditing(false);
-    router.replace(`/pacientes/detalle/${patientId}`);
+    router.replace(buildPatientDetailHref(patientId));
   };
 
   if (loading) {

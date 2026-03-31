@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { appFileService } from '@/lib/files/file-service';
 
 export type ExcelColumnOption = {
   label: string;
@@ -23,6 +24,8 @@ export type ExcelSheet = {
   rows: Array<Record<string, string | number | null | undefined>>;
   widths?: number[];
 };
+
+const CSV_CONTENT_TYPE = 'text/csv;charset=utf-8;';
 
 function normalizeHeader(value: string): string {
   return value
@@ -109,10 +112,13 @@ export async function readExcelRows<Row extends Record<string, string>>(
     .filter((row) => Object.values(row).some((value) => value.trim().length > 0));
 }
 
-export function downloadWorkbook(
+const XLSX_CONTENT_TYPE =
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+export async function downloadWorkbook(
   filename: string,
   sheets: ExcelSheet[],
-) {
+): Promise<void> {
   const workbook = XLSX.utils.book_new();
 
   for (const sheet of sheets) {
@@ -120,7 +126,72 @@ export function downloadWorkbook(
     XLSX.utils.book_append_sheet(workbook, worksheet, clampSheetName(sheet.name));
   }
 
-  XLSX.writeFile(workbook, filename);
+  const buffer = XLSX.write(workbook, {
+    bookType: 'xlsx',
+    type: 'array',
+  });
+
+  const blob = new Blob([buffer], { type: XLSX_CONTENT_TYPE });
+
+  await appFileService.download({
+    blob,
+    filename,
+    contentType: XLSX_CONTENT_TYPE,
+  });
+}
+
+function stringifyCsvValue(value: string | number | null | undefined) {
+  if (value == null) {
+    return '';
+  }
+
+  return String(value);
+}
+
+function buildCsvRowsFromSheets(sheets: ExcelSheet[]) {
+  const rows: Array<Array<string | number>> = [];
+
+  for (const sheet of sheets) {
+    rows.push([sheet.name]);
+
+    if (sheet.rows.length === 0) {
+      rows.push(['Sin datos']);
+      rows.push([]);
+      continue;
+    }
+
+    const headers = Array.from(
+      sheet.rows.reduce<Set<string>>((acc, row) => {
+        Object.keys(row).forEach((key) => acc.add(key));
+        return acc;
+      }, new Set<string>()),
+    );
+
+    rows.push(headers);
+
+    for (const row of sheet.rows) {
+      rows.push(headers.map((header) => stringifyCsvValue(row[header])));
+    }
+
+    rows.push([]);
+  }
+
+  return rows;
+}
+
+export async function downloadCsvFromSheets(
+  filename: string,
+  sheets: ExcelSheet[],
+): Promise<void> {
+  const worksheet = XLSX.utils.aoa_to_sheet(buildCsvRowsFromSheets(sheets));
+  const csv = `\ufeff${XLSX.utils.sheet_to_csv(worksheet)}`;
+  const blob = new Blob([csv], { type: CSV_CONTENT_TYPE });
+
+  await appFileService.download({
+    blob,
+    filename,
+    contentType: CSV_CONTENT_TYPE,
+  });
 }
 
 export function createTemplateSheets<Row extends Record<string, string>>(

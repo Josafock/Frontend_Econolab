@@ -1,0 +1,50 @@
+import { ConfigService } from '@nestjs/config';
+import { Repository } from 'typeorm';
+import { ServiceOrder, ServiceOrderItem } from '../services/entities/service-order.entity';
+import { StudyDetail } from '../studies/entities/study-detail.entity';
+import { StudyResult, StudyResultValue } from './entities/study-result.entity';
+import { CreateStudyResultDto } from './dto/create-study-result.dto';
+import { UpdateStudyResultDto } from './dto/update-study-result.dto';
+import { RuntimePolicyService } from '../runtime/runtime-policy.service';
+export declare class ResultsService {
+    private readonly resultRepo;
+    private readonly valueRepo;
+    private readonly serviceRepo;
+    private readonly itemRepo;
+    private readonly detailRepo;
+    private readonly configService;
+    private readonly runtimePolicy;
+    constructor(resultRepo: Repository<StudyResult>, valueRepo: Repository<StudyResultValue>, serviceRepo: Repository<ServiceOrder>, itemRepo: Repository<ServiceOrderItem>, detailRepo: Repository<StudyDetail>, configService: ConfigService, runtimePolicy: RuntimePolicyService);
+    private getLabRuntimeConfig;
+    private getLabResultsDocumentConfig;
+    private mapValueDtoToEntity;
+    private findStudyDetailById;
+    private mapValueDtosToEntities;
+    private getResultValueIdentityKey;
+    private reconcileResultValues;
+    private findActiveResultByServiceItem;
+    private buildQrBuffer;
+    private formatDocumentDate;
+    private formatGenderLabel;
+    private displayText;
+    private formatBirthDateLabel;
+    private normalizePdfOptions;
+    private groupResultValues;
+    private drawResultTableHeader;
+    private drawResultGroupTitle;
+    private getStudyDetailsMap;
+    private buildPdfBufferWithOptions;
+    private buildServicePdfBufferWithOptions;
+    getOrCreateDraftByServiceItem(serviceOrderItemId: number): Promise<StudyResult>;
+    findOne(id: number): Promise<StudyResult>;
+    generatePdf(id: number, rawOptions?: Record<string, string | string[] | undefined>): Promise<Buffer<ArrayBufferLike>>;
+    generateServicePdf(serviceOrderId: number, rawOptions?: Record<string, string | string[] | undefined>): Promise<Buffer<ArrayBufferLike>>;
+    create(dto: CreateStudyResultDto): Promise<StudyResult>;
+    update(id: number, dto: UpdateStudyResultDto): Promise<StudyResult>;
+    softDelete(id: number): Promise<{
+        message: string;
+    }>;
+    hardDelete(id: number): Promise<{
+        message: string;
+    }>;
+}

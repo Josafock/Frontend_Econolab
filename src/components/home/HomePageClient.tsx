@@ -5,17 +5,23 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   Activity,
+  AlertTriangle,
   ArrowRight,
   BarChart3,
   CheckCircle2,
+  Database,
+  RefreshCw,
   ShieldAlert,
   Sparkles,
   TrendingDown,
   TrendingUp,
+  Unplug,
   UserCheck,
   Users,
   Wallet,
+  Wifi,
 } from 'lucide-react';
+import { toast } from 'react-toastify';
 import {
   getUnassignedUsers,
   getUsersWithRole,
@@ -30,6 +36,8 @@ import {
 import AdminControlCenter from '@/components/home/AdminControlCenter';
 import { formatDate, formatDateTime } from '@/helpers/date';
 import { useAuth } from '@/lib/auth/use-auth';
+import { useOffline } from '@/lib/offline/network-state';
+import { buildServiceDetailHref } from '@/lib/routes/detail-routes';
 
 function isDateInput(value?: string | null): value is string {
   return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
@@ -105,9 +113,173 @@ function LoadingState() {
   );
 }
 
+function getLastSyncError(lastRunResult: Record<string, unknown> | null) {
+  if (!lastRunResult || lastRunResult.status !== 'failed') {
+    return null;
+  }
+
+  return (
+    (typeof lastRunResult.message === 'string' && lastRunResult.message) ||
+    (typeof (lastRunResult.push as { error?: unknown } | undefined)?.error ===
+      'string' &&
+      (lastRunResult.push as { error?: string }).error) ||
+    (typeof (lastRunResult.pull as { error?: unknown } | undefined)?.error ===
+      'string' &&
+      (lastRunResult.pull as { error?: string }).error) ||
+    null
+  );
+}
+
+function DesktopSyncCard() {
+  const {
+    isDesktop,
+    hasBackendConnection,
+    hasInternetConnection,
+    pendingCount,
+    failedCount,
+    localPendingCount,
+    localFailedCount,
+    backendPendingCount,
+    backendFailedCount,
+    backendSyncStatus,
+    runBackendSync,
+    refreshSyncState,
+  } = useOffline();
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  if (!isDesktop) {
+    return null;
+  }
+
+  const lastRunAt = backendSyncStatus?.lastRunAt
+    ? new Date(backendSyncStatus.lastRunAt).toLocaleString('es-MX')
+    : null;
+  const lastSyncError = getLastSyncError(backendSyncStatus?.lastRunResult ?? null);
+
+  const statusTone = hasBackendConnection
+    ? hasInternetConnection
+      ? {
+          icon: <Wifi className="h-5 w-5 text-emerald-700" />,
+          badge: 'bg-emerald-100 text-emerald-700',
+          label: 'Backend local y central accesibles',
+          hint: 'Puedes seguir trabajando y sincronizar normalmente.',
+        }
+      : {
+          icon: <Unplug className="h-5 w-5 text-sky-700" />,
+          badge: 'bg-sky-100 text-sky-700',
+          label: 'Modo local activo',
+          hint: 'La app sigue trabajando en SQLite local aunque no haya internet.',
+        }
+    : {
+        icon: <AlertTriangle className="h-5 w-5 text-amber-700" />,
+        badge: 'bg-amber-100 text-amber-700',
+        label: 'Backend local no disponible',
+        hint: 'Revisa que la app local haya levantado correctamente el backend.',
+      };
+
+  const handleSyncNow = async () => {
+    setIsSyncing(true);
+    const result = await runBackendSync();
+    await refreshSyncState();
+    setIsSyncing(false);
+
+    if (!result.ok) {
+      toast.error(result.errors[0] ?? 'No se pudo completar la sincronizacion.');
+      return;
+    }
+
+    toast.success('Sincronizacion ejecutada.');
+  };
+
+  return (
+    <section className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-slate-600">
+            <Database className="h-3.5 w-3.5 text-red-600" />
+            Sync desktop
+          </div>
+          <div className="mt-4 flex items-center gap-3">
+            {statusTone.icon}
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900">
+                {statusTone.label}
+              </h2>
+              <p className="mt-1 text-sm text-slate-600">{statusTone.hint}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <span
+            className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusTone.badge}`}
+          >
+            {backendSyncStatus?.autoEnabled
+              ? `Auto-sync cada ${backendSyncStatus.autoIntervalSeconds}s`
+              : 'Sync manual'}
+          </span>
+          <button
+            type="button"
+            onClick={() => void handleSyncNow()}
+            disabled={!hasBackendConnection || isSyncing}
+            className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-700 transition-colors hover:bg-sky-100 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+            {isSyncing ? 'Sincronizando...' : 'Sincronizar ahora'}
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Pendientes</p>
+          <p className="mt-2 text-2xl font-semibold text-slate-900">{pendingCount}</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Local {localPendingCount} · Backend {backendPendingCount}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-xs uppercase tracking-[0.18em] text-amber-700">Fallidos</p>
+          <p className="mt-2 text-2xl font-semibold text-amber-900">{failedCount}</p>
+          <p className="mt-1 text-xs text-amber-800">
+            Local {localFailedCount} · Backend {backendFailedCount}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Ultimo intento</p>
+          <p className="mt-2 text-sm font-semibold text-slate-900">
+            {lastRunAt ?? 'Sin intentos aun'}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Runner {backendSyncStatus?.running ? 'ocupado' : 'disponible'}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Destino central</p>
+          <p className="mt-2 text-sm font-semibold text-slate-900">
+            {backendSyncStatus?.remoteBaseUrlConfigured ? 'Configurado' : 'Sin configurar'}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            {hasInternetConnection ? 'Internet detectado' : 'Sin internet general'}
+          </p>
+        </div>
+      </div>
+
+      {lastSyncError ? (
+        <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+          <p className="font-semibold">Ultimo error de sincronizacion</p>
+          <p className="mt-1">{lastSyncError}</p>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function ReceptionistHome() {
   return (
     <div className="space-y-8">
+      <DesktopSyncCard />
+
       <section className="app-panel-surface overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm">
         <div className="grid gap-6 p-6 lg:grid-cols-[1.1fr_0.9fr]">
           <div>
@@ -217,18 +389,18 @@ export default function HomePageClient() {
     let cancelled = false;
     setPageLoading(true);
     setDashboardError(null);
+    setAdminRoleError(null);
+    const overviewPromise = getDashboardOverview({
+      range: requestedRange,
+      role: requestedRole,
+      startDate: requestedStartDate,
+      endDate: requestedEndDate,
+    });
+    const pendingPromise = getUnassignedUsers();
+    const withRolePromise = getUsersWithRole();
 
     void (async () => {
-      const [overviewResponse, pendingResponse, withRoleResponse] = await Promise.all([
-        getDashboardOverview({
-          range: requestedRange,
-          role: requestedRole,
-          startDate: requestedStartDate,
-          endDate: requestedEndDate,
-        }),
-        getUnassignedUsers(),
-        getUsersWithRole(),
-      ]);
+      const overviewResponse = await overviewPromise;
 
       if (cancelled) return;
 
@@ -243,6 +415,14 @@ export default function HomePageClient() {
       }
 
       setOverview(overviewResponse.data);
+      setPageLoading(false);
+
+      const [pendingResponse, withRoleResponse] = await Promise.all([
+        pendingPromise,
+        withRolePromise,
+      ]);
+
+      if (cancelled) return;
 
       const nextErrors: string[] = [];
       if (!pendingResponse.ok) {
@@ -260,7 +440,6 @@ export default function HomePageClient() {
       }
 
       setAdminRoleError(nextErrors.join(' ') || null);
-      setPageLoading(false);
     })();
 
     return () => {
@@ -312,6 +491,8 @@ export default function HomePageClient() {
 
   return (
     <div className="space-y-8">
+      <DesktopSyncCard />
+
       <section className="app-panel-surface overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm">
         <div className="grid gap-6 p-6 xl:grid-cols-[1.15fr_0.85fr]">
           <div>
@@ -454,7 +635,7 @@ export default function HomePageClient() {
                 overview.operations.latestCompletedServices.map((service) => (
                   <Link
                     key={service.id}
-                    href={`/servicios/detalle/${service.id}`}
+                    href={buildServiceDetailHref(service.id)}
                     className="block rounded-2xl border border-gray-200 bg-gray-50 px-4 py-4 transition-colors hover:bg-white"
                   >
                     <div className="flex items-start justify-between gap-3">

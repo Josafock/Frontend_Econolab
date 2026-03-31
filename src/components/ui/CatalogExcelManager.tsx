@@ -147,7 +147,7 @@ export default function CatalogExcelManager<Row extends Record<string, string>>(
     });
     await wait(60);
 
-    downloadWorkbook(
+    await downloadWorkbook(
       templateFileName,
       createTemplateSheets(columns, createEmptyRow, templateSheetName),
     );
@@ -195,7 +195,7 @@ export default function CatalogExcelManager<Row extends Record<string, string>>(
     });
     await wait(60);
 
-    downloadWorkbook(exportFileName, [
+    await downloadWorkbook(exportFileName, [
       {
         name: exportSheetName,
         rows: exportedRows,

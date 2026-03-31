@@ -2,7 +2,7 @@
 
 import { authStore } from "@/lib/auth/auth-store";
 import {
-  getPendingSyncQueueItems,
+  getRetryableSyncQueueItems,
   markSyncQueueItemFailed,
   markSyncQueueItemProcessing,
   removeSyncQueueItem,
@@ -108,7 +108,7 @@ export async function processSyncQueue(): Promise<void> {
   isSyncRunning = true;
 
   try {
-    const pendingItems = getPendingSyncQueueItems();
+    const pendingItems = getRetryableSyncQueueItems();
 
     for (const item of pendingItems) {
       markSyncQueueItemProcessing(item.id);

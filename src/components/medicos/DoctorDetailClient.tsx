@@ -38,6 +38,7 @@ import {
   type DoctorFormValues,
 } from "@/components/medicos/doctorFormUtils";
 import { useHashSectionScroll } from "@/hooks/useHashSectionScroll";
+import { buildDoctorDetailHref } from "@/lib/routes/detail-routes";
 
 type DoctorDetailClientProps = {
   doctorId: number;
@@ -154,7 +155,12 @@ export default function DoctorDetailClient({
 
   const handleStartEdit = () => {
     setIsEditing(true);
-    router.replace(`/medicos/detalle/${doctorId}?modo=editar#perfil-completo`);
+    router.replace(
+      buildDoctorDetailHref(doctorId, {
+        mode: "editar",
+        hash: "perfil-completo",
+      }),
+    );
   };
 
   const handleSave = async () => {
@@ -181,7 +187,7 @@ export default function DoctorDetailClient({
     setTouched({});
     setIsEditing(false);
     toast.success("Medico actualizado con exito.");
-    router.replace(`/medicos/detalle/${doctor.id}`);
+    router.replace(buildDoctorDetailHref(doctor.id));
     await refreshDoctor();
   };
 
@@ -209,7 +215,7 @@ export default function DoctorDetailClient({
     }
     setTouched({});
     setIsEditing(false);
-    router.replace(`/medicos/detalle/${doctorId}`);
+    router.replace(buildDoctorDetailHref(doctorId));
   };
 
   if (loading) {

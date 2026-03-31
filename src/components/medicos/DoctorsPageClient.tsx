@@ -19,6 +19,7 @@ import {
   User,
 } from "lucide-react";
 import { toast } from "react-toastify";
+import { buildDoctorDetailHref } from "@/lib/routes/detail-routes";
 import {
   createDoctor,
   getDoctors,
@@ -500,8 +501,8 @@ export default function DoctorsPageClient() {
                     <EntityActionsMenu
                       buttonLabel="Acciones"
                       items={[
-                        { label: "Ver detalle", href: `/medicos/detalle/${medico.id}#resumen-perfil`, icon: <Eye size={16} /> },
-                        { label: "Editar medico", href: `/medicos/detalle/${medico.id}?modo=editar#perfil-completo`, icon: <PencilLine size={16} /> },
+                        { label: "Ver detalle", href: buildDoctorDetailHref(medico.id, { hash: "resumen-perfil" }), icon: <Eye size={16} /> },
+                        { label: "Editar medico", href: buildDoctorDetailHref(medico.id, { mode: "editar", hash: "perfil-completo" }), icon: <PencilLine size={16} /> },
                         {
                           label: medico.isActive ? "Suspender medico" : "Reactivar medico",
                           onClick: () => void handleToggleDoctorStatus(medico),
@@ -562,8 +563,8 @@ export default function DoctorsPageClient() {
                   <EntityActionsMenu
                     buttonLabel="Acciones"
                     items={[
-                      { label: "Ver detalle", href: `/medicos/detalle/${medico.id}#resumen-perfil`, icon: <Eye size={16} /> },
-                      { label: "Editar medico", href: `/medicos/detalle/${medico.id}?modo=editar#perfil-completo`, icon: <PencilLine size={16} /> },
+                      { label: "Ver detalle", href: buildDoctorDetailHref(medico.id, { hash: "resumen-perfil" }), icon: <Eye size={16} /> },
+                      { label: "Editar medico", href: buildDoctorDetailHref(medico.id, { mode: "editar", hash: "perfil-completo" }), icon: <PencilLine size={16} /> },
                       {
                         label: medico.isActive ? "Suspender medico" : "Reactivar medico",
                         onClick: () => void handleToggleDoctorStatus(medico),

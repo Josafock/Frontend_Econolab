@@ -38,7 +38,14 @@ function safeWrite<T>(key: string, value: T): void {
     return;
   }
 
-  window.localStorage.setItem(key, JSON.stringify(value));
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.warn(
+      `[offline-store] No se pudo persistir la clave "${key}" en almacenamiento local.`,
+      error,
+    );
+  }
 }
 
 export function readOfflineRecord<T>(key: string): OfflineRecord<T> | null {

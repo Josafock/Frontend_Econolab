@@ -5,8 +5,15 @@
   "scripts": {
     "dev": "next dev -p 5173",
     "build": "next build",
+    "build:desktop": "node scripts/next-build-desktop.mjs",
+    "prepare:backend:runtime": "node scripts/prepare-backend-runtime.mjs",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "tauri": "node scripts/tauri-cli.mjs",
+    "tauri:info": "npm run tauri -- info",
+    "tauri:dev": "npm run tauri -- dev",
+    "tauri:dev:auto": "node scripts/tauri-dev-auto.mjs",
+    "tauri:build": "npm run tauri -- build"
   },
   "dependencies": {
     "@chakra-ui/pin-input": "^2.1.0",
@@ -27,6 +34,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
+    "@tauri-apps/cli": "^2.10.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

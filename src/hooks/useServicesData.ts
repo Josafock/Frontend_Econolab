@@ -25,6 +25,11 @@ import {
   readOfflineSnapshot,
   writeOfflineSnapshot,
 } from '@/lib/offline/offline-store';
+import {
+  buildLocalServiceDetailSnapshotKey,
+  isLocalServiceId,
+  mergeLocalServiceCreatePayload,
+} from '@/features/services/offline/local-service-sync';
 import { enqueueSyncItem } from '@/lib/offline/sync-queue';
 import {
   SYNC_QUEUE_EVENT,
@@ -171,49 +176,68 @@ function matchesServiceFilters(
     .includes(normalizedSearch);
 }
 
-function buildOfflineServiceTotal(
-  payload: CreateServicePayload,
-  studies: Study[],
-): number {
-  const subtotal = payload.items.reduce((acc, item) => {
-    const study = studies.find((candidate) => candidate.id === item.studyId);
-    if (!study) {
-      return acc;
-    }
-
-    const unitPrice = getStudyPriceByType(study, item.priceType);
-    const baseAmount = unitPrice * item.quantity;
-    const discountAmount = baseAmount * ((item.discountPercent ?? 0) / 100);
-    return acc + (baseAmount - discountAmount);
-  }, 0);
-
-  const courtesyPercent = Number(payload.courtesyPercent ?? 0);
-  const courtesyAmount = subtotal * (courtesyPercent / 100);
-  return Math.max(subtotal - courtesyAmount, 0);
-}
-
-function buildOfflineStudySummary(
-  payload: CreateServicePayload,
-  studies: Study[],
-): string {
-  return payload.items
-    .map((item) => {
-      const study = studies.find((candidate) => candidate.id === item.studyId);
-      return study?.name ?? `Estudio ${item.studyId}`;
-    })
-    .join(' | ');
-}
-
 function createOfflineUiService(
+  service: ServiceOrder,
+): UiService {
+  return {
+    id: service.id,
+    folio: service.folio,
+    estudio: summarizeServiceStudies(service) || 'Sin estudios',
+    paciente: service.patient
+      ? `${service.patient.firstName} ${service.patient.lastName} ${service.patient.middleName ?? ''}`.trim()
+      : 'Paciente local',
+    telefono: service.patient?.phone ?? '-',
+    sucursal: service.branchName ?? 'Sin sucursal',
+    fechaCreacion: formatDateTime(service.createdAt),
+    fechaEntrega: formatDateTime(service.deliveryAt ?? service.completedAt),
+    fechaMuestra: formatDateTime(service.sampleAt),
+    costo: Number(service.totalAmount).toFixed(2),
+    status: service.status,
+    createdAtIso: service.createdAt,
+    deliveryAtIso: service.deliveryAt ?? service.completedAt ?? null,
+    syncState: 'pending',
+    localOnly: true,
+  };
+}
+
+function buildOfflineServiceOrder(
   payload: CreateServicePayload,
   catalogs: CatalogsState,
-): UiService {
+): ServiceOrder {
   const nowIso = new Date().toISOString();
-  const patient =
-    catalogs.patients.find((candidate) => candidate.id === payload.patientId) ?? null;
-  const totalAmount = buildOfflineServiceTotal(payload, catalogs.studies);
   const localId = -Date.now();
   const fallbackFolio = `LOCAL-${String(Math.abs(localId)).slice(-8)}`;
+  const patient =
+    catalogs.patients.find((candidate) => candidate.id === payload.patientId) ?? null;
+  const doctor =
+    payload.doctorId == null
+      ? null
+      : catalogs.doctors.find((candidate) => candidate.id === payload.doctorId) ?? null;
+  const items = payload.items.map((item, index) => {
+    const study = catalogs.studies.find((candidate) => candidate.id === item.studyId);
+    const unitPrice = study ? getStudyPriceByType(study, item.priceType) : 0;
+    const discountPercent = Number(item.discountPercent ?? 0);
+    const baseAmount = unitPrice * item.quantity;
+    const subtotalAmount = baseAmount - baseAmount * (discountPercent / 100);
+
+    return {
+      id: localId - index - 1,
+      studyId: item.studyId,
+      studyNameSnapshot: study?.name ?? `Estudio ${item.studyId}`,
+      sourcePackageId: study?.type === 'package' ? study.id : null,
+      sourcePackageNameSnapshot: study?.type === 'package' ? study.name : null,
+      priceType: item.priceType,
+      unitPrice,
+      quantity: item.quantity,
+      discountPercent,
+      subtotalAmount,
+    };
+  });
+
+  const subtotalAmount = items.reduce((acc, item) => acc + item.subtotalAmount, 0);
+  const courtesyPercent = Number(payload.courtesyPercent ?? 0);
+  const discountAmount = subtotalAmount * (courtesyPercent / 100);
+  const totalAmount = Math.max(subtotalAmount - discountAmount, 0);
 
   return {
     id: localId,
@@ -221,21 +245,37 @@ function createOfflineUiService(
       payload.autoGenerateFolio || !payload.folio.trim()
         ? fallbackFolio
         : payload.folio.trim().toUpperCase(),
-    estudio: buildOfflineStudySummary(payload, catalogs.studies) || 'Sin estudios',
-    paciente: patient
-      ? `${patient.firstName} ${patient.lastName} ${patient.middleName ?? ''}`.trim()
-      : 'Paciente local',
-    telefono: patient?.phone ?? '-',
-    sucursal: payload.branchName?.trim() || 'Sin sucursal',
-    fechaCreacion: formatDateTime(nowIso),
-    fechaEntrega: formatDateTime(payload.deliveryAt ?? null),
-    fechaMuestra: formatDateTime(payload.sampleAt ?? null),
-    costo: totalAmount.toFixed(2),
+    patientId: payload.patientId,
+    doctorId: payload.doctorId ?? null,
+    branchName: payload.branchName?.trim() || 'Sin sucursal',
+    sampleAt: payload.sampleAt ?? null,
+    deliveryAt: payload.deliveryAt ?? null,
+    completedAt: null,
     status: payload.status ?? 'pending',
-    createdAtIso: nowIso,
-    deliveryAtIso: payload.deliveryAt ?? null,
-    syncState: 'pending',
-    localOnly: true,
+    subtotalAmount,
+    courtesyPercent,
+    discountAmount,
+    totalAmount,
+    notes: payload.notes ?? null,
+    createdAt: nowIso,
+    patient: patient
+      ? {
+          id: patient.id,
+          firstName: patient.firstName,
+          lastName: patient.lastName,
+          middleName: patient.middleName ?? null,
+          phone: patient.phone ?? null,
+        }
+      : undefined,
+    doctor: doctor
+      ? {
+          id: doctor.id,
+          firstName: doctor.firstName,
+          lastName: doctor.lastName,
+          middleName: doctor.middleName ?? null,
+        }
+      : null,
+    items,
   };
 }
 
@@ -488,7 +528,8 @@ export function useServicesData(searchTerm: string, filters: ServicesFilters) {
       setSaving(true);
 
       if (!isOnline) {
-        const offlineService = createOfflineUiService(payload, catalogs);
+        const offlineServiceOrder = buildOfflineServiceOrder(payload, catalogs);
+        const offlineService = createOfflineUiService(offlineServiceOrder);
         const queuedItem = enqueueSyncItem({
           scope: 'services',
           entityType: 'service-order',
@@ -506,6 +547,11 @@ export function useServicesData(searchTerm: string, filters: ServicesFilters) {
 
         setServices(nextServices);
         persistServicesLocally(nextServices);
+        writeOfflineSnapshot(buildLocalServiceDetailSnapshotKey(offlineService.id), {
+          service: offlineServiceOrder,
+          resultDrafts: {},
+          studyDetailsMap: {},
+        });
         clearQueryCacheByPrefix(SERVICES_CACHE_PREFIX);
         setSaving(false);
         toast.success(
@@ -542,6 +588,36 @@ export function useServicesData(searchTerm: string, filters: ServicesFilters) {
   const saveServiceChanges = useCallback(
     async (serviceId: number, payload: UpdateServicePayload) => {
       setSaving(true);
+
+      if (isLocalServiceId(serviceId)) {
+        const merged = mergeLocalServiceCreatePayload(serviceId, payload);
+
+        if (!merged) {
+          toast.error(
+            'No se encontro el alta local pendiente para aplicar estos cambios.',
+          );
+          setSaving(false);
+          return false;
+        }
+
+        const nextServices = services.map((service) =>
+          service.id === serviceId
+            ? {
+                ...service,
+                folio: payload.folio?.trim().toUpperCase() || service.folio,
+                sucursal: payload.branchName?.trim() || service.sucursal,
+                status: payload.status ?? service.status,
+                syncState: 'pending' as const,
+              }
+            : service,
+        );
+
+        setServices(nextServices);
+        persistServicesLocally(nextServices);
+        setSaving(false);
+        toast.success('Cambios del servicio local actualizados antes de sincronizar.');
+        return true;
+      }
 
       if (!isOnline) {
         enqueueSyncItem({
@@ -612,17 +688,35 @@ export function useServicesData(searchTerm: string, filters: ServicesFilters) {
     async (serviceId: number, nextStatus: ServiceStatus) => {
       setUpdatingStatusId(serviceId);
 
-      if (!isOnline) {
-        const targetService = services.find((service) => service.id === serviceId);
+      if (isLocalServiceId(serviceId)) {
+        const merged = mergeLocalServiceCreatePayload(serviceId, {
+          status: nextStatus,
+        });
 
-        if (targetService?.localOnly) {
-          toast.info(
-            'Este servicio aun es local. Su estatus final se confirmara al sincronizarse.',
+        if (!merged) {
+          toast.error(
+            'No se encontro el alta local pendiente para actualizar el estatus.',
           );
           setUpdatingStatusId(null);
           return false;
         }
 
+        const nextServices = services.map((service) =>
+          service.id === serviceId
+            ? { ...service, status: nextStatus, syncState: 'pending' as const }
+            : service,
+        );
+
+        setServices(nextServices);
+        persistServicesLocally(nextServices);
+        toast.success(
+          `Estatus local actualizado a ${statusMessage(nextStatus)}. Se sincronizara junto con el alta.`,
+        );
+        setUpdatingStatusId(null);
+        return true;
+      }
+
+      if (!isOnline) {
         enqueueSyncItem({
           scope: 'services',
           entityType: 'service-order',

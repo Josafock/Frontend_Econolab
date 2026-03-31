@@ -17,6 +17,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "react-toastify";
+import { buildStudyDetailHref } from "@/lib/routes/detail-routes";
 import {
   createStudy,
   getStudies,
@@ -604,7 +605,7 @@ export default function StudiesPageClient() {
                       items={[
                         {
                           label: "Ver detalle",
-                          href: `/estudios/detalle/${study.id}#resumen-estudio`,
+                          href: buildStudyDetailHref(study.id, { hash: "resumen-estudio" }),
                           hint: "Disponible",
                           icon: <Eye size={16} />,
                         },
@@ -613,7 +614,7 @@ export default function StudiesPageClient() {
                             study.type === "package"
                               ? "Editar paquete"
                               : "Editar estudio",
-                          href: `/estudios/detalle/${study.id}?modo=editar#editar-estudio`,
+                          href: buildStudyDetailHref(study.id, { mode: "editar", hash: "editar-estudio" }),
                           hint: "Disponible",
                           icon: <PencilLine size={16} />,
                         },
@@ -624,8 +625,8 @@ export default function StudiesPageClient() {
                               : "Configurar estudio",
                           href:
                             study.type === "package"
-                              ? `/estudios/detalle/${study.id}#contenido-paquete`
-                              : `/estudios/detalle/${study.id}#plantilla-estudio`,
+                              ? buildStudyDetailHref(study.id, { hash: "contenido-paquete" })
+                              : buildStudyDetailHref(study.id, { hash: "plantilla-estudio" }),
                           hint: "Disponible",
                           icon: <FlaskConical size={16} />,
                         },
@@ -735,7 +736,7 @@ export default function StudiesPageClient() {
                     items={[
                       {
                         label: "Ver detalle",
-                        href: `/estudios/detalle/${study.id}#resumen-estudio`,
+                        href: buildStudyDetailHref(study.id, { hash: "resumen-estudio" }),
                         hint: "Disponible",
                         icon: <Eye size={16} />,
                       },
@@ -744,7 +745,7 @@ export default function StudiesPageClient() {
                           study.type === "package"
                             ? "Editar paquete"
                             : "Editar estudio",
-                        href: `/estudios/detalle/${study.id}?modo=editar#editar-estudio`,
+                        href: buildStudyDetailHref(study.id, { mode: "editar", hash: "editar-estudio" }),
                         hint: "Disponible",
                         icon: <PencilLine size={16} />,
                       },
@@ -755,8 +756,8 @@ export default function StudiesPageClient() {
                             : "Configurar estudio",
                         href:
                           study.type === "package"
-                            ? `/estudios/detalle/${study.id}#contenido-paquete`
-                            : `/estudios/detalle/${study.id}#plantilla-estudio`,
+                            ? buildStudyDetailHref(study.id, { hash: "contenido-paquete" })
+                            : buildStudyDetailHref(study.id, { hash: "plantilla-estudio" }),
                         hint: "Disponible",
                         icon: <FlaskConical size={16} />,
                       },

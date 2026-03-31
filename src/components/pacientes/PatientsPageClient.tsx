@@ -18,6 +18,7 @@ import {
   User,
 } from "lucide-react";
 import { toast } from "react-toastify";
+import { buildPatientDetailHref } from "@/lib/routes/detail-routes";
 import {
   createPatient,
   getPatients,
@@ -673,13 +674,13 @@ export default function PatientsPageClient() {
                       items={[
                         {
                           label: "Ver detalle",
-                          href: `/pacientes/detalle/${paciente.id}#resumen-expediente`,
+                          href: buildPatientDetailHref(paciente.id, { hash: "resumen-expediente" }),
                           hint: "Disponible",
                           icon: <Eye size={16} />,
                         },
                         {
                           label: "Editar paciente",
-                          href: `/pacientes/detalle/${paciente.id}?modo=editar#expediente-completo`,
+                          href: buildPatientDetailHref(paciente.id, { mode: "editar", hash: "expediente-completo" }),
                           hint: "Disponible",
                           icon: <PencilLine size={16} />,
                         },
@@ -788,13 +789,13 @@ export default function PatientsPageClient() {
                     items={[
                       {
                         label: "Ver detalle",
-                        href: `/pacientes/detalle/${paciente.id}#resumen-expediente`,
+                        href: buildPatientDetailHref(paciente.id, { hash: "resumen-expediente" }),
                         hint: "Disponible",
                         icon: <Eye size={16} />,
                       },
                       {
                         label: "Editar paciente",
-                        href: `/pacientes/detalle/${paciente.id}?modo=editar#expediente-completo`,
+                        href: buildPatientDetailHref(paciente.id, { mode: "editar", hash: "expediente-completo" }),
                         hint: "Disponible",
                         icon: <PencilLine size={16} />,
                       },

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { CollectionContentSkeleton } from "@/components/ui/PageSkeletons";
 import ResultsPdfOptionsModal from "@/components/servicios/ResultsPdfOptionsModal";
+import ConnectionStatusBanner from "@/components/ui/ConnectionStatusBanner";
 import EntityActionsMenu from "@/components/ui/EntityActionsMenu";
 import TablePagination from "@/components/ui/TablePagination";
 import { SERVICE_BRANCH_OPTIONS } from "@/components/servicios/serviceFormUtils";
@@ -30,7 +31,7 @@ import {
 } from "@/features/services/api/service-documents";
 import { appFileService } from "@/lib/files/file-service";
 import { useOffline } from "@/lib/offline/network-state";
-import { formatDateTime } from "@/helpers/date";
+import { buildServiceDetailHref } from "@/lib/routes/detail-routes";
 import { toast } from "react-toastify";
 
 const AddServiceModal = dynamic(
@@ -156,14 +157,14 @@ export default function ServiciosPage() {
   }) => [
     {
       label: "Ver detalle",
-      href: `/servicios/detalle/${service.id}#resumen-operativo`,
-      disabled: service.localOnly,
-      hint: service.localOnly ? "Pendiente de sincronizar" : "Disponible",
+        href: buildServiceDetailHref(service.id, { hash: "resumen-operativo" }),
+      disabled: false,
+      hint: service.localOnly ? "Detalle local" : "Disponible",
       icon: <Eye size={16} />,
     },
     {
       label: "Capturar resultados",
-      href: `/servicios/detalle/${service.id}#resultados`,
+        href: buildServiceDetailHref(service.id, { hash: "resultados" }),
       disabled: service.localOnly,
       hint: service.localOnly ? "Pendiente de sincronizar" : "Disponible",
       icon: <Activity size={16} />,
@@ -173,10 +174,9 @@ export default function ServiciosPage() {
       onClick: () => void changeServiceStatus(service.id, "in_progress"),
       disabled:
         service.status === "in_progress" ||
-        updatingStatusId === service.id ||
-        service.localOnly,
+        updatingStatusId === service.id,
       hint: service.localOnly
-        ? "Pendiente de sincronizar"
+        ? "Se aplicara al sincronizar"
         : updatingStatusId === service.id
           ? "Actualizando..."
           : isOnline
@@ -189,10 +189,9 @@ export default function ServiciosPage() {
       onClick: () => void changeServiceStatus(service.id, "completed"),
       disabled:
         service.status === "completed" ||
-        updatingStatusId === service.id ||
-        service.localOnly,
+        updatingStatusId === service.id,
       hint: service.localOnly
-        ? "Pendiente de sincronizar"
+        ? "Se aplicara al sincronizar"
         : updatingStatusId === service.id
           ? "Actualizando..."
           : isOnline
@@ -205,10 +204,9 @@ export default function ServiciosPage() {
       onClick: () => void changeServiceStatus(service.id, "delayed"),
       disabled:
         service.status === "delayed" ||
-        updatingStatusId === service.id ||
-        service.localOnly,
+        updatingStatusId === service.id,
       hint: service.localOnly
-        ? "Pendiente de sincronizar"
+        ? "Se aplicara al sincronizar"
         : updatingStatusId === service.id
           ? "Actualizando..."
           : isOnline
@@ -221,11 +219,10 @@ export default function ServiciosPage() {
       onClick: () => void changeServiceStatus(service.id, "cancelled"),
       disabled:
         service.status === "cancelled" ||
-        updatingStatusId === service.id ||
-        service.localOnly,
+        updatingStatusId === service.id,
       destructive: true,
       hint: service.localOnly
-        ? "Pendiente de sincronizar"
+        ? "Se aplicara al sincronizar"
         : updatingStatusId === service.id
           ? "Actualizando..."
           : isOnline
@@ -243,7 +240,7 @@ export default function ServiciosPage() {
         ),
       disabled: !isOnline || service.localOnly,
       hint: !isOnline
-        ? "Requiere conexion"
+        ? "Backend no disponible"
         : service.localOnly
           ? "Pendiente de sincronizar"
           : "PDF",
@@ -259,7 +256,7 @@ export default function ServiciosPage() {
         ),
       disabled: !isOnline || service.localOnly,
       hint: !isOnline
-        ? "Requiere conexion"
+        ? "Backend no disponible"
         : service.localOnly
           ? "Pendiente de sincronizar"
           : "PDF",
@@ -275,7 +272,7 @@ export default function ServiciosPage() {
         ),
       disabled: !isOnline || service.localOnly,
       hint: !isOnline
-        ? "Requiere conexion"
+        ? "Backend no disponible"
         : service.localOnly
           ? "Pendiente de sincronizar"
           : "PDF",
@@ -290,7 +287,7 @@ export default function ServiciosPage() {
         }),
       disabled: !isOnline || service.localOnly,
       hint: !isOnline
-        ? "Requiere conexion"
+        ? "Backend no disponible"
         : service.localOnly
           ? "Pendiente de sincronizar"
           : "PDF",
@@ -322,32 +319,13 @@ export default function ServiciosPage() {
         </button>
       </div>
 
-      {!isOnline || dataSource === "snapshot" ? (
-        <div className="mb-4 rounded-[1.5rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
-              <span className="font-semibold">
-                {dataSource === "snapshot"
-                  ? "Mostrando servicios guardados localmente."
-                  : "Sin conexion detectada."}
-              </span>
-            </div>
-            <span className="text-xs font-medium text-amber-800">
-              {snapshotUpdatedAt
-                ? `Ultima copia local: ${formatDateTime(
-                    new Date(snapshotUpdatedAt).toISOString(),
-                  )}`
-                : "Aun no hay copia local para este filtro."}
-            </span>
-          </div>
-          {pendingCount > 0 ? (
-            <p className="mt-2 text-xs text-amber-800">
-              Operaciones pendientes en cola: {pendingCount}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
+      <ConnectionStatusBanner
+        showSnapshot={dataSource === "snapshot"}
+        snapshotMessage="Mostrando servicios guardados localmente."
+        emptySnapshotMessage="No hay conexion con el backend y aun no existe una copia local para este filtro."
+        snapshotUpdatedAt={snapshotUpdatedAt}
+        pendingCount={pendingCount}
+      />
 
       <div className="app-panel-surface mb-6 overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-100 bg-gradient-to-r from-white via-red-50/60 to-white px-6 py-5">
@@ -533,7 +511,7 @@ export default function ServiciosPage() {
               : "bg-emerald-100 text-emerald-700"
           }`}
         >
-          Fuente: {dataSource === "snapshot" ? "copia local" : "conexion activa"}
+          Fuente: {dataSource === "snapshot" ? "copia local" : "backend activo"}
         </span>
         <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-700">
           Cola offline: {pendingCount}

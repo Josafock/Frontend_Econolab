@@ -77,6 +77,7 @@ import {
   sortStudyDetails,
 } from "@/helpers/studies";
 import { useHashSectionScroll } from "@/hooks/useHashSectionScroll";
+import { buildStudyDetailHref } from "@/lib/routes/detail-routes";
 
 const CatalogExcelManager = dynamic(
   () => import("@/components/ui/CatalogExcelManager"),
@@ -746,7 +747,7 @@ export default function StudyDetailClient({
     setTouched({});
     setIsEditing(false);
     toast.success("Estudio actualizado con exito.");
-    router.replace(`/estudios/detalle/${study.id}`);
+    router.replace(buildStudyDetailHref(study.id));
     setSavingStudy(false);
     await refreshStudyBundle({ silent: true });
   };
@@ -805,7 +806,7 @@ export default function StudyDetailClient({
     setUseAutoCode(false);
     setTouched({});
     setIsEditing(false);
-    router.replace(`/estudios/detalle/${studyId}`);
+    router.replace(buildStudyDetailHref(studyId));
   };
 
   const handleCreateDetail = async (
@@ -992,9 +993,12 @@ export default function StudyDetailClient({
                   type="button"
                   onClick={() => {
                     setIsEditing(true);
-                    router.replace(
-                      `/estudios/detalle/${studyId}?modo=editar#editar-estudio`,
-                    );
+                      router.replace(
+                        buildStudyDetailHref(studyId, {
+                          mode: "editar",
+                          hash: "editar-estudio",
+                        }),
+                      );
                   }}
                   className="inline-flex items-center gap-2 rounded-2xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
                 >

@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -34,6 +35,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<AuthSession>(EMPTY_AUTH_SESSION);
   const [isLoading, setIsLoading] = useState(true);
 
+  const refreshProfile = useCallback<
+    AuthContextValue["refreshProfile"]
+  >(async () => {
+    const result = await getCurrentProfile();
+    if (!result.ok) {
+      return { ok: false, errors: result.errors };
+    }
+
+    const current = await authStore.getSession();
+    const nextSession: AuthSession = {
+      token: current.token,
+      user: {
+        id: String(result.data.id),
+        sub: String(result.data.id),
+        nombre: result.data.nombre,
+        email: result.data.email,
+        rol: result.data.rol,
+      },
+    };
+
+    await authStore.setSession(nextSession);
+    setSession(nextSession);
+
+    return { ok: true, profile: result.data };
+  }, []);
+
+  const login = useCallback<AuthContextValue["login"]>(async (credentials) => {
+    const result = await loginWithPassword(credentials);
+    if (!result.ok) {
+      return { ok: false, errors: result.errors };
+    }
+
+    const nextSession = await authStore.getSession();
+    setSession(nextSession);
+    return { ok: true };
+  }, []);
+
+  const logout = useCallback<AuthContextValue["logout"]>(async () => {
+    await logoutCurrentSession();
+    setSession(EMPTY_AUTH_SESSION);
+  }, []);
+
   const value = useMemo<AuthContextValue>(() => {
     return {
       session,
@@ -41,45 +84,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       token: session.token,
       isAuthenticated: Boolean(session.token && session.user),
       isLoading,
-      async login(credentials) {
-        const result = await loginWithPassword(credentials);
-        if (!result.ok) {
-          return result;
-        }
-
-        const nextSession = await authStore.getSession();
-        setSession(nextSession);
-        return { ok: true };
-      },
-      async logout() {
-        await logoutCurrentSession();
-        setSession(EMPTY_AUTH_SESSION);
-      },
-      async refreshProfile() {
-        const result = await getCurrentProfile();
-        if (!result.ok) {
-          return result;
-        }
-
-        const current = await authStore.getSession();
-        const nextSession: AuthSession = {
-          token: current.token,
-          user: {
-            id: String(result.data.id),
-            sub: String(result.data.id),
-            nombre: result.data.nombre,
-            email: result.data.email,
-            rol: result.data.rol,
-          },
-        }
-
-        await authStore.setSession(nextSession);
-        setSession(nextSession);
-
-        return { ok: true, profile: result.data };
-      },
+      login,
+      logout,
+      refreshProfile,
     };
-  }, [isLoading, session]);
+  }, [isLoading, login, logout, refreshProfile, session]);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(storedSession);
 
       if (storedSession.token && !storedSession.user) {
-        const result = await value.refreshProfile();
+        const result = await refreshProfile();
         if (cancelled) {
           return;
         }
@@ -114,7 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [value]);
+  }, [refreshProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

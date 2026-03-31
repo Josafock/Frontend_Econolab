@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
+import ServiceDetailPageClient from "@/components/servicios/ServiceDetailPageClient";
 
-export default function ServicesDetailIndexPage() {
-  redirect('/servicios');
+export default function ServicesDetailQueryPage() {
+  return <ServiceDetailPageClient />;
 }
