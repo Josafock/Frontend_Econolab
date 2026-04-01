@@ -53,7 +53,7 @@ function money(value: number) {
 
 const rangeOptions = [
   { value: 'today', label: 'Hoy' },
-  { value: '7d', label: '7 dias' },
+  { value: '7d', label: '7 días' },
   { value: '30d', label: '1 mes' },
   { value: '90d', label: '3 meses' },
   { value: 'year', label: '1 año' },
@@ -62,9 +62,9 @@ const rangeOptions = [
 const receptionistShortcuts = [
   { href: '/servicios', title: 'Servicios', description: 'Registra servicios, da seguimiento y captura resultados.' },
   { href: '/pacientes', title: 'Pacientes', description: 'Consulta expedientes y registra nuevos pacientes.' },
-  { href: '/medicos', title: 'Medicos', description: 'Busca medicos tratantes y actualiza sus datos.' },
-  { href: '/estudios', title: 'Estudios', description: 'Revisa el catalogo disponible para nuevos servicios.' },
-  { href: '/perfil', title: 'Mi perfil', description: 'Consulta tu informacion y cambia tu contrasena si hace falta.' },
+  { href: '/medicos', title: 'Médicos', description: 'Busca médicos tratantes y actualiza sus datos.' },
+  { href: '/estudios', title: 'Estudios', description: 'Revisa el catálogo disponible para nuevos servicios.' },
+  { href: '/perfil', title: 'Mi perfil', description: 'Consulta tu información y cambia tu contraseña si hace falta.' },
 ] as const;
 
 function buildHref(
@@ -184,11 +184,11 @@ function DesktopSyncCard() {
     setIsSyncing(false);
 
     if (!result.ok) {
-      toast.error(result.errors[0] ?? 'No se pudo completar la sincronizacion.');
+      toast.error(result.errors[0] ?? 'No se pudo completar la sincronización.');
       return;
     }
 
-    toast.success('Sincronizacion ejecutada.');
+    toast.success('Sincronización ejecutada.');
   };
 
   return (
@@ -197,7 +197,7 @@ function DesktopSyncCard() {
         <div>
           <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-slate-600">
             <Database className="h-3.5 w-3.5 text-red-600" />
-            Sync desktop
+            Sincronización desktop
           </div>
           <div className="mt-4 flex items-center gap-3">
             {statusTone.icon}
@@ -215,8 +215,8 @@ function DesktopSyncCard() {
             className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusTone.badge}`}
           >
             {backendSyncStatus?.autoEnabled
-              ? `Auto-sync cada ${backendSyncStatus.autoIntervalSeconds}s`
-              : 'Sync manual'}
+              ? `Sincronización automática cada ${backendSyncStatus.autoIntervalSeconds}s`
+              : 'Sincronización manual'}
           </span>
           <button
             type="button"
@@ -246,9 +246,9 @@ function DesktopSyncCard() {
           </p>
         </div>
         <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Ultimo intento</p>
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Último intento</p>
           <p className="mt-2 text-sm font-semibold text-slate-900">
-            {lastRunAt ?? 'Sin intentos aun'}
+            {lastRunAt ?? 'Sin intentos aún'}
           </p>
           <p className="mt-1 text-xs text-slate-500">
             Runner {backendSyncStatus?.running ? 'ocupado' : 'disponible'}
@@ -267,7 +267,7 @@ function DesktopSyncCard() {
 
       {lastSyncError ? (
         <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
-          <p className="font-semibold">Ultimo error de sincronizacion</p>
+          <p className="font-semibold">Último error de sincronización</p>
           <p className="mt-1">{lastSyncError}</p>
         </div>
       ) : null}
@@ -291,21 +291,21 @@ function ReceptionistHome() {
               Panel operativo listo para tu jornada
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-              Desde aqui puedes entrar directo a servicios, pacientes, medicos y estudios. El historial,
-              los cortes del dia y la administracion quedan reservados para administracion.
+              Desde aquí puedes entrar directo a servicios, pacientes, médicos y estudios. El historial,
+              los cortes del día y la administración quedan reservados para administración.
             </p>
           </div>
 
           <div className="rounded-[2rem] border border-slate-900/10 bg-slate-950 p-6 text-white shadow-lg shadow-slate-900/20">
-            <p className="text-xs uppercase tracking-[0.25em] text-orange-200">Acceso de recepcion</p>
+            <p className="text-xs uppercase tracking-[0.25em] text-orange-200">Acceso de recepción</p>
             <div className="mt-5 space-y-4">
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div className="flex items-start gap-3">
                   <CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-300" />
                   <div>
-                    <p className="text-sm font-semibold text-white">Operacion completa</p>
+                    <p className="text-sm font-semibold text-white">Operación completa</p>
                     <p className="mt-1 text-sm text-slate-300">
-                      Puedes trabajar servicios, pacientes, medicos, estudios y resultados sin problema.
+                      Puedes trabajar servicios, pacientes, médicos, estudios y resultados sin problema.
                     </p>
                   </div>
                 </div>
@@ -316,7 +316,7 @@ function ReceptionistHome() {
                   <div>
                     <p className="text-sm font-semibold text-white">Secciones restringidas</p>
                     <p className="mt-1 text-sm text-slate-300">
-                      Historial, cortes, roles y logins quedan reservados para administracion.
+                      Historial, cortes, roles y logins quedan reservados para administración.
                     </p>
                   </div>
                 </div>
@@ -333,11 +333,11 @@ function ReceptionistHome() {
             href={shortcut.href}
             className="app-panel-surface group rounded-[1.75rem] border border-gray-200 bg-white p-6 shadow-sm transition-all hover:-translate-y-0.5 hover:border-red-200 hover:shadow-lg hover:shadow-red-100/60"
           >
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Acceso rapido</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Acceso rápido</p>
             <h2 className="mt-3 text-xl font-semibold text-slate-900">{shortcut.title}</h2>
             <p className="mt-3 text-sm leading-6 text-slate-600">{shortcut.description}</p>
             <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-red-600">
-              Abrir modulo
+              Abrir módulo
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
             </span>
           </Link>
@@ -504,7 +504,7 @@ export default function HomePageClient() {
               Tablero principal del laboratorio
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-              Bienvenido, {user.nombre}. Aqui tienes un resumen limpio de operacion, demanda y accesos para el periodo activo.
+              Bienvenido, {user.nombre}. Aquí tienes un resumen limpio de operación, demanda y accesos para el periodo activo.
             </p>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
@@ -592,7 +592,7 @@ export default function HomePageClient() {
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <KPI label="Total de servicios" value={overview.kpis.totalServices} hint="Base historica del laboratorio" icon={<Activity className="h-5 w-5" />} />
         <KPI label="Ingreso del rango" value={money(overview.kpis.revenueInRange)} hint={`Creados: ${overview.kpis.createdServicesInRange}`} icon={<Wallet className="h-5 w-5" />} />
-        <KPI label="Medicos activos" value={overview.kpis.totalDoctors} hint={overview.doctors.topInRange?.doctorName ?? 'Sin lider actual'} icon={<UserCheck className="h-5 w-5" />} />
+        <KPI label="Médicos activos" value={overview.kpis.totalDoctors} hint={overview.doctors.topInRange?.doctorName ?? 'Sin líder actual'} icon={<UserCheck className="h-5 w-5" />} />
         <KPI label="Pacientes" value={overview.kpis.totalPatients} hint={`Usuarios: ${overview.kpis.totalUsers}`} icon={<Users className="h-5 w-5" />} />
         <KPI label="Estudios activos" value={overview.kpis.activeStudies} hint={overview.studies.topInRange?.studyName ?? 'Sin top actual'} icon={<BarChart3 className="h-5 w-5" />} />
         <KPI label="Logins exitosos" value={overview.logins.successfulInRange} hint={`Fallidos: ${overview.logins.failedInRange}`} icon={<ShieldAlert className="h-5 w-5" />} />
@@ -601,7 +601,7 @@ export default function HomePageClient() {
       <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <div className="space-y-6">
           <div className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
-            <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Operacion</p>
+            <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Operación</p>
             <h2 className="mt-2 text-2xl font-semibold text-gray-900">Pulso operativo</h2>
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
@@ -624,12 +624,12 @@ export default function HomePageClient() {
           </div>
 
           <div className="app-panel-surface rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
-            <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Operacion reciente</p>
-            <h2 className="mt-2 text-2xl font-semibold text-gray-900">Ultimos servicios concluidos</h2>
+            <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Operación reciente</p>
+            <h2 className="mt-2 text-2xl font-semibold text-gray-900">Últimos servicios concluidos</h2>
             <div className="mt-5 space-y-3">
               {overview.operations.latestCompletedServices.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-5 text-sm text-gray-500">
-                  Todavia no hay cierres en el rango elegido.
+                  Todavía no hay cierres en el rango elegido.
                 </div>
               ) : (
                 overview.operations.latestCompletedServices.map((service) => (
@@ -667,7 +667,7 @@ export default function HomePageClient() {
                 <div className="flex items-center gap-3">
                   <TrendingUp className="h-5 w-5 text-emerald-700" />
                   <div>
-                    <p className="text-sm font-semibold text-emerald-900">Mas solicitado</p>
+                    <p className="text-sm font-semibold text-emerald-900">Más solicitado</p>
                     <p className="mt-1 text-lg font-semibold text-emerald-800">
                       {overview.studies.topInRange?.studyName ?? 'Sin datos'}
                     </p>
@@ -689,12 +689,12 @@ export default function HomePageClient() {
             </div>
 
             <div className="mt-6 rounded-[1.75rem] bg-gradient-to-br from-slate-950 via-slate-900 to-red-900 p-5 text-white">
-              <p className="text-sm text-red-100">Sucursal mas fuerte del rango</p>
+              <p className="text-sm text-red-100">Sucursal más fuerte del rango</p>
               <p className="mt-2 text-2xl font-semibold">{strongestBranch?.branchName ?? 'Sin datos'}</p>
               <p className="mt-2 text-sm text-red-100">
                 {strongestBranch
                   ? `${money(strongestBranch.revenueTotal)} con ${strongestBranch.servicesCount} servicios concluidos.`
-                  : 'Todavia no hay servicios concluidos en este rango.'}
+                  : 'Todavía no hay servicios concluidos en este rango.'}
               </p>
             </div>
           </div>
@@ -745,7 +745,7 @@ export default function HomePageClient() {
             En <span className="font-semibold">{overview.filters.rangeLabel.toLowerCase()}</span>{' '}
             se concluyeron <span className="font-semibold">{overview.kpis.completedServicesInRange}</span>{' '}
             servicios y se registraron <span className="font-semibold">{overview.kpis.createdServicesInRange}</span>.
-            Si la creacion sube pero la conclusion se frena, conviene revisar capacidad y tiempos de entrega.
+            Si la creación sube pero la conclusión se frena, conviene revisar capacidad y tiempos de entrega.
           </p>
         </div>
       </div>

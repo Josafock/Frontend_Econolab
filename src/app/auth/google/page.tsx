@@ -1,10 +1,5 @@
-import { Suspense } from "react";
-import GoogleOAuthPage from "@/components/auth/GoogleCallbackForm";
+import { redirect } from "next/navigation";
 
 export default function GooglePage() {
-  return (
-    <Suspense fallback={<div>Procesando login de Google...</div>}>
-      <GoogleOAuthPage />
-    </Suspense>
-  );
+  redirect("/auth/login");
 }

@@ -107,10 +107,10 @@ export default function AdminRoleManager({
           <div>
             <p className="text-xs uppercase tracking-[0.22em] text-amber-700">Acceso pendiente</p>
             <h2 className="mt-2 text-2xl font-semibold text-slate-900">
-              Asignacion de roles
+              Asignación de roles
             </h2>
             <p className="mt-2 text-sm text-slate-600">
-              Los usuarios confirmados no entran al sistema hasta que aqui se les asigne
+              Los usuarios confirmados no entran al sistema hasta que aquí se les asigne
               un rol operativo.
             </p>
           </div>
@@ -136,7 +136,7 @@ export default function AdminRoleManager({
             <p className="mt-2 text-2xl font-semibold text-slate-900">{adminCount}</p>
           </div>
           <div className="rounded-2xl border border-white/80 bg-white/90 p-4">
-            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Recepcion</p>
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Recepción</p>
             <p className="mt-2 text-2xl font-semibold text-slate-900">{receptionistCount}</p>
           </div>
         </div>
@@ -206,7 +206,7 @@ export default function AdminRoleManager({
               Roles ya asignados
             </h2>
             <p className="mt-2 text-sm text-gray-600">
-              Los usuarios admin quedan protegidos aqui: no se pueden cambiar entre admins.
+              Los usuarios admin quedan protegidos aquí: no se pueden cambiar entre admins.
             </p>
           </div>
           <div className="rounded-2xl bg-gray-100 p-3 text-gray-700">
@@ -217,7 +217,7 @@ export default function AdminRoleManager({
         <div className="mt-6 space-y-3">
           {usersWithRole.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-5 text-sm text-gray-500">
-              Aun no hay usuarios con rol asignado.
+              Aún no hay usuarios con rol asignado.
             </div>
           ) : (
             usersWithRole.map((user) => {
@@ -268,7 +268,7 @@ export default function AdminRoleManager({
                           disabled={isWorking || saving || refreshing}
                           className="rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-50 disabled:opacity-60"
                         >
-                          {isWorking && user.rol !== 'admin' ? 'Guardando...' : 'Mantener recepcion'}
+                          {isWorking && user.rol !== 'admin' ? 'Guardando...' : 'Mantener recepción'}
                         </button>
                         <button
                           type="button"

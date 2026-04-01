@@ -412,7 +412,7 @@ export default function PatientDetailClient({
                 </div>
                 <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
                   <p className="text-xs uppercase tracking-wide text-gray-500">
-                    Telefono
+                    Teléfono
                   </p>
                   <p className="mt-2 text-base font-semibold text-gray-900">
                     {patient.phone ?? "-"}

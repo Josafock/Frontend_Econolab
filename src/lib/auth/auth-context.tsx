@@ -52,6 +52,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         nombre: result.data.nombre,
         email: result.data.email,
         rol: result.data.rol,
+        profileImageUrl: result.data.profileImageUrl ?? null,
+        authProvider: result.data.authProvider ?? "local",
       },
     };
 
@@ -67,10 +69,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { ok: false, errors: result.errors };
     }
 
-    const nextSession = await authStore.getSession();
-    setSession(nextSession);
+    const profileResult = await refreshProfile();
+    if (!profileResult.ok) {
+      const nextSession = await authStore.getSession();
+      setSession(nextSession);
+    }
+
     return { ok: true };
-  }, []);
+  }, [refreshProfile]);
 
   const logout = useCallback<AuthContextValue["logout"]>(async () => {
     await logoutCurrentSession();

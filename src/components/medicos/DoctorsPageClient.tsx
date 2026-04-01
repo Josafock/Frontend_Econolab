@@ -38,13 +38,16 @@ import {
 import CatalogExcelModal from "@/components/ui/CatalogExcelModal";
 import { useConfirmDialog } from "@/components/ui/ConfirmDialogProvider";
 import EntityActionsMenu from "@/components/ui/EntityActionsMenu";
-import {
-  TableColumnFilterInput,
-  TableColumnFilterSelect,
-} from "@/components/ui/TableColumnFilters";
+import SortableTableHeader from "@/components/ui/SortableTableHeader";
 import TablePagination from "@/components/ui/TablePagination";
 import { formatDate } from "@/helpers/date";
 import type { ExcelColumn } from "@/helpers/excel";
+import {
+  applySortDirection,
+  compareDate,
+  compareText,
+  type SortDirection,
+} from "@/lib/table/sort";
 
 const AddDoctorModal = dynamic(() => import("@/components/medicos/AddDoctorModal"));
 const CatalogExcelManager = dynamic(
@@ -58,13 +61,13 @@ const statusOptions: Array<{ value: DoctorStatusFilter; label: string }> = [
 ];
 
 const doctorExcelColumns: ExcelColumn<DoctorFormValues>[] = [
-  { key: "nombre", label: "Nombre", required: true, description: "Nombre del medico.", example: "MARIA", width: 18 },
-  { key: "apellidoPaterno", label: "Apellido paterno", required: true, description: "Apellido paterno del medico.", example: "GOMEZ", width: 22 },
+  { key: "nombre", label: "Nombre", required: true, description: "Nombre del médico.", example: "MARIA", width: 18 },
+  { key: "apellidoPaterno", label: "Apellido paterno", required: true, description: "Apellido paterno del médico.", example: "GOMEZ", width: 22 },
   { key: "apellidoMaterno", label: "Apellido materno", description: "Apellido materno si aplica.", example: "RUIZ", width: 22 },
   { key: "especialidad", label: "Especialidad", description: "Especialidad principal.", example: "CARDIOLOGIA", width: 24 },
-  { key: "cedulaProfesional", label: "Cedula profesional", description: "Cedula o licencia.", example: "1234567", width: 20 },
-  { key: "telefono", label: "Telefono", description: "Solo numeros entre 7 y 15 digitos.", example: "5512345678", width: 18 },
-  { key: "email", label: "Email", description: "Correo del medico.", example: "medico@dominio.com", inputType: "email", width: 28 },
+  { key: "cedulaProfesional", label: "Cédula profesional", description: "Cédula o licencia.", example: "1234567", width: 20 },
+  { key: "telefono", label: "Teléfono", description: "Solo números entre 7 y 15 dígitos.", example: "5512345678", width: 18 },
+  { key: "email", label: "Correo electrónico", description: "Correo del médico.", example: "medico@dominio.com", inputType: "email", width: 28 },
   { key: "notas", label: "Notas", description: "Observaciones internas opcionales.", example: "Disponibilidad por las tardes", width: 34 },
 ];
 
@@ -101,23 +104,13 @@ function matchesDoctorSearch(doctor: UiDoctor, searchTerm: string) {
   ].some((value) => value.toLowerCase().includes(normalizedSearch));
 }
 
-function normalizeFilterValue(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function matchesTextColumn(values: string[], filterValue: string) {
-  const normalizedFilter = normalizeFilterValue(filterValue);
-  if (!normalizedFilter) return true;
-
-  return values.some((value) =>
-    value.toLowerCase().includes(normalizedFilter),
-  );
-}
-
-function matchesDateColumn(value: string, filterValue: string) {
-  if (!filterValue) return true;
-  return value.slice(0, 10) === filterValue;
-}
+type DoctorSortKey =
+  | "doctor"
+  | "specialty"
+  | "license"
+  | "contact"
+  | "status"
+  | "registeredAt";
 
 type DoctorsState = {
   doctors: UiDoctor[];
@@ -130,7 +123,7 @@ async function loadDoctorsCatalog(): Promise<DoctorsState> {
   if (!response.ok) {
     return {
       doctors: [],
-      error: response.errors[0] ?? "No se pudieron cargar los medicos en este momento.",
+      error: response.errors[0] ?? "No se pudieron cargar los médicos en este momento.",
     };
   }
 
@@ -146,13 +139,12 @@ export default function DoctorsPageClient() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<DoctorStatusFilter>("all");
-  const [columnFilters, setColumnFilters] = useState({
-    doctor: "",
-    specialty: "",
-    license: "",
-    contact: "",
-    status: "all",
-    registeredAt: "",
+  const [sortState, setSortState] = useState<{
+    key: DoctorSortKey;
+    direction: SortDirection;
+  }>({
+    key: "registeredAt",
+    direction: "desc",
   });
   const [showFilters, setShowFilters] = useState(false);
   const [openAddModal, setOpenAddModal] = useState(false);
@@ -192,37 +184,48 @@ export default function DoctorsPageClient() {
   };
 
   const allDoctors = useMemo(
-    () =>
-      catalogDoctors.filter(
-        (doctor) =>
-          matchesDoctorSearch(doctor, searchTerm) &&
-          matchesTextColumn(
-            [doctor.nombreCompleto, doctor.nombre, doctor.apellidoPaterno, doctor.apellidoMaterno],
-            columnFilters.doctor,
-          ) &&
-          matchesTextColumn([doctor.especialidad], columnFilters.specialty) &&
-          matchesTextColumn([doctor.cedula], columnFilters.license) &&
-          matchesTextColumn([doctor.telefono, doctor.email], columnFilters.contact) &&
-          matchesDateColumn(doctor.fechaRegistro, columnFilters.registeredAt),
-      ),
-    [catalogDoctors, columnFilters, searchTerm],
+    () => catalogDoctors.filter((doctor) => matchesDoctorSearch(doctor, searchTerm)),
+    [catalogDoctors, searchTerm],
   );
 
   const doctors = useMemo(() => {
-    return allDoctors.filter(
-      (doctor) =>
-        (statusFilter === "all"
-          ? true
-          : statusFilter === "active"
-            ? doctor.isActive
-            : !doctor.isActive) &&
-        (columnFilters.status === "all"
-          ? true
-          : columnFilters.status === "Activo"
-            ? doctor.isActive
-            : !doctor.isActive),
+    if (statusFilter === "all") return allDoctors;
+    return allDoctors.filter((doctor) =>
+      statusFilter === "active" ? doctor.isActive : !doctor.isActive,
     );
-  }, [allDoctors, columnFilters.status, statusFilter]);
+  }, [allDoctors, statusFilter]);
+
+  const sortedDoctors = useMemo(() => {
+    const items = [...doctors];
+
+    items.sort((left, right) => {
+      const comparison = (() => {
+        switch (sortState.key) {
+          case "doctor":
+            return compareText(left.nombreCompleto, right.nombreCompleto);
+          case "specialty":
+            return compareText(left.especialidad, right.especialidad);
+          case "license":
+            return compareText(left.cedula, right.cedula);
+          case "contact":
+            return compareText(
+              `${left.telefono} ${left.email}`,
+              `${right.telefono} ${right.email}`,
+            );
+          case "status":
+            return compareText(left.estatus, right.estatus);
+          case "registeredAt":
+            return compareDate(left.fechaRegistro, right.fechaRegistro);
+          default:
+            return 0;
+        }
+      })();
+
+      return applySortDirection(comparison, sortState.direction);
+    });
+
+    return items;
+  }, [doctors, sortState]);
 
   const especialidadesUnicas = useMemo(
     () => new Set(allDoctors.map((doctor) => doctor.especialidad)).size,
@@ -233,9 +236,9 @@ export default function DoctorsPageClient() {
 
   useEffect(() => {
     setPage(1);
-  }, [columnFilters, searchTerm, statusFilter]);
+  }, [searchTerm, sortState, statusFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(doctors.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(sortedDoctors.length / pageSize));
 
   useEffect(() => {
     if (page > totalPages) {
@@ -245,8 +248,22 @@ export default function DoctorsPageClient() {
 
   const paginatedDoctors = useMemo(() => {
     const start = (page - 1) * pageSize;
-    return doctors.slice(start, start + pageSize);
-  }, [doctors, page, pageSize]);
+    return sortedDoctors.slice(start, start + pageSize);
+  }, [page, pageSize, sortedDoctors]);
+
+  const toggleSort = (key: DoctorSortKey) => {
+    setSortState((current) => ({
+      key,
+      direction:
+        current.key === key
+          ? current.direction === "asc"
+            ? "desc"
+            : "asc"
+          : key === "registeredAt"
+            ? "desc"
+            : "asc",
+    }));
+  };
 
   const handleAddDoctor = async (payload: CreateDoctorPayload) => {
     setSaving(true);
@@ -254,11 +271,11 @@ export default function DoctorsPageClient() {
     setSaving(false);
 
     if (!response.ok) {
-      toast.error(response.errors[0] ?? "No se pudo registrar el medico.");
+      toast.error(response.errors[0] ?? "No se pudo registrar el médico.");
       return false;
     }
 
-    toast.success("Medico registrado con exito.");
+    toast.success("Médico registrado con éxito.");
     await refreshDoctors();
     return true;
   };
@@ -269,20 +286,20 @@ export default function DoctorsPageClient() {
     setUpdatingStatusId(null);
 
     if (!response.ok) {
-      toast.error(response.errors[0] ?? "No se pudo actualizar el estatus del medico.");
+      toast.error(response.errors[0] ?? "No se pudo actualizar el estatus del médico.");
       return false;
     }
 
-    toast.success(doctor.isActive ? "Medico suspendido." : "Medico reactivado.");
+    toast.success(doctor.isActive ? "Médico suspendido." : "Médico reactivado.");
     await refreshDoctors();
     return true;
   };
 
   const handleDeleteDoctor = async (doctor: UiDoctor) => {
     const confirmed = await confirm({
-      title: "Eliminar medico",
-      message: `Se eliminara definitivamente a ${doctor.nombreCompleto}. Esta accion no se puede deshacer.`,
-      confirmLabel: "Eliminar medico",
+      title: "Eliminar médico",
+      message: `Se eliminará definitivamente a ${doctor.nombreCompleto}. Esta acción no se puede deshacer.`,
+      confirmLabel: "Eliminar médico",
       tone: "danger",
     });
 
@@ -293,18 +310,18 @@ export default function DoctorsPageClient() {
     setDeletingId(null);
 
     if (!response.ok) {
-      toast.error(response.errors[0] ?? "No se pudo eliminar el medico.");
+      toast.error(response.errors[0] ?? "No se pudo eliminar el médico.");
       return;
     }
 
-    toast.success("Medico eliminado definitivamente.");
+    toast.success("Médico eliminado definitivamente.");
     await refreshDoctors();
   };
 
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center rounded-[2rem] border border-gray-200 bg-white text-sm text-gray-500 shadow-sm">
-        Cargando medicos...
+        Cargando médicos...
       </div>
     );
   }
@@ -315,11 +332,11 @@ export default function DoctorsPageClient() {
         <div>
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
             <span className="h-2 w-2 rounded-full bg-red-500" />
-            Directorio de medicos
+            Directorio de médicos
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">Medicos</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Médicos</h1>
           <p className="mt-2 max-w-2xl text-gray-600">
-            Administra altas, edicion de perfil, cambios de estatus y control del personal medico.
+            Administra altas, edición de perfil, cambios de estatus y control del personal médico.
           </p>
         </div>
 
@@ -329,11 +346,11 @@ export default function DoctorsPageClient() {
             onClick={() => setOpenAddModal(true)}
           >
             <Plus size={20} />
-            Nuevo medico
+            Nuevo médico
           </button>
 
           <CatalogExcelModal
-            title="Importacion y exportacion de medicos"
+            title="Importación y exportación de médicos"
             subtitle="Centraliza importaciones, exportaciones y vista previa sin recargar la pantalla principal."
             trigger={
               <button
@@ -341,13 +358,13 @@ export default function DoctorsPageClient() {
                 className="app-action-button inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-sm font-semibold text-amber-700 shadow-sm transition-all hover:bg-amber-100"
               >
                 <FileSpreadsheet size={20} />
-                Importacion/Exportacion
+                Importación/Exportación
               </button>
             }
           >
             <CatalogExcelManager
-              title="Carga masiva de medicos"
-              description="Sube directorios completos de medicos, revisa la vista previa y corrige cualquier fila antes de insertarla."
+              title="Carga masiva de médicos"
+              description="Sube directorios completos de médicos, revisa la vista previa y corrige cualquier fila antes de insertarla."
               entityLabel="medicos"
               columns={doctorExcelColumns}
               createEmptyRow={createEmptyDoctorForm}
@@ -367,15 +384,15 @@ export default function DoctorsPageClient() {
                 notas: doctor.notas,
               }))}
               exportFileName="medicos.xlsx"
-              exportSheetName="Medicos"
+              exportSheetName="Médicos"
               templateFileName="plantilla-medicos.xlsx"
-              templateSheetName="Plantilla medicos"
+              templateSheetName="Plantilla médicos"
               onImportRow={async (row) => {
                 const response = await createDoctor(mapFormToPayload(row));
                 if (!response.ok) {
                   return {
                     ok: false,
-                    error: response.errors[0] ?? "No se pudo importar el medico.",
+                    error: response.errors[0] ?? "No se pudo importar el médico.",
                   };
                 }
                 return { ok: true };
@@ -400,7 +417,7 @@ export default function DoctorsPageClient() {
               <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Buscar por nombre, especialidad, cedula, telefono o correo..."
+                placeholder="Buscar por nombre, especialidad, cédula, teléfono o correo..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full rounded-2xl border border-gray-200 bg-white px-12 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
@@ -444,7 +461,7 @@ export default function DoctorsPageClient() {
         <div className="app-panel-surface rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total medicos</p>
+              <p className="text-sm font-medium text-gray-600">Total médicos</p>
               <p className="mt-1 text-3xl font-bold text-gray-900">{allDoctors.length}</p>
             </div>
             <div className="rounded-2xl bg-blue-100 p-3">
@@ -500,87 +517,62 @@ export default function DoctorsPageClient() {
       {doctors.length === 0 ? (
         <div className="rounded-3xl border border-gray-200 bg-white p-10 text-center text-gray-600 shadow-sm">
           {initialError && catalogDoctors.length === 0
-            ? "No fue posible cargar medicos en este momento."
-            : "No hay medicos para el filtro seleccionado."}
+            ? "No fue posible cargar médicos en este momento."
+            : "No hay médicos para el filtro seleccionado."}
         </div>
       ) : (
         <>
           <div className="hidden overflow-visible rounded-[2rem] border border-gray-200 bg-white shadow-sm 2xl:block">
             <div className="grid grid-cols-12 gap-4 border-b border-gray-200 bg-gray-50 px-6 py-4 text-sm font-semibold text-gray-700">
-              <div className="col-span-3">Medico</div>
-              <div className="col-span-2">Especialidad</div>
-              <div className="col-span-2">Cedula</div>
-              <div className="col-span-2">Contacto</div>
-              <div className="col-span-1">Estatus</div>
-              <div className="col-span-1">Registro</div>
-              <div className="col-span-1">Acciones</div>
-            </div>
-
-            <div className="grid grid-cols-12 gap-4 border-b border-gray-200 bg-white px-6 py-4">
               <div className="col-span-3">
-                <TableColumnFilterInput
-                  value={columnFilters.doctor}
-                  onChange={(value) =>
-                    setColumnFilters((current) => ({ ...current, doctor: value }))
-                  }
-                  placeholder="Filtrar medico..."
-                  ariaLabel="Filtrar columna medico"
+                <SortableTableHeader
+                  label="Médico"
+                  active={sortState.key === "doctor"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("doctor")}
                 />
               </div>
               <div className="col-span-2">
-                <TableColumnFilterInput
-                  value={columnFilters.specialty}
-                  onChange={(value) =>
-                    setColumnFilters((current) => ({ ...current, specialty: value }))
-                  }
-                  placeholder="Especialidad..."
-                  ariaLabel="Filtrar columna especialidad"
+                <SortableTableHeader
+                  label="Especialidad"
+                  active={sortState.key === "specialty"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("specialty")}
                 />
               </div>
               <div className="col-span-2">
-                <TableColumnFilterInput
-                  value={columnFilters.license}
-                  onChange={(value) =>
-                    setColumnFilters((current) => ({ ...current, license: value }))
-                  }
-                  placeholder="Cedula..."
-                  ariaLabel="Filtrar columna cedula"
+                <SortableTableHeader
+                  label="Cédula"
+                  active={sortState.key === "license"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("license")}
                 />
               </div>
               <div className="col-span-2">
-                <TableColumnFilterInput
-                  value={columnFilters.contact}
-                  onChange={(value) =>
-                    setColumnFilters((current) => ({ ...current, contact: value }))
-                  }
-                  placeholder="Telefono o email..."
-                  ariaLabel="Filtrar columna contacto"
+                <SortableTableHeader
+                  label="Contacto"
+                  active={sortState.key === "contact"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("contact")}
                 />
               </div>
               <div className="col-span-1">
-                <TableColumnFilterSelect
-                  value={columnFilters.status}
-                  onChange={(value) =>
-                    setColumnFilters((current) => ({ ...current, status: value }))
-                  }
-                  options={[
-                    { value: "Activo", label: "Activo" },
-                    { value: "Inactivo", label: "Inactivo" },
-                  ]}
-                  ariaLabel="Filtrar columna estatus"
+                <SortableTableHeader
+                  label="Estatus"
+                  active={sortState.key === "status"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("status")}
                 />
               </div>
               <div className="col-span-1">
-                <TableColumnFilterInput
-                  type="date"
-                  value={columnFilters.registeredAt}
-                  onChange={(value) =>
-                    setColumnFilters((current) => ({ ...current, registeredAt: value }))
-                  }
-                  ariaLabel="Filtrar columna registro"
+                <SortableTableHeader
+                  label="Registro"
+                  active={sortState.key === "registeredAt"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("registeredAt")}
                 />
               </div>
-              <div className="col-span-1" />
+              <div className="col-span-1">Acciones</div>
             </div>
 
             <div className="divide-y divide-gray-200">
@@ -620,15 +612,15 @@ export default function DoctorsPageClient() {
                       buttonLabel="Acciones"
                       items={[
                         { label: "Ver detalle", href: buildDoctorDetailHref(medico.id, { hash: "resumen-perfil" }), icon: <Eye size={16} /> },
-                        { label: "Editar medico", href: buildDoctorDetailHref(medico.id, { mode: "editar", hash: "perfil-completo" }), icon: <PencilLine size={16} /> },
+                        { label: "Editar médico", href: buildDoctorDetailHref(medico.id, { mode: "editar", hash: "perfil-completo" }), icon: <PencilLine size={16} /> },
                         {
-                          label: medico.isActive ? "Suspender medico" : "Reactivar medico",
+                          label: medico.isActive ? "Suspender médico" : "Reactivar médico",
                           onClick: () => void handleToggleDoctorStatus(medico),
                           icon: medico.isActive ? <ShieldX size={16} /> : <BadgeCheck size={16} />,
                           disabled: updatingStatusId === medico.id,
                         },
                         {
-                          label: "Eliminar medico",
+                          label: "Eliminar médico",
                           onClick: () => void handleDeleteDoctor(medico),
                           icon: <Trash2 size={16} />,
                           destructive: true,
@@ -641,7 +633,7 @@ export default function DoctorsPageClient() {
               ))}
             </div>
 
-            <TablePagination page={page} pageSize={pageSize} totalItems={doctors.length} itemLabel="registros" onPageChange={setPage} onPageSizeChange={setPageSize} />
+            <TablePagination page={page} pageSize={pageSize} totalItems={sortedDoctors.length} itemLabel="registros" onPageChange={setPage} onPageSizeChange={setPageSize} />
           </div>
 
           <div className="grid gap-4 xl:grid-cols-2 2xl:hidden">
@@ -658,7 +650,7 @@ export default function DoctorsPageClient() {
                 </div>
                 <div className="mb-4 grid grid-cols-2 gap-3 text-sm">
                   <div className="rounded-2xl bg-gray-50 p-3">
-                    <p className="text-xs text-gray-500">Cedula</p>
+                    <p className="text-xs text-gray-500">Cédula</p>
                     <p className="mt-1 font-semibold text-gray-900">{medico.cedula}</p>
                   </div>
                   <div className="rounded-2xl bg-gray-50 p-3">
@@ -682,15 +674,15 @@ export default function DoctorsPageClient() {
                     buttonLabel="Acciones"
                     items={[
                       { label: "Ver detalle", href: buildDoctorDetailHref(medico.id, { hash: "resumen-perfil" }), icon: <Eye size={16} /> },
-                      { label: "Editar medico", href: buildDoctorDetailHref(medico.id, { mode: "editar", hash: "perfil-completo" }), icon: <PencilLine size={16} /> },
+                      { label: "Editar médico", href: buildDoctorDetailHref(medico.id, { mode: "editar", hash: "perfil-completo" }), icon: <PencilLine size={16} /> },
                       {
-                        label: medico.isActive ? "Suspender medico" : "Reactivar medico",
+                        label: medico.isActive ? "Suspender médico" : "Reactivar médico",
                         onClick: () => void handleToggleDoctorStatus(medico),
                         icon: medico.isActive ? <ShieldX size={16} /> : <BadgeCheck size={16} />,
                         disabled: updatingStatusId === medico.id,
                       },
                       {
-                        label: "Eliminar medico",
+                        label: "Eliminar médico",
                         onClick: () => void handleDeleteDoctor(medico),
                         icon: <Trash2 size={16} />,
                         destructive: true,
@@ -704,7 +696,7 @@ export default function DoctorsPageClient() {
           </div>
 
           <div className="overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm 2xl:hidden">
-            <TablePagination page={page} pageSize={pageSize} totalItems={doctors.length} itemLabel="registros" onPageChange={setPage} onPageSizeChange={setPageSize} />
+            <TablePagination page={page} pageSize={pageSize} totalItems={sortedDoctors.length} itemLabel="registros" onPageChange={setPage} onPageSizeChange={setPageSize} />
           </div>
         </>
       )}

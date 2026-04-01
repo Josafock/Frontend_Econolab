@@ -53,10 +53,10 @@ export default function ConnectionStatusBanner({
 
   const description = showSnapshot
     ? hasBackendConnection
-      ? "No se pudo refrescar esta vista desde el backend. Se muestra la ultima copia local disponible."
-      : "Se muestra la ultima copia local porque el backend no esta disponible."
+      ? "No se pudo refrescar esta vista desde el backend. Se muestra la última copia local disponible."
+      : "Se muestra la última copia local porque el backend no está disponible."
     : isWorkingLocally
-      ? "Puedes seguir operando localmente aunque no haya internet. La sincronizacion con el servidor central se retomara cuando vuelva la conexion."
+      ? "Puedes seguir operando localmente aunque no haya internet. La sincronización con el servidor central se retomará cuando vuelva la conexión."
       : emptySnapshotMessage;
 
   const badgeLabel = showSnapshot
@@ -68,10 +68,10 @@ export default function ConnectionStatusBanner({
   const metaLabel = isWorkingLocally
     ? "Trabajando contra el backend local de este equipo."
     : snapshotUpdatedAt
-      ? `Ultima copia local: ${formatDateTime(
+      ? `Última copia local: ${formatDateTime(
           new Date(snapshotUpdatedAt).toISOString(),
         )}`
-      : "Aun no hay copia local disponible.";
+      : "Aún no hay copia local disponible.";
 
   return (
     <div

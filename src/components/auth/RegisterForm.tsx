@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
 import {
@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { registerAccount } from '@/features/auth/api/public-auth';
+import { getRuntimeConfig } from '@/lib/runtime/runtime-config';
 import {
   passwordRules,
   getPasswordStrength,
@@ -22,6 +23,7 @@ import {
 
 export default function RegisterForm() {
   const router = useRouter();
+  const runtime = getRuntimeConfig();
 
   const [formData, setFormData] = useState({
     nombre: '',
@@ -49,6 +51,20 @@ export default function RegisterForm() {
     passwordsMatch &&
     !!formData.nombre.trim() &&
     !!formData.email.trim();
+
+  useEffect(() => {
+    if (runtime.isDesktop) {
+      router.replace('/auth/login');
+    }
+  }, [router, runtime.isDesktop]);
+
+  if (runtime.isDesktop) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 text-sm text-gray-500">
+        Redirigiendo al acceso principal...
+      </div>
+    );
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;

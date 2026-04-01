@@ -301,7 +301,7 @@ export default function ServiceDetailPage() {
         setResultsLoading(false);
       } else {
         setError(
-          "No hay conexion y tampoco existe una copia local de este servicio.",
+          "No hay conexión y tampoco existe una copia local de este servicio.",
         );
         setLoading(false);
       }
@@ -735,7 +735,7 @@ export default function ServiceDetailPage() {
       <ConnectionStatusBanner
         showSnapshot={dataSource === "snapshot"}
         snapshotMessage="Mostrando detalle guardado localmente."
-        emptySnapshotMessage="No hay conexion con el backend y aun no existe una copia local de este servicio."
+        emptySnapshotMessage="No hay conexión con el backend y aún no existe una copia local de este servicio."
         snapshotUpdatedAt={snapshotUpdatedAt}
         pendingCount={pendingCount}
       />
@@ -844,10 +844,10 @@ export default function ServiceDetailPage() {
                 <Phone className="h-4 w-4 text-red-100" />
                 <div>
                   <p className="text-xs uppercase tracking-wide text-red-100">
-                    Telefono
+                    Teléfono
                   </p>
                   <p className="text-sm font-medium text-white">
-                    {service.patient?.phone ?? "Sin telefono"}
+                    {service.patient?.phone ?? "Sin teléfono"}
                   </p>
                 </div>
               </div>
@@ -974,7 +974,7 @@ export default function ServiceDetailPage() {
             </div>
           ) : isLocalOnlyService && Object.keys(resultDrafts).length === 0 ? (
             <div className="rounded-2xl border border-sky-200 bg-sky-50 p-6 text-sm text-sky-900">
-              Este servicio aun existe solo en local. Ya puedes revisar su
+              Este servicio aún existe solo en local. Ya puedes revisar su
               resumen y ajustar datos operativos, pero la captura de resultados
               se habilitara cuando el alta se sincronice y reciba identificadores
               definitivos.

@@ -16,14 +16,23 @@ import {
 import { toast } from "react-toastify";
 import {
   getHistoryDashboard,
+  type HistoricalCompletedService,
   type HistoryDashboardResponse,
 } from "@/features/history/api/history";
 import ConnectionStatusBanner from "@/components/ui/ConnectionStatusBanner";
+import SortableTableHeader from "@/components/ui/SortableTableHeader";
 import TablePagination from "@/components/ui/TablePagination";
 import { formatDate, formatDateTime } from "@/helpers/date";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useOffline } from "@/lib/offline/network-state";
 import { buildServiceDetailHref } from "@/lib/routes/detail-routes";
+import {
+  applySortDirection,
+  compareDate,
+  compareNumber,
+  compareText,
+  type SortDirection,
+} from "@/lib/table/sort";
 import {
   readOfflineSnapshot,
   writeOfflineSnapshot,
@@ -157,7 +166,7 @@ function buildExecutiveSummaryRows(summary: HistoryDashboardResponse["summary"])
         : "Sin movimientos",
     },
     {
-      Concepto: "Estudio mas solicitado",
+      Concepto: "Estudio más solicitado",
       Valor: strongestStudy
         ? `${strongestStudy.studyName} (${strongestStudy.times} solicitudes)`
         : "Sin datos",
@@ -206,15 +215,15 @@ function buildHistoryWorkbook(
       rows: dashboard.services.map((service) => ({
         Folio: service.folio,
         Paciente: service.paciente,
-        Telefono: service.telefono,
+        Teléfono: service.telefono,
         Medico: service.medico,
         "Cantidad estudios": service.estudiosCount ?? 0,
         Estudios: service.estudio,
         Sucursal: service.sucursal,
         "Fecha muestra": formatExcelDateTime(service.fechaMuestra),
         "Fecha entrega": formatExcelDateTime(service.fechaEntrega),
-        "Fecha conclusion": formatExcelDateTime(service.fechaConclusion),
-        "Fecha creacion": formatExcelDateTime(service.fechaCreacion),
+        "Fecha conclusión": formatExcelDateTime(service.fechaConclusion),
+        "Fecha creación": formatExcelDateTime(service.fechaCreacion),
         Subtotal: money(service.subtotalAmount),
         Descuento: money(service.discountAmount),
         Total: money(service.totalAmount),
@@ -262,6 +271,50 @@ function buildHistoryWorkbook(
       widths: [12, 18, 18, 18],
     },
   ];
+}
+
+type HistorySortKey =
+  | "folio"
+  | "study"
+  | "patient"
+  | "completedAt"
+  | "branch"
+  | "discount"
+  | "total";
+
+function sortCompletedServices(
+  services: HistoricalCompletedService[],
+  key: HistorySortKey,
+  direction: SortDirection,
+) {
+  const items = [...services];
+
+  items.sort((left, right) => {
+    const comparison = (() => {
+      switch (key) {
+        case "folio":
+          return compareText(left.folio, right.folio);
+        case "study":
+          return compareText(left.estudio, right.estudio);
+        case "patient":
+          return compareText(left.paciente, right.paciente);
+        case "completedAt":
+          return compareDate(left.fechaConclusion, right.fechaConclusion);
+        case "branch":
+          return compareText(left.sucursal, right.sucursal);
+        case "discount":
+          return compareNumber(left.discountAmount, right.discountAmount);
+        case "total":
+          return compareNumber(left.totalAmount, right.totalAmount);
+        default:
+          return 0;
+      }
+    })();
+
+    return applySortDirection(comparison, direction);
+  });
+
+  return items;
 }
 
 function LoadingCard() {
@@ -328,6 +381,13 @@ export default function HistorialPage() {
   );
   const [servicesPage, setServicesPage] = useState(1);
   const [servicesPageSize, setServicesPageSize] = useState(10);
+  const [sortState, setSortState] = useState<{
+    key: HistorySortKey;
+    direction: SortDirection;
+  }>({
+    key: "completedAt",
+    direction: "desc",
+  });
   const [exportProgress, setExportProgress] = useState<{
     label: string;
     percent: number;
@@ -421,6 +481,10 @@ export default function HistorialPage() {
     () => dashboard?.services ?? [],
     [dashboard],
   );
+  const sortedCompletedServices = useMemo(
+    () => sortCompletedServices(completedServices, sortState.key, sortState.direction),
+    [completedServices, sortState.direction, sortState.key],
+  );
   const totalSummaryAmount = summary?.totalAmount ?? 0;
 
   const strongestBranch = useMemo(() => {
@@ -436,11 +500,11 @@ export default function HistorialPage() {
 
   useEffect(() => {
     setServicesPage(1);
-  }, [dateFrom, dateTo, debouncedSearch]);
+  }, [dateFrom, dateTo, debouncedSearch, sortState]);
 
   const servicesTotalPages = Math.max(
     1,
-    Math.ceil(completedServices.length / servicesPageSize),
+    Math.ceil(sortedCompletedServices.length / servicesPageSize),
   );
 
   useEffect(() => {
@@ -451,8 +515,22 @@ export default function HistorialPage() {
 
   const paginatedCompletedServices = useMemo(() => {
     const start = (servicesPage - 1) * servicesPageSize;
-    return completedServices.slice(start, start + servicesPageSize);
-  }, [completedServices, servicesPage, servicesPageSize]);
+    return sortedCompletedServices.slice(start, start + servicesPageSize);
+  }, [servicesPage, servicesPageSize, sortedCompletedServices]);
+
+  const toggleSort = (key: HistorySortKey) => {
+    setSortState((current) => ({
+      key,
+      direction:
+        current.key === key
+          ? current.direction === "asc"
+            ? "desc"
+            : "asc"
+          : key === "discount" || key === "total" || key === "completedAt"
+            ? "desc"
+            : "asc",
+    }));
+  };
 
   const handleExportHistory = async () => {
     if (!dashboard) {
@@ -500,7 +578,7 @@ export default function HistorialPage() {
           <p className="mt-2 max-w-3xl text-gray-600">
             Consulta servicios concluidos por dia o por rango. El control de
             cortes se administra desde su apartado dedicado dentro de este
-            modulo.
+            módulo.
           </p>
         </div>
 
@@ -549,7 +627,7 @@ export default function HistorialPage() {
       <ConnectionStatusBanner
         showSnapshot={dataSource === "snapshot"}
         snapshotMessage="Mostrando historial guardado localmente."
-        emptySnapshotMessage="No hay conexion con el backend y aun no existe una copia local para este rango."
+        emptySnapshotMessage="No hay conexión con el backend y aún no existe una copia local para este rango."
         snapshotUpdatedAt={snapshotUpdatedAt}
         pendingCount={pendingCount}
       />
@@ -652,7 +730,7 @@ export default function HistorialPage() {
         </span>
       </div>
 
-      <div className="grid gap-4 px-0 py-0 md:grid-cols-2 xl:grid-cols-5">
+      <div className="mb-8 grid gap-5 px-0 py-0 md:grid-cols-2 xl:grid-cols-5 xl:gap-6">
           <div className="app-panel-surface rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
@@ -806,13 +884,62 @@ export default function HistorialPage() {
                 <>
                   <div className="hidden 2xl:block">
                     <div className="grid grid-cols-[1.7fr_1.9fr_1.8fr_1.2fr_1fr_0.8fr_0.9fr_auto] gap-5 border-b border-gray-200 bg-gray-50 px-6 py-4 text-sm font-semibold text-gray-700">
-                      <div>Folio</div>
-                      <div>Estudios</div>
-                      <div>Paciente</div>
-                      <div>Concluido</div>
-                      <div>Sucursal</div>
-                      <div>Desc.</div>
-                      <div>Total</div>
+                      <div>
+                        <SortableTableHeader
+                          label="Folio"
+                          active={sortState.key === "folio"}
+                          direction={sortState.direction}
+                          onToggle={() => toggleSort("folio")}
+                        />
+                      </div>
+                      <div>
+                        <SortableTableHeader
+                          label="Estudios"
+                          active={sortState.key === "study"}
+                          direction={sortState.direction}
+                          onToggle={() => toggleSort("study")}
+                        />
+                      </div>
+                      <div>
+                        <SortableTableHeader
+                          label="Paciente"
+                          active={sortState.key === "patient"}
+                          direction={sortState.direction}
+                          onToggle={() => toggleSort("patient")}
+                        />
+                      </div>
+                      <div>
+                        <SortableTableHeader
+                          label="Concluido"
+                          active={sortState.key === "completedAt"}
+                          direction={sortState.direction}
+                          onToggle={() => toggleSort("completedAt")}
+                        />
+                      </div>
+                      <div>
+                        <SortableTableHeader
+                          label="Sucursal"
+                          active={sortState.key === "branch"}
+                          direction={sortState.direction}
+                          onToggle={() => toggleSort("branch")}
+                        />
+                      </div>
+                      <div>
+                        <SortableTableHeader
+                          label="Desc."
+                          active={sortState.key === "discount"}
+                          direction={sortState.direction}
+                          onToggle={() => toggleSort("discount")}
+                        />
+                      </div>
+                      <div>
+                        <SortableTableHeader
+                          label="Total"
+                          active={sortState.key === "total"}
+                          direction={sortState.direction}
+                          onToggle={() => toggleSort("total")}
+                        />
+                      </div>
                       <div className="text-right">Detalle</div>
                     </div>
 
@@ -922,7 +1049,7 @@ export default function HistorialPage() {
                   <TablePagination
                     page={servicesPage}
                     pageSize={servicesPageSize}
-                    totalItems={completedServices.length}
+                    totalItems={sortedCompletedServices.length}
                     itemLabel="registros"
                     onPageChange={setServicesPage}
                     onPageSizeChange={setServicesPageSize}
@@ -1003,12 +1130,12 @@ export default function HistorialPage() {
 
                 <div>
                   <p className="text-sm font-semibold text-gray-900">
-                    Estudios mas frecuentes
+                    Estudios más frecuentes
                   </p>
                   <div className="mt-3 space-y-3">
                     {(summary?.topStudies ?? []).length === 0 ? (
                       <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-500">
-                        Aun no hay datos suficientes.
+                        Aún no hay datos suficientes.
                       </div>
                     ) : (
                       summary?.topStudies.map((study, index) => (

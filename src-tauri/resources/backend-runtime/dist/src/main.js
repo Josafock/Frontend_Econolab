@@ -9,6 +9,9 @@ const common_1 = require("@nestjs/common");
 const http_exception_zod_filter_1 = require("./common/filters/http-exception-zod.filter");
 const validation_exception_factory_1 = require("./common/validation/validation-exception.factory");
 const helmet_1 = require("helmet");
+function normalizeOrigin(origin) {
+    return origin?.trim().replace(/\/+$/, '') ?? '';
+}
 async function configureApp(app) {
     const configService = app.get(config_1.ConfigService);
     const runtimeConfig = configService.getOrThrow('app');
@@ -20,8 +23,17 @@ async function configureApp(app) {
         app.use((0, helmet_1.default)());
     }
     if (runtimeConfig.corsEnabled) {
+        const allowedOrigins = new Set(runtimeConfig.corsOrigins
+            .map((origin) => normalizeOrigin(origin))
+            .filter(Boolean));
         app.enableCors({
-            origin: runtimeConfig.corsOrigins,
+            origin: (origin, callback) => {
+                if (!origin) {
+                    callback(null, true);
+                    return;
+                }
+                callback(null, allowedOrigins.has(normalizeOrigin(origin)));
+            },
             methods: 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
             allowedHeaders: 'Content-Type, Authorization',
         });

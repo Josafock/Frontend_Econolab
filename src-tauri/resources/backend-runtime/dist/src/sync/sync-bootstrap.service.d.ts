@@ -10,6 +10,7 @@ export declare class SyncBootstrapService {
     private normalizeLimit;
     private serializeValue;
     private buildPayload;
+    private ensurePublicIdsForResource;
     exportResourcePage(resourceType: SupportedInboundSyncResourceType, options?: {
         cursor?: string;
         limit?: number;

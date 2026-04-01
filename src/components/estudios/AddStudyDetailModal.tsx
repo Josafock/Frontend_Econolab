@@ -168,7 +168,7 @@ export default function AddStudyDetailModal({
     [mode, rowErrors, rows],
   );
 
-  const entityLabel = mode === "category" ? "categorias" : "parametros";
+  const entityLabel = mode === "category" ? "categorías" : "parámetros";
   const gridClassName =
     mode === "category"
       ? "grid gap-3 md:grid-cols-[3rem_minmax(0,1fr)_8rem_2.75rem] md:items-start"
@@ -249,8 +249,8 @@ export default function AddStudyDetailModal({
     if (filledRows.length === 0) {
       toast.error(
         mode === "category"
-          ? "Captura al menos una categoria antes de guardar."
-          : "Captura al menos un parametro antes de guardar.",
+          ? "Captura al menos una categoría antes de guardar."
+          : "Captura al menos un parámetro antes de guardar.",
       );
       return;
     }
@@ -284,10 +284,10 @@ export default function AddStudyDetailModal({
         <ModalHeader
           title={
             mode === "category"
-              ? "Captura guiada de categorias"
-              : "Captura guiada de parametros"
+              ? "Captura guiada de categorías"
+              : "Captura guiada de parámetros"
           }
-          description="Captura por filas como en importacion manual. Avanza con Tab y al salir del ultimo campo se crea la siguiente fila."
+          description="Captura por filas como en importación manual. Avanza con Tab y al salir del último campo se crea la siguiente fila."
           icon={<Plus className="h-6 w-6" />}
           onClose={onClose}
           closeDisabled={saving}
@@ -300,11 +300,11 @@ export default function AddStudyDetailModal({
             <div className="grid gap-5 xl:grid-cols-[0.82fr_1.18fr]">
               <div className="space-y-4">
                 <div className="rounded-2xl border border-emerald-100 bg-emerald-50/80 p-4 text-sm text-emerald-900">
-                  <p className="font-semibold">Como capturar rapido</p>
+                  <p className="font-semibold">Cómo capturar rápido</p>
                   <ul className="mt-3 space-y-2 text-sm text-emerald-800">
                     <li>
                       Captura una fila por cada{" "}
-                      {mode === "category" ? "categoria" : "parametro"}.
+                      {mode === "category" ? "categoría" : "parámetro"}.
                     </li>
                     <li>
                       Usa <span className="font-semibold">Tab</span> para
@@ -321,8 +321,8 @@ export default function AddStudyDetailModal({
                 <div className="rounded-2xl border border-gray-200 bg-gray-50/80 p-4">
                   <label className="mb-2 block text-sm font-medium text-gray-700">
                     {mode === "parameter"
-                      ? "Categoria para este lote"
-                      : "Categoria padre para este lote"}
+                      ? "Categoría para este lote"
+                      : "Categoría padre para este lote"}
                   </label>
                   <select
                     value={parentId}
@@ -331,7 +331,7 @@ export default function AddStudyDetailModal({
                     disabled={saving}
                   >
                     <option value="">
-                      {mode === "parameter" ? "Sin categoria" : "Categoria raiz"}
+                      {mode === "parameter" ? "Sin categoría" : "Categoría raíz"}
                     </option>
                     {categories.map((category) => (
                       <option key={category.id} value={category.id}>
@@ -341,8 +341,8 @@ export default function AddStudyDetailModal({
                   </select>
                   <p className="mt-2 text-xs text-gray-500">
                     {mode === "parameter"
-                      ? "La categoria elegida se aplicara a todas las filas de esta captura."
-                      : "Usala solo si vas a crear subcategorias dentro de otra categoria existente."}
+                      ? "La categoría elegida se aplicará a todas las filas de esta captura."
+                      : "Úsala solo si vas a crear subcategorías dentro de otra categoría existente."}
                   </p>
                 </div>
 
@@ -374,8 +374,8 @@ export default function AddStudyDetailModal({
                     </p>
                     <p className="mt-1 text-xs text-gray-500">
                       {mode === "category"
-                        ? "Captura nombre y orden. Puedes seguir tabulando para crear varias categorias de corrido."
-                        : "Captura nombre, unidad, referencia y orden. El flujo queda rapido pero mucho mas claro para quien opera."}
+                        ? "Captura nombre y orden. Puedes seguir tabulando para crear varias categorías de corrido."
+                        : "Captura nombre, unidad, referencia y orden. El flujo queda rápido pero mucho más claro para quien opera."}
                     </p>
                   </div>
 
@@ -395,7 +395,7 @@ export default function AddStudyDetailModal({
                     className={`${gridClassName} border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500`}
                   >
                     <div className="hidden md:block">#</div>
-                    <div>{mode === "category" ? "Categoria" : "Parametro"}</div>
+                    <div>{mode === "category" ? "Categoría" : "Parámetro"}</div>
                     {mode === "parameter" ? <div>Unidad</div> : null}
                     {mode === "parameter" ? <div>Referencia</div> : null}
                     <div>Orden</div>

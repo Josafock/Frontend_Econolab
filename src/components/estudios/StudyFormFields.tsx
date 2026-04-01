@@ -300,7 +300,7 @@ export default function StudyFormFields({
       <div className={sectionClassName}>
         <div className="mb-4">
           <h3 className="text-base font-semibold text-gray-900">Precios y condiciones</h3>
-          <p className="text-xs text-gray-500">Configura los importes del catalogo.</p>
+          <p className="text-xs text-gray-500">Configura los importes del catálogo.</p>
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -413,13 +413,13 @@ export default function StudyFormFields({
       {!isPackage ? (
         <div className={sectionClassName}>
           <div className="mb-4">
-            <h3 className="text-base font-semibold text-gray-900">Metodo e indicador</h3>
+            <h3 className="text-base font-semibold text-gray-900">Método e indicador</h3>
             <p className="text-xs text-gray-500">Campos complementarios del estudio.</p>
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <FieldLabel>Metodo</FieldLabel>
+              <FieldLabel>Método</FieldLabel>
               <div className="relative">
                 <FlaskConical className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <input

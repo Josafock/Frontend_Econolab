@@ -10,6 +10,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SyncBootstrapService = void 0;
+const node_crypto_1 = require("node:crypto");
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("typeorm");
 const config_1 = require("@nestjs/config");
@@ -59,6 +60,30 @@ let SyncBootstrapService = class SyncBootstrapService {
         ]));
         return (0, sync_resource_util_1.buildPortableSyncPayload)(resourceType, payload, manager);
     }
+    async ensurePublicIdsForResource(manager, metadata, alias) {
+        const publicIdColumn = metadata.columns.find((column) => column.propertyName === 'publicId');
+        const primaryColumn = metadata.primaryColumns[0];
+        const primaryProperty = primaryColumn?.propertyPath;
+        if (!publicIdColumn || !primaryColumn || !primaryProperty) {
+            return;
+        }
+        const rowsMissingPublicId = await manager
+            .getRepository(metadata.target)
+            .createQueryBuilder(alias)
+            .select(`${alias}.${primaryProperty}`, 'id')
+            .where(`${alias}.${publicIdColumn.propertyPath} IS NULL`)
+            .getRawMany();
+        for (const row of rowsMissingPublicId) {
+            await manager
+                .createQueryBuilder()
+                .update(metadata.target)
+                .set({
+                [publicIdColumn.propertyName]: (0, node_crypto_1.randomUUID)(),
+            })
+                .where(`${primaryProperty} = :id`, { id: row.id })
+                .execute();
+        }
+    }
     async exportResourcePage(resourceType, options) {
         const entity = (0, sync_resource_util_1.getSyncTrackedResourceEntity)(resourceType);
         if (!entity) {
@@ -73,6 +98,7 @@ let SyncBootstrapService = class SyncBootstrapService {
             if (!primaryColumn || !primaryProperty) {
                 throw new Error(`El recurso ${resourceType} no tiene una clave primaria util para bootstrap.`);
             }
+            await this.ensurePublicIdsForResource(manager, metadata, alias);
             const includeDeleted = toBoolean(options?.includeDeleted, true);
             const limit = this.normalizeLimit(options?.limit);
             const qb = repo.createQueryBuilder(alias);

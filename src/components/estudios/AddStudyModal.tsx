@@ -174,7 +174,7 @@ export default function AddStudyModal({
           description={
             isPackage
               ? "Registra un paquete y despues configura los estudios que lo componen."
-              : "Registra el estudio con catalogo completo, precios y configuracion base."
+              : "Registra el estudio con catálogo completo, precios y configuración base."
           }
           icon={<Microscope className="h-6 w-6" />}
           onClose={() => setOpen(false)}

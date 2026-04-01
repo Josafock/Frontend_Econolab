@@ -4,16 +4,13 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Lock, User } from 'lucide-react';
-import { FcGoogle } from 'react-icons/fc';
 import { toast } from 'react-toastify';
 import { useAuth } from '@/lib/auth/use-auth';
-import { useOffline } from '@/lib/offline/network-state';
 import { getRuntimeConfig } from '@/lib/runtime/runtime-config';
 
 export default function LoginForm() {
   const router = useRouter();
   const { login } = useAuth();
-  const { hasInternetConnection } = useOffline();
   const runtime = getRuntimeConfig();
   const [pending, setPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -42,7 +39,7 @@ export default function LoginForm() {
       return;
     }
 
-    toast.success('Inicio de sesion completado.', {
+    toast.success('Inicio de sesión completado.', {
       onClose: () => router.push('/home'),
     });
   };
@@ -85,7 +82,7 @@ export default function LoginForm() {
                   <Lock className="h-6 w-6 text-red-600" />
                 </div>
                 <div className="text-left">
-                  <h1 className="text-lg font-semibold text-gray-900">Iniciar sesion</h1>
+                  <h1 className="text-lg font-semibold text-gray-900">Iniciar sesión</h1>
                   <p className="text-sm text-gray-500">Accede a tu cuenta</p>
                 </div>
               </div>
@@ -95,7 +92,7 @@ export default function LoginForm() {
               <div className="space-y-5">
                 <div>
                   <label htmlFor="email" className="mb-2 block text-sm font-medium text-gray-700">
-                    Correo electronico
+                    Correo electrónico
                   </label>
                   <div className="relative">
                     <User
@@ -116,7 +113,7 @@ export default function LoginForm() {
 
                 <div>
                   <label htmlFor="password" className="mb-2 block text-sm font-medium text-gray-700">
-                    Contrasena
+                    Contraseña
                   </label>
                   <div className="relative">
                     <Lock
@@ -134,7 +131,7 @@ export default function LoginForm() {
                     <button
                       type="button"
                       onClick={() => setShowPassword((value) => !value)}
-                      aria-label={showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
+                      aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition-colors hover:text-gray-600"
                     >
                       {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
@@ -147,7 +144,7 @@ export default function LoginForm() {
                     href="/auth/forgot-password"
                     className="text-sm font-medium text-red-600 transition-colors hover:text-red-700"
                   >
-                    Olvidaste tu contrasena?
+                    ¿Olvidaste tu contraseña?
                   </Link>
                 </div>
 
@@ -159,72 +156,46 @@ export default function LoginForm() {
                   {pending ? (
                     <>
                       <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-red-500 border-t-transparent" />
-                      Iniciando sesion...
+                      Iniciando sesión...
                     </>
                   ) : (
-                    'Iniciar sesion'
+                    'Iniciar sesión'
                   )}
                 </button>
 
                 {!runtime.isDesktop ? (
-                  <>
-                    <div className="flex items-center gap-4 text-xs text-gray-400">
-                      <div className="h-px w-full bg-gray-200" />
-                      <span>o</span>
-                      <div className="h-px w-full bg-gray-200" />
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!hasInternetConnection) {
-                          toast.info('Google Auth requiere conexion a internet.');
-                          return;
-                        }
-
-                        const apiUrl = runtime.apiBaseUrl;
-                        if (!apiUrl) {
-                          console.error('Falta la URL de la API para iniciar Google Auth');
-                          return;
-                        }
-                        window.location.href = `${apiUrl}/auth/google`;
-                      }}
-                      disabled={!hasInternetConnection}
-                      className="flex w-full items-center justify-center gap-3 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  <p className="text-center text-sm text-gray-600">
+                    ¿No tienes una cuenta?{' '}
+                    <Link
+                      href="/auth/register"
+                      className="font-medium text-red-600 underline underline-offset-2 transition-colors hover:text-red-700"
                     >
-                      <FcGoogle className="h-5 w-5" />
-                      Continuar con Google
-                    </button>
-                  </>
-                ) : null}
-
-                <p className="text-center text-sm text-gray-600">
-                  No tienes una cuenta?{' '}
-                  <Link
-                    href="/auth/register"
-                    className="font-medium text-red-600 underline underline-offset-2 transition-colors hover:text-red-700"
-                  >
-                    Registrate aqui
-                  </Link>
-                </p>
+                      Regístrate aquí
+                    </Link>
+                  </p>
+                ) : (
+                  <p className="text-center text-sm text-gray-600">
+                    Si no tienes acceso, solicita tu cuenta al administrador.
+                  </p>
+                )}
               </div>
             </form>
           </div>
 
           <div className="mt-6 text-center text-xs text-gray-600">
-            Al iniciar sesion, aceptas nuestros{' '}
+            Al iniciar sesión, aceptas nuestros{' '}
             <Link
               href="/terms"
               className="text-red-600 transition-colors hover:text-red-700 hover:underline"
             >
-              Terminos de servicio
+              Términos de servicio
             </Link>{' '}
             y{' '}
             <Link
               href="/privacy"
               className="text-red-600 transition-colors hover:text-red-700 hover:underline"
             >
-              Politica de privacidad
+              Política de privacidad
             </Link>
             .
           </div>

@@ -6,6 +6,8 @@ export type SessionUser = {
   nombre: string;
   email: string;
   rol: SessionRole;
+  profileImageUrl?: string | null;
+  authProvider?: "local" | "google";
 };
 
 export type AuthSession = {

@@ -77,11 +77,11 @@ export default function StudyDetailFormFields({
 
   const parentOptions = categories.filter((category) => category.id !== excludeParentId);
   const isParameter = formData.dataType === 'parameter';
-  const parentLabel = isParameter ? 'Categoria (opcional)' : 'Pertenece a (opcional)';
-  const parentPlaceholder = isParameter ? 'Sin categoria' : 'Categoria raiz';
+  const parentLabel = isParameter ? 'Categoría (opcional)' : 'Pertenece a (opcional)';
+  const parentPlaceholder = isParameter ? 'Sin categoría' : 'Categoría raíz';
   const typeHelperText = isParameter
-    ? 'Este parametro sera el que se capture en resultados dentro del servicio.'
-    : 'La categoria solo organiza el estudio y no requiere captura de resultado.';
+    ? 'Este parámetro será el que se capture en resultados dentro del servicio.'
+    : 'La categoría solo organiza el estudio y no requiere captura de resultado.';
 
   const parentError = getErrorState('parentId', errors, touched);
   const nameError = getErrorState('name', errors, touched);
@@ -100,8 +100,8 @@ export default function StudyDetailFormFields({
             className={`${getInputClass(false)} modal-select appearance-none`}
             disabled={disabled}
           >
-            <option value="category">Categoria / encabezado</option>
-            <option value="parameter">Parametro</option>
+            <option value="category">Categoría / encabezado</option>
+            <option value="parameter">Parámetro</option>
           </select>
           <p className="mt-1.5 text-xs text-gray-500">{typeHelperText}</p>
         </div>
@@ -109,7 +109,7 @@ export default function StudyDetailFormFields({
         <div>
           <FieldLabel>Tipo de elemento</FieldLabel>
           <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
-            {isParameter ? 'Parametro' : 'Categoria / encabezado'}
+            {isParameter ? 'Parámetro' : 'Categoría / encabezado'}
           </div>
           <p className="mt-1.5 text-xs text-gray-500">{typeHelperText}</p>
         </div>
@@ -135,13 +135,13 @@ export default function StudyDetailFormFields({
         <ErrorText message={parentError.message} />
         <p className="mt-1.5 text-xs text-gray-500">
           {isParameter
-            ? 'Si la dejas vacia, el parametro aparecera como independiente.'
-            : 'Usala solo si quieres anidar esta categoria dentro de otra.'}
+            ? 'Si la dejas vacía, el parámetro aparecerá como independiente.'
+            : 'Úsala solo si quieres anidar esta categoría dentro de otra.'}
         </p>
       </div>
 
       <div>
-        <FieldLabel>{isParameter ? 'Nombre del parametro' : 'Nombre de la categoria'}</FieldLabel>
+        <FieldLabel>{isParameter ? 'Nombre del parámetro' : 'Nombre de la categoría'}</FieldLabel>
         <input
           type="text"
           name="name"

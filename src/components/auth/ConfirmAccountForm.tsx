@@ -8,8 +8,10 @@ import { MailCheck, Repeat, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { confirmAccountToken } from '@/features/auth/api/public-auth';
+import { getRuntimeConfig } from '@/lib/runtime/runtime-config';
 
 export default function ConfirmAccountForm() {
+  const runtime = getRuntimeConfig();
   const [token, setToken] = useState('');
   const [cooldown, setCooldown] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -94,7 +96,7 @@ export default function ConfirmAccountForm() {
                 <div>
                   <h1 className="text-lg font-semibold text-gray-900">Confirma tu cuenta</h1>
                   <p className="text-xs text-gray-500">
-                    Ingresa el codigo de 6 digitos enviado a tu correo
+                    Ingresa el código de 6 dígitos enviado a tu correo
                   </p>
                 </div>
               </div>
@@ -123,18 +125,33 @@ export default function ConfirmAccountForm() {
                   type="button"
                 >
                   <Repeat className="h-4 w-4" />
-                  {cooldown > 0 ? `Reenviar en ${cooldown}s` : 'Reenviar codigo'}
+                  {cooldown > 0 ? `Reenviar en ${cooldown}s` : 'Reenviar código'}
                 </button>
 
                 <p className="text-center text-xs text-gray-500">
-                  Si no tienes acceso al correo, vuelve al{' '}
-                  <Link
-                    href="/auth/register"
-                    className="font-medium text-red-600 underline underline-offset-2 hover:text-red-700"
-                  >
-                    registro
-                  </Link>
-                  .
+                  {runtime.isDesktop ? (
+                    <>
+                      Si no puedes completar este paso, vuelve a{' '}
+                      <Link
+                        href="/auth/login"
+                        className="font-medium text-red-600 underline underline-offset-2 hover:text-red-700"
+                      >
+                        iniciar sesión
+                      </Link>
+                      .
+                    </>
+                  ) : (
+                    <>
+                      Si no tienes acceso al correo, vuelve al{' '}
+                      <Link
+                        href="/auth/register"
+                        className="font-medium text-red-600 underline underline-offset-2 hover:text-red-700"
+                      >
+                        registro
+                      </Link>
+                      .
+                    </>
+                  )}
                 </p>
               </div>
             </div>
@@ -142,7 +159,7 @@ export default function ConfirmAccountForm() {
             <div className="order-1 rounded-2xl border border-gray-200 bg-gray-50 p-6 shadow-sm sm:order-2">
               <div className="mb-4 flex items-center gap-2 text-gray-800">
                 <ShieldCheck className="h-4 w-4 text-red-600" />
-                <span className="text-sm font-semibold">Consejos rapidos</span>
+                <span className="text-sm font-semibold">Consejos rápidos</span>
               </div>
               <ul className="list-disc space-y-2 pl-5 text-xs text-gray-600">
                 <li>Revisa Spam o Promociones si no ves el correo.</li>

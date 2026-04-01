@@ -35,7 +35,7 @@ export default function ProtectedRoute({
   if (isLoading) {
     return (
       <div className="flex min-h-[30vh] items-center justify-center text-sm text-gray-500">
-        Validando sesion...
+        Validando sesión...
       </div>
     );
   }

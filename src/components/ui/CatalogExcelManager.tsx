@@ -185,7 +185,7 @@ export default function CatalogExcelManager<Row extends Record<string, string>>(
 
     const summarySheet = [
       {
-        Catalogo: title,
+        Catálogo: title,
         Registros: exportedRows.length,
         Fecha: new Date().toLocaleString('es-MX'),
       },
@@ -243,7 +243,7 @@ export default function CatalogExcelManager<Row extends Record<string, string>>(
         mode: 'reading',
         current: 5,
         total: 100,
-        label: 'Leyendo archivo de importacion...',
+        label: 'Leyendo archivo de importación...',
       });
 
       const imported: PreviewRow<Row>[] = [];
@@ -357,8 +357,8 @@ export default function CatalogExcelManager<Row extends Record<string, string>>(
       total: importableRows.length || 1,
       label:
         successCount > 0
-          ? `Importacion finalizada. ${successCount} registro(s) insertado(s).`
-          : 'La importacion termino sin altas nuevas.',
+          ? `Importación finalizada. ${successCount} registro(s) insertado(s).`
+          : 'La importación terminó sin altas nuevas.',
     });
 
     if (successCount > 0 && errorCount === 0 && invalidRows.length === 0) {
@@ -387,7 +387,7 @@ export default function CatalogExcelManager<Row extends Record<string, string>>(
           <div>
             <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
               <FileSpreadsheet className="h-3.5 w-3.5" />
-              Importacion y exportacion masiva
+              Importación y exportación masiva
             </div>
             <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
             <p className="mt-2 max-w-3xl text-sm text-gray-600">{description}</p>
@@ -569,7 +569,7 @@ export default function CatalogExcelManager<Row extends Record<string, string>>(
 
         {previewRows.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center text-sm text-gray-500">
-            Todavia no hay filas cargadas. Puedes subir un archivo o agregar filas manualmente.
+            Todavía no hay filas cargadas. Puedes subir un archivo o agregar filas manualmente.
           </div>
         ) : (
           <div className="overflow-hidden rounded-[1.75rem] border border-gray-200">

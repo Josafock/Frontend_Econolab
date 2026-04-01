@@ -5,7 +5,7 @@ exports.getAppRuntimeConfig = getAppRuntimeConfig;
 const config_1 = require("@nestjs/config");
 const env_utils_1 = require("./env.utils");
 const DEFAULT_CORS_ORIGINS = [
-    'https://econolabe.netlify.app',
+    'https://econolab.netlify.app',
     'http://localhost:5173',
 ];
 function normalizeRuntimeMode(value) {

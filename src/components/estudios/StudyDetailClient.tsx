@@ -94,20 +94,20 @@ const studyDetailExcelColumns: ExcelColumn<StudyDetailExcelRow>[] = [
     key: "tipo",
     label: "Tipo",
     required: true,
-    description: "Define si la fila es categoria o parametro.",
+    description: "Define si la fila es categoría o parámetro.",
     inputType: "select",
     options: [
-      { label: "Categoria", value: "category" },
-      { label: "Parametro", value: "parameter" },
+      { label: "Categoría", value: "category" },
+      { label: "Parámetro", value: "parameter" },
     ],
     example: "parameter",
     width: 16,
   },
   {
     key: "categoriaPadre",
-    label: "Categoria padre",
+    label: "Categoría padre",
     description:
-      "Nombre de la categoria contenedora. Dejalo vacio para nivel raiz.",
+      "Nombre de la categoría contenedora. Déjalo vacío para nivel raíz.",
     example: "QUIMICA SANGUINEA",
     width: 24,
   },
@@ -115,7 +115,7 @@ const studyDetailExcelColumns: ExcelColumn<StudyDetailExcelRow>[] = [
     key: "nombre",
     label: "Nombre",
     required: true,
-    description: "Nombre de la categoria o parametro.",
+    description: "Nombre de la categoría o parámetro.",
     example: "GLUCOSA",
     width: 28,
   },
@@ -131,7 +131,7 @@ const studyDetailExcelColumns: ExcelColumn<StudyDetailExcelRow>[] = [
   {
     key: "unidad",
     label: "Unidad",
-    description: "Solo para parametros.",
+    description: "Solo para parámetros.",
     example: "mg/dL",
     width: 16,
   },
@@ -335,7 +335,7 @@ export default function StudyDetailClient({
     if (!studiesCatalogResponse.ok) {
       const nextError =
         studiesCatalogResponse.errors[0] ??
-        "No se pudo cargar el catalogo de estudios.";
+        "No se pudo cargar el catálogo de estudios.";
       setError(nextError);
       if (!options?.silent) {
         toast.error(nextError);
@@ -415,7 +415,7 @@ export default function StudyDetailClient({
       if (!studiesCatalogResponse.ok) {
         setError(
           studiesCatalogResponse.errors[0] ??
-            "No se pudo cargar el catalogo de estudios.",
+            "No se pudo cargar el catálogo de estudios.",
         );
         setStudy(null);
         setLoading(false);
@@ -560,7 +560,7 @@ export default function StudyDetailClient({
     if (detailImportUsedNamesRef.current.has(duplicateKey)) {
       return {
         ok: false,
-        error: `Ya existe un elemento ${row.tipo === "category" ? "de categoria" : "de parametro"} con ese nombre.`,
+        error: `Ya existe un elemento ${row.tipo === "category" ? "de categoría" : "de parámetro"} con ese nombre.`,
       };
     }
 
@@ -573,7 +573,7 @@ export default function StudyDetailClient({
       if (!parentId) {
         return {
           ok: false,
-          error: `No se encontro la categoria padre "${row.categoriaPadre}".`,
+          error: `No se encontró la categoría padre "${row.categoriaPadre}".`,
         };
       }
     }
@@ -781,7 +781,7 @@ export default function StudyDetailClient({
 
     const confirmed = await confirm({
       title: "Eliminar estudio",
-      message: `Se eliminara "${study.name}" del catalogo. Esta accion ocultara el registro y dejara de estar disponible para operar.`,
+      message: `Se eliminará "${study.name}" del catálogo. Esta acción ocultará el registro y dejará de estar disponible para operar.`,
       confirmLabel: "Eliminar estudio",
       tone: "danger",
     });
@@ -795,7 +795,7 @@ export default function StudyDetailClient({
       return;
     }
 
-    toast.success("Estudio eliminado del catalogo.");
+    toast.success("Estudio eliminado del catálogo.");
     router.push("/estudios");
   };
 
@@ -945,8 +945,8 @@ export default function StudyDetailClient({
             Detalle de {entityLabel}
           </h1>
           <p className="mt-2 text-gray-600">
-            Consulta el catalogo, edita su configuracion y define la plantilla
-            de parametros que despues se llenara en servicios.
+            Consulta el catálogo, edita su configuración y define la plantilla
+            de parámetros que después se llenará en servicios.
           </p>
         </div>
 
@@ -1118,10 +1118,10 @@ export default function StudyDetailClient({
                   <>
                     <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
                       <p className="text-xs uppercase tracking-wide text-gray-500">
-                        Metodo
+                        Método
                       </p>
                       <p className="mt-2 text-base font-semibold text-gray-900">
-                        {study.method ?? "Sin metodo"}
+                        {study.method ?? "Sin método"}
                       </p>
                     </div>
                     <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
@@ -1211,7 +1211,7 @@ export default function StudyDetailClient({
                   </h2>
                   <p className="text-sm text-gray-500">
                     Actualiza los datos generales del registro. La plantilla se
-                    administra aparte para que la captura sea mas comoda.
+                    administra aparte para que la captura sea más cómoda.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -1253,7 +1253,7 @@ export default function StudyDetailClient({
                     Contenido del paquete
                   </h2>
                   <p className="text-sm text-gray-500">
-                    Aqui eliges los estudios que forman parte del paquete.
+                    Aquí eliges los estudios que forman parte del paquete.
                   </p>
                 </div>
                 <div className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
@@ -1262,9 +1262,9 @@ export default function StudyDetailClient({
               </div>
 
               <div className="mb-5 rounded-[1.5rem] border border-blue-100 bg-blue-50/80 p-4 text-sm text-blue-900">
-                <p className="font-semibold">Como funciona un paquete</p>
+                  <p className="font-semibold">Cómo funciona un paquete</p>
                 <p className="mt-2 text-blue-800">
-                  Al usar un paquete en un servicio, se agregan automaticamente
+                  Al usar un paquete en un servicio, se agregan automáticamente
                   los estudios que lo componen.
                 </p>
               </div>
@@ -1277,8 +1277,8 @@ export default function StudyDetailClient({
                         Agregar estudio al paquete
                       </p>
                       <p className="mt-1 text-xs text-gray-500">
-                        Busca por nombre, clave o descripcion y agrega solo los
-                        estudios activos que aun no esten incluidos.
+                        Busca por nombre, clave o descripción y agrega solo los
+                        estudios activos que aún no estén incluidos.
                       </p>
                     </div>
                     <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
@@ -1292,7 +1292,7 @@ export default function StudyDetailClient({
                       type="text"
                       value={packageStudySearch}
                       onChange={(e) => setPackageStudySearch(e.target.value)}
-                      placeholder="Buscar por nombre, clave, descripcion, metodo o indicador..."
+                      placeholder="Buscar por nombre, clave, descripción, método o indicador..."
                       className="w-full rounded-xl border border-gray-200 bg-white px-11 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
                       disabled={savingPackageStudies}
                     />
@@ -1301,11 +1301,11 @@ export default function StudyDetailClient({
                   <div className="mt-4 max-h-[26rem] space-y-3 overflow-y-auto pr-1">
                     {activePackageCandidateStudies.length === 0 ? (
                       <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center text-sm text-gray-500">
-                        No hay mas estudios activos disponibles para agregar.
+                        No hay más estudios activos disponibles para agregar.
                       </div>
                     ) : filteredPackageCandidateStudies.length === 0 ? (
                       <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center text-sm text-gray-500">
-                        No encontramos estudios con esa busqueda.
+                        No encontramos estudios con esa búsqueda.
                       </div>
                     ) : (
                       filteredPackageCandidateStudies.map((candidate) => (
@@ -1328,7 +1328,7 @@ export default function StudyDetailClient({
                               <div className="mt-2 flex flex-wrap gap-2 text-xs">
                                 {candidate.method ? (
                                   <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-                                    Metodo: {candidate.method}
+                                    Método: {candidate.method}
                                   </span>
                                 ) : null}
                                 {candidate.indicator ? (
@@ -1379,7 +1379,7 @@ export default function StudyDetailClient({
                   </p>
                   {selectedPackageStudies.length === 0 ? (
                     <div className="mt-4 rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center text-sm text-gray-500">
-                      Este paquete aun no contiene estudios.
+                      Este paquete aún no contiene estudios.
                     </div>
                   ) : (
                     <div className="mt-4 space-y-3">
@@ -1428,28 +1428,28 @@ export default function StudyDetailClient({
                       Plantilla del estudio
                     </h2>
                     <p className="text-sm text-gray-500">
-                      Agrega categorias y parametros para organizar mejor los
+                      Agrega categorías y parámetros para organizar mejor los
                       resultados del estudio.
                     </p>
                   </div>
 
                   <div className="flex flex-wrap gap-3">
                     <CatalogExcelModal
-                      title="Importacion y exportacion de configuracion"
-                      subtitle="Importa o exporta categorias y parametros del estudio desde una plantilla con vista previa."
+                      title="Importación y exportación de configuración"
+                      subtitle="Importa o exporta categorías y parámetros del estudio desde una plantilla con vista previa."
                       trigger={
                         <button
                           type="button"
                           className="inline-flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700 transition-all hover:bg-amber-100"
                         >
                           <FileSpreadsheet className="h-4 w-4" />
-                          Importacion/Exportacion
+                          Importación/Exportación
                         </button>
                       }
                     >
                       <CatalogExcelManager
-                        title={`Configuracion de ${study.name}`}
-                        description="Trabaja con categorias y parametros en lote. Usa el nombre de la categoria padre para relacionar subcategorias o parametros dentro del estudio."
+                        title={`Configuración de ${study.name}`}
+                        description="Trabaja con categorías y parámetros en lote. Usa el nombre de la categoría padre para relacionar subcategorías o parámetros dentro del estudio."
                         entityLabel="elementos de configuracion"
                         columns={studyDetailExcelColumns}
                         createEmptyRow={createEmptyStudyDetailExcelRow}
@@ -1477,7 +1477,7 @@ export default function StudyDetailClient({
                       className="inline-flex items-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 transition-all hover:bg-blue-100"
                     >
                       <Plus className="h-4 w-4" />
-                      Nueva categoria
+                      Nueva categoría
                     </button>
                     <button
                       type="button"
@@ -1485,16 +1485,16 @@ export default function StudyDetailClient({
                       className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-emerald-700"
                     >
                       <Plus className="h-4 w-4" />
-                      Nuevo parametro
+                      Nuevo parámetro
                     </button>
                   </div>
                 </div>
 
                 <div className="rounded-[1.5rem] border border-blue-100 bg-blue-50/80 p-4 text-sm text-blue-900">
-                  <p className="font-semibold">Como funciona este flujo</p>
+                  <p className="font-semibold">Cómo funciona este flujo</p>
                   <p className="mt-2 text-blue-800">
-                    Las categorias ayudan a ordenar la informacion y los
-                    parametros son los datos que despues se capturan en
+                    Las categorías ayudan a ordenar la información y los
+                    parámetros son los datos que después se capturan en
                     resultados.
                   </p>
                 </div>
@@ -1510,7 +1510,7 @@ export default function StudyDetailClient({
                       Vista previa
                     </h2>
                     <p className="text-sm text-gray-500">
-                      Asi se vera la estructura del estudio al momento de
+                      Así se verá la estructura del estudio al momento de
                       capturar resultados.
                     </p>
                   </div>
@@ -1518,14 +1518,14 @@ export default function StudyDetailClient({
 
                 {details.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-10 text-center text-sm text-gray-500">
-                    Este estudio aun no tiene plantilla. Crea una categoria o un
-                    parametro para empezar.
+                    Este estudio aún no tiene plantilla. Crea una categoría o un
+                    parámetro para empezar.
                   </div>
                 ) : (
                   <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
                     <div className="rounded-[1.5rem] border border-gray-200 bg-gray-50/70 p-4">
                       <p className="text-sm font-semibold text-gray-900">
-                        Parametros del estudio
+                        Parámetros del estudio
                       </p>
                       <div className="mt-4 space-y-4">
                         {groupedParameters.map(({ category, parameters }) => (
@@ -1539,7 +1539,7 @@ export default function StudyDetailClient({
                                   {category.name}
                                 </p>
                                 <p className="mt-1 text-xs text-gray-500">
-                                  Categoria | Orden {category.sortOrder}
+                                  Categoría | Orden {category.sortOrder}
                                 </p>
                               </div>
                               <div className="flex items-center gap-2">
@@ -1591,7 +1591,7 @@ export default function StudyDetailClient({
                           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
                             <div className="flex items-center justify-between gap-3">
                               <p className="text-sm font-semibold text-amber-900">
-                                Parametros sin categoria
+                                Parámetros sin categoría
                               </p>
                               <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-amber-700">
                                 {standaloneParameters.length} independiente
@@ -1642,7 +1642,7 @@ export default function StudyDetailClient({
                         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-1">
                           <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
                             <p className="text-xs uppercase tracking-wide text-gray-500">
-                              Parametros
+                              Parámetros
                             </p>
                             <p className="mt-2 text-2xl font-semibold text-gray-900">
                               {activeParameters.length}
@@ -1650,7 +1650,7 @@ export default function StudyDetailClient({
                           </div>
                           <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
                             <p className="text-xs uppercase tracking-wide text-gray-500">
-                              Categorias
+                              Categorías
                             </p>
                             <p className="mt-2 text-2xl font-semibold text-gray-900">
                               {activeCategories.length}
@@ -1658,7 +1658,7 @@ export default function StudyDetailClient({
                           </div>
                           <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
                             <p className="text-xs uppercase tracking-wide text-gray-500">
-                              Sin categoria
+                              Sin categoría
                             </p>
                             <p className="mt-2 text-2xl font-semibold text-gray-900">
                               {standaloneParameters.length}
@@ -1670,7 +1670,7 @@ export default function StudyDetailClient({
                       {emptyCategories.length > 0 ? (
                         <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
                           <p className="font-semibold">
-                            Categorias aun sin parametros
+                            Categorías aún sin parámetros
                           </p>
                           <div className="mt-3 space-y-2">
                             {emptyCategories.map((category) => (
@@ -1683,7 +1683,7 @@ export default function StudyDetailClient({
                                     {category.name}
                                   </p>
                                   <p className="mt-1 text-xs text-gray-500">
-                                    Categoria | Orden {category.sortOrder}
+                                    Categoría | Orden {category.sortOrder}
                                   </p>
                                 </div>
                                 <EntityActionsMenu
@@ -1698,15 +1698,15 @@ export default function StudyDetailClient({
 
                       <div className="rounded-[1.5rem] border border-gray-200 bg-white p-5">
                         <p className="text-sm font-semibold text-gray-900">
-                          Notas utiles
+                          Notas útiles
                         </p>
                         <ul className="mt-4 space-y-3 text-sm text-gray-600">
                           <li>
-                            Las categorias ayudan a separar mejor los grupos de
+                            Las categorías ayudan a separar mejor los grupos de
                             resultados.
                           </li>
                           <li>
-                            Los parametros activos quedan disponibles cuando el
+                            Los parámetros activos quedan disponibles cuando el
                             estudio se usa en un servicio.
                           </li>
                           <li>

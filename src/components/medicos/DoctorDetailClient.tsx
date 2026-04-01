@@ -234,7 +234,7 @@ export default function DoctorDetailClient({
             href="/medicos"
             className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
           >
-            <ArrowLeft size={16} /> Regresar a medicos
+            <ArrowLeft size={16} /> Regresar a médicos
           </Link>
           <h1 className="mt-4 text-3xl font-bold text-gray-900">Detalle de medico</h1>
           <p className="mt-2 text-gray-600">
@@ -350,11 +350,11 @@ export default function DoctorDetailClient({
                   <p className="mt-2 text-base font-semibold text-gray-900">{doctor.specialty ?? "Sin especialidad"}</p>
                 </div>
                 <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-gray-500">Cedula profesional</p>
-                  <p className="mt-2 text-base font-semibold text-gray-900">{doctor.licenseNumber ?? "Sin cedula"}</p>
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Cédula profesional</p>
+                  <p className="mt-2 text-base font-semibold text-gray-900">{doctor.licenseNumber ?? "Sin cédula"}</p>
                 </div>
                 <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-gray-500">Telefono</p>
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Teléfono</p>
                   <p className="mt-2 text-base font-semibold text-gray-900">{doctor.phone ?? "-"}</p>
                 </div>
                 <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
@@ -379,8 +379,8 @@ export default function DoctorDetailClient({
                   <p className="mt-1 text-sm font-medium text-white">{doctor.specialty ?? "Sin especialidad"}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-red-100">Cedula</p>
-                  <p className="mt-1 text-sm font-medium text-white">{doctor.licenseNumber ?? "Sin cedula"}</p>
+                  <p className="text-xs uppercase tracking-wide text-red-100">Cédula</p>
+                  <p className="mt-1 text-sm font-medium text-white">{doctor.licenseNumber ?? "Sin cédula"}</p>
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-wide text-red-100">Contacto</p>

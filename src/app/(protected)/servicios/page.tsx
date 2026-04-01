@@ -20,10 +20,7 @@ import { CollectionContentSkeleton } from "@/components/ui/PageSkeletons";
 import ResultsPdfOptionsModal from "@/components/servicios/ResultsPdfOptionsModal";
 import ConnectionStatusBanner from "@/components/ui/ConnectionStatusBanner";
 import EntityActionsMenu from "@/components/ui/EntityActionsMenu";
-import {
-  TableColumnFilterInput,
-  TableColumnFilterSelect,
-} from "@/components/ui/TableColumnFilters";
+import SortableTableHeader from "@/components/ui/SortableTableHeader";
 import TablePagination from "@/components/ui/TablePagination";
 import { SERVICE_BRANCH_OPTIONS } from "@/components/servicios/serviceFormUtils";
 import { useServicesData, type ServicesFilters } from "@/hooks/useServicesData";
@@ -37,6 +34,13 @@ import { appFileService } from "@/lib/files/file-service";
 import { useOffline } from "@/lib/offline/network-state";
 import { buildServiceDetailHref } from "@/lib/routes/detail-routes";
 import { toast } from "react-toastify";
+import {
+  applySortDirection,
+  compareDate,
+  compareNumber,
+  compareText,
+  type SortDirection,
+} from "@/lib/table/sort";
 
 const AddServiceModal = dynamic(
   () => import("@/components/servicios/AgregarServicioModal"),
@@ -76,39 +80,26 @@ const statusLabel = (status: ServiceStatus) => {
   return labels[status] || status;
 };
 
-function normalizeFilterValue(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function matchesTextColumn(values: string[], filterValue: string) {
-  const normalizedFilter = normalizeFilterValue(filterValue);
-  if (!normalizedFilter) return true;
-
-  return values.some((value) =>
-    value.toLowerCase().includes(normalizedFilter),
-  );
-}
-
-function matchesDateColumn(value: string, filterValue: string) {
-  if (!filterValue) return true;
-
-  const normalizedValue = value.length >= 10 ? value.slice(0, 10) : value;
-  return normalizedValue === filterValue;
-}
+type ServiceSortKey =
+  | "folio"
+  | "studies"
+  | "patient"
+  | "branch"
+  | "createdAt"
+  | "deliveryAt"
+  | "total"
+  | "status";
 
 export default function ServiciosPage() {
   const { isOnline, pendingCount } = useOffline();
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const [columnFilters, setColumnFilters] = useState({
-    folio: "",
-    studies: "",
-    patient: "",
-    branch: "all",
-    createdAt: "",
-    deliveryAt: "",
-    total: "",
-    status: "all",
+  const [sortState, setSortState] = useState<{
+    key: ServiceSortKey;
+    direction: SortDirection;
+  }>({
+    key: "createdAt",
+    direction: "desc",
   });
   const [openServiceModal, setOpenServiceModal] = useState(false);
   const [resultsPdfTarget, setResultsPdfTarget] = useState<{
@@ -130,6 +121,7 @@ export default function ServiciosPage() {
     refreshing,
     saving,
     updatingStatusId,
+    stats,
     catalogs,
     catalogsLoading,
     dataSource,
@@ -141,49 +133,42 @@ export default function ServiciosPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, filters, columnFilters]);
+  }, [searchTerm, filters, sortState]);
 
-  const filteredServices = useMemo(
-    () =>
-      services.filter(
-        (service) =>
-          matchesTextColumn([service.folio], columnFilters.folio) &&
-          matchesTextColumn([service.estudio], columnFilters.studies) &&
-          matchesTextColumn([service.paciente, service.telefono], columnFilters.patient) &&
-          (columnFilters.branch === "all"
-            ? true
-            : service.sucursal === columnFilters.branch) &&
-          matchesDateColumn(service.createdAtIso ?? "", columnFilters.createdAt) &&
-          matchesDateColumn(service.deliveryAtIso ?? "", columnFilters.deliveryAt) &&
-          matchesTextColumn([service.costo], columnFilters.total) &&
-          (columnFilters.status === "all"
-            ? true
-            : service.status === columnFilters.status),
-      ),
-    [columnFilters, services],
-  );
+  const sortedServices = useMemo(() => {
+    const items = [...services];
 
-  const visibleStats = useMemo(() => {
-    const completed = filteredServices.filter(
-      (service) => service.status === "completed",
-    ).length;
-    const inProgress = filteredServices.filter(
-      (service) => service.status === "in_progress",
-    ).length;
-    const income = filteredServices.reduce(
-      (acc, service) => acc + Number(service.costo),
-      0,
-    );
+    items.sort((left, right) => {
+      const comparison = (() => {
+        switch (sortState.key) {
+          case "folio":
+            return compareText(left.folio, right.folio);
+          case "studies":
+            return compareText(left.estudio, right.estudio);
+          case "patient":
+            return compareText(left.paciente, right.paciente);
+          case "branch":
+            return compareText(left.sucursal, right.sucursal);
+          case "createdAt":
+            return compareDate(left.createdAtIso, right.createdAtIso);
+          case "deliveryAt":
+            return compareDate(left.deliveryAtIso, right.deliveryAtIso);
+          case "total":
+            return compareNumber(Number(left.costo), Number(right.costo));
+          case "status":
+            return compareText(statusLabel(left.status), statusLabel(right.status));
+          default:
+            return 0;
+        }
+      })();
 
-    return {
-      total: filteredServices.length,
-      completed,
-      inProgress,
-      income,
-    };
-  }, [filteredServices]);
+      return applySortDirection(comparison, sortState.direction);
+    });
 
-  const totalPages = Math.max(1, Math.ceil(filteredServices.length / pageSize));
+    return items;
+  }, [services, sortState]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedServices.length / pageSize));
 
   useEffect(() => {
     if (page > totalPages) {
@@ -201,8 +186,22 @@ export default function ServiciosPage() {
 
   const paginatedServices = useMemo(() => {
     const start = (page - 1) * pageSize;
-    return filteredServices.slice(start, start + pageSize);
-  }, [filteredServices, page, pageSize]);
+    return sortedServices.slice(start, start + pageSize);
+  }, [page, pageSize, sortedServices]);
+
+  const toggleSort = (key: ServiceSortKey) => {
+    setSortState((current) => ({
+      key,
+      direction:
+        current.key === key
+          ? current.direction === "asc"
+            ? "desc"
+            : "asc"
+          : key === "createdAt" || key === "deliveryAt" || key === "total"
+            ? "desc"
+            : "asc",
+    }));
+  };
 
   const openServicePdf = async (
     loader: (serviceId: number) => Promise<
@@ -395,7 +394,7 @@ export default function ServiciosPage() {
       <ConnectionStatusBanner
         showSnapshot={dataSource === "snapshot"}
         snapshotMessage="Mostrando servicios guardados localmente."
-        emptySnapshotMessage="No hay conexion con el backend y aun no existe una copia local para este filtro."
+        emptySnapshotMessage="No hay conexión con el backend y aún no existe una copia local para este filtro."
         snapshotUpdatedAt={snapshotUpdatedAt}
         pendingCount={pendingCount}
       />
@@ -522,7 +521,7 @@ export default function ServiciosPage() {
             <div>
               <p className="text-sm font-medium text-gray-600">Servicios</p>
               <p className="mt-1 text-3xl font-bold text-gray-900">
-                {visibleStats.total}
+                {stats.total}
               </p>
             </div>
             <div className="rounded-2xl bg-blue-100 p-3">
@@ -536,7 +535,7 @@ export default function ServiciosPage() {
             <div>
               <p className="text-sm font-medium text-gray-600">Concluidos</p>
               <p className="mt-1 text-3xl font-bold text-gray-900">
-                {visibleStats.completed}
+                {stats.completed}
               </p>
             </div>
             <div className="rounded-2xl bg-emerald-100 p-3">
@@ -550,7 +549,7 @@ export default function ServiciosPage() {
             <div>
               <p className="text-sm font-medium text-gray-600">En curso</p>
               <p className="mt-1 text-3xl font-bold text-gray-900">
-                {visibleStats.inProgress}
+                {stats.inProgress}
               </p>
             </div>
             <div className="rounded-2xl bg-orange-100 p-3">
@@ -566,7 +565,7 @@ export default function ServiciosPage() {
                 Ingreso estimado
               </p>
               <p className="mt-1 text-3xl font-bold text-gray-900">
-                ${visibleStats.income.toFixed(2)}
+                ${stats.income.toFixed(2)}
               </p>
             </div>
             <div className="rounded-2xl bg-rose-100 p-3">
@@ -600,7 +599,7 @@ export default function ServiciosPage() {
 
       {loading ? (
         <CollectionContentSkeleton statCards={4} rows={5} />
-      ) : filteredServices.length === 0 ? (
+      ) : services.length === 0 ? (
         <div className="rounded-3xl border border-gray-200 bg-white p-10 text-center text-gray-600 shadow-sm">
           No hay servicios para el filtro seleccionado.
         </div>
@@ -608,91 +607,71 @@ export default function ServiciosPage() {
         <>
           <div className="hidden overflow-visible rounded-[2rem] border border-gray-200 bg-white shadow-sm 2xl:block">
             <div className="grid grid-cols-[1.45fr_2.2fr_2fr_1fr_1.7fr_1fr_0.8fr_1fr_1fr] gap-4 border-b border-gray-200 bg-gray-50 px-6 py-4 text-sm font-semibold text-gray-700">
-              <div>Folio</div>
-              <div>Estudios</div>
-              <div>Paciente</div>
-              <div>Sucursal</div>
-              <div>Creacion</div>
-              <div>Entrega</div>
-              <div>Total</div>
-              <div>Estatus</div>
+              <div>
+                <SortableTableHeader
+                  label="Folio"
+                  active={sortState.key === "folio"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("folio")}
+                />
+              </div>
+              <div>
+                <SortableTableHeader
+                  label="Estudios"
+                  active={sortState.key === "studies"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("studies")}
+                />
+              </div>
+              <div>
+                <SortableTableHeader
+                  label="Paciente"
+                  active={sortState.key === "patient"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("patient")}
+                />
+              </div>
+              <div>
+                <SortableTableHeader
+                  label="Sucursal"
+                  active={sortState.key === "branch"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("branch")}
+                />
+              </div>
+              <div>
+                <SortableTableHeader
+                  label="Creación"
+                  active={sortState.key === "createdAt"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("createdAt")}
+                />
+              </div>
+              <div>
+                <SortableTableHeader
+                  label="Entrega"
+                  active={sortState.key === "deliveryAt"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("deliveryAt")}
+                />
+              </div>
+              <div>
+                <SortableTableHeader
+                  label="Total"
+                  active={sortState.key === "total"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("total")}
+                />
+              </div>
+              <div>
+                <SortableTableHeader
+                  label="Estatus"
+                  active={sortState.key === "status"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("status")}
+                />
+              </div>
               <div className="text-right">Acciones</div>
-            </div>
-
-            <div className="grid grid-cols-[1.45fr_2.2fr_2fr_1fr_1.7fr_1fr_0.8fr_1fr_1fr] gap-4 border-b border-gray-200 bg-white px-6 py-4">
-              <TableColumnFilterInput
-                value={columnFilters.folio}
-                onChange={(value) =>
-                  setColumnFilters((current) => ({ ...current, folio: value }))
-                }
-                placeholder="Folio..."
-                ariaLabel="Filtrar columna folio"
-              />
-              <TableColumnFilterInput
-                value={columnFilters.studies}
-                onChange={(value) =>
-                  setColumnFilters((current) => ({ ...current, studies: value }))
-                }
-                placeholder="Estudios..."
-                ariaLabel="Filtrar columna estudios"
-              />
-              <TableColumnFilterInput
-                value={columnFilters.patient}
-                onChange={(value) =>
-                  setColumnFilters((current) => ({ ...current, patient: value }))
-                }
-                placeholder="Paciente..."
-                ariaLabel="Filtrar columna paciente"
-              />
-              <TableColumnFilterSelect
-                value={columnFilters.branch}
-                onChange={(value) =>
-                  setColumnFilters((current) => ({ ...current, branch: value }))
-                }
-                options={SERVICE_BRANCH_OPTIONS.map((branch) => ({
-                  value: branch,
-                  label: branch,
-                }))}
-                ariaLabel="Filtrar columna sucursal"
-              />
-              <TableColumnFilterInput
-                type="date"
-                value={columnFilters.createdAt}
-                onChange={(value) =>
-                  setColumnFilters((current) => ({ ...current, createdAt: value }))
-                }
-                ariaLabel="Filtrar columna creacion"
-              />
-              <TableColumnFilterInput
-                type="date"
-                value={columnFilters.deliveryAt}
-                onChange={(value) =>
-                  setColumnFilters((current) => ({ ...current, deliveryAt: value }))
-                }
-                ariaLabel="Filtrar columna entrega"
-              />
-              <TableColumnFilterInput
-                value={columnFilters.total}
-                onChange={(value) =>
-                  setColumnFilters((current) => ({ ...current, total: value }))
-                }
-                placeholder="Total..."
-                ariaLabel="Filtrar columna total"
-              />
-              <TableColumnFilterSelect
-                value={columnFilters.status}
-                onChange={(value) =>
-                  setColumnFilters((current) => ({ ...current, status: value }))
-                }
-                options={statusOptions
-                  .filter((option) => option.value !== "all")
-                  .map((option) => ({
-                    value: option.value,
-                    label: option.label,
-                  }))}
-                ariaLabel="Filtrar columna estatus"
-              />
-              <div />
             </div>
 
             <div className="divide-y divide-gray-200">
@@ -773,7 +752,7 @@ export default function ServiciosPage() {
             <TablePagination
               page={page}
               pageSize={pageSize}
-              totalItems={filteredServices.length}
+              totalItems={sortedServices.length}
               itemLabel="registros"
               onPageChange={setPage}
               onPageSizeChange={setPageSize}
@@ -804,7 +783,7 @@ export default function ServiciosPage() {
 
                 {service.syncState === "pending" ? (
                   <div className="mb-3 rounded-2xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
-                    Cambio local pendiente de sincronizacion
+                    Cambio local pendiente de sincronización
                   </div>
                 ) : null}
 
@@ -822,7 +801,7 @@ export default function ServiciosPage() {
                     </p>
                   </div>
                   <div className="rounded-2xl bg-gray-50 p-3">
-                    <p className="text-xs text-gray-500">Creacion</p>
+                    <p className="text-xs text-gray-500">Creación</p>
                     <p className="mt-1 font-semibold text-gray-900">
                       {service.fechaCreacion}
                     </p>
@@ -852,7 +831,7 @@ export default function ServiciosPage() {
             <TablePagination
               page={page}
               pageSize={pageSize}
-              totalItems={filteredServices.length}
+              totalItems={sortedServices.length}
               itemLabel="registros"
               onPageChange={setPage}
               onPageSizeChange={setPageSize}

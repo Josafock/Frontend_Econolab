@@ -40,7 +40,7 @@ export default function ProtectedAppLayout({
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4 text-sm text-gray-500">
-        Preparando tu sesion...
+        Preparando tu sesión...
       </div>
     );
   }

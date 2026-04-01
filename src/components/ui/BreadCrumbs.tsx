@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 
 const LABELS: Record<string, string> = {
   pacientes: "Pacientes",
-  medicos: "Medicos",
+  medicos: "Médicos",
   estudios: "Estudios",
   servicios: "Servicios",
   historial: "Historial",
@@ -14,10 +14,10 @@ const LABELS: Record<string, string> = {
   home: "Inicio",
   detalle: "Detalle",
   auth: "Acceso",
-  login: "Iniciar sesion",
+  login: "Iniciar sesión",
   register: "Registro",
-  "forgot-password": "Recuperar contrasena",
-  "new-password": "Nueva contrasena",
+  "forgot-password": "Recuperar contraseña",
+  "new-password": "Nueva contraseña",
   "confirm-account": "Confirmar cuenta",
   google: "Google",
 };

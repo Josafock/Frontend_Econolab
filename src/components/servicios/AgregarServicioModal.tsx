@@ -477,10 +477,10 @@ export default function AddServiceModal({
                   <RefreshCw className="h-8 w-8 animate-spin text-red-500" />
                   <div>
                     <p className="text-base font-semibold text-gray-900">
-                      Cargando catalogos del servicio
+                      Cargando catálogos del servicio
                     </p>
                     <p className="mt-2 max-w-xl text-sm text-gray-500">
-                      Estamos preparando pacientes, medicos y estudios para que
+                      Estamos preparando pacientes, médicos y estudios para que
                       el modal abra ya listo y no reciba carga innecesaria desde
                       el inicio.
                     </p>
@@ -611,7 +611,7 @@ export default function AddServiceModal({
                                 onChange={(e) =>
                                   setPatientSearch(e.target.value)
                                 }
-                                placeholder="Buscar por nombre, telefono, documento o correo..."
+                                placeholder="Buscar por nombre, teléfono, documento o correo..."
                                 className="w-full rounded-xl border border-gray-200 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
                                 disabled={isSaving}
                               />
@@ -712,7 +712,7 @@ export default function AddServiceModal({
                                 onChange={(e) =>
                                   setDoctorSearch(e.target.value)
                                 }
-                                placeholder="Buscar por nombre, especialidad, cedula o correo..."
+                                placeholder="Buscar por nombre, especialidad, cédula o correo..."
                                 className="w-full rounded-xl border border-gray-200 bg-white px-10 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
                                 disabled={isSaving}
                               />
@@ -751,7 +751,7 @@ export default function AddServiceModal({
                                   const secondaryInfo = [
                                     doctor.specialty ?? null,
                                     doctor.licenseNumber
-                                      ? `Cedula ${doctor.licenseNumber}`
+                                      ? `Cédula ${doctor.licenseNumber}`
                                       : null,
                                     doctor.phone ?? null,
                                     doctor.email ?? null,
@@ -803,7 +803,7 @@ export default function AddServiceModal({
                                 })
                               ) : (
                                 <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-4 py-6 text-center text-sm text-gray-500">
-                                  No se encontraron medicos con esa busqueda.
+                                  No se encontraron médicos con esa búsqueda.
                                 </div>
                               )}
                             </div>
@@ -840,7 +840,7 @@ export default function AddServiceModal({
 
                     <div className="rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm">
                       <p className="text-sm font-semibold text-gray-900">
-                        Resumen rapido
+                        Resumen rápido
                       </p>
 
                       <div className="mt-4 space-y-3 text-sm text-gray-700">
@@ -896,7 +896,7 @@ export default function AddServiceModal({
                         </div>
                         <div>
                           <h3 className="text-base font-semibold text-gray-900">
-                            Catalogo de estudios
+                            Catálogo de estudios
                           </h3>
                           <p className="text-xs text-gray-500">
                             Busca estudios individuales o paquetes activos y
@@ -999,7 +999,7 @@ export default function AddServiceModal({
 
                       {totals.items.length === 0 ? (
                         <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-10 text-center text-sm text-gray-500">
-                          Todavia no agregas estudios al servicio.
+                          Todavía no agregas estudios al servicio.
                         </div>
                       ) : (
                         <div className="space-y-3">

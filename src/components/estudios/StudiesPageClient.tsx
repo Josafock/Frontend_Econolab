@@ -39,12 +39,15 @@ import CatalogExcelModal from "@/components/ui/CatalogExcelModal";
 import { useConfirmDialog } from "@/components/ui/ConfirmDialogProvider";
 import { CollectionContentSkeleton } from "@/components/ui/PageSkeletons";
 import EntityActionsMenu from "@/components/ui/EntityActionsMenu";
-import {
-  TableColumnFilterInput,
-  TableColumnFilterSelect,
-} from "@/components/ui/TableColumnFilters";
+import SortableTableHeader from "@/components/ui/SortableTableHeader";
 import TablePagination from "@/components/ui/TablePagination";
 import type { ExcelColumn } from "@/helpers/excel";
+import {
+  applySortDirection,
+  compareNumber,
+  compareText,
+  type SortDirection,
+} from "@/lib/table/sort";
 import {
   formatStudyDuration,
   getStudyStatusColor,
@@ -80,17 +83,17 @@ const typeOptions: Array<{ value: StudyTypeFilter; label: string }> = [
 
 const studyExcelColumns: ExcelColumn<StudyFormValues>[] = [
   { key: "nombre", label: "Nombre", required: true, description: "Nombre principal del estudio o paquete.", example: "BIOMETRIA HEMATICA", width: 30 },
-  { key: "clave", label: "Clave", required: true, description: "Clave interna unica del catalogo.", example: "BH-001", width: 18 },
-  { key: "descripcion", label: "Descripcion", required: true, description: "Texto descriptivo para el estudio.", example: "Analisis sanguineo completo", width: 34 },
-  { key: "duracion", label: "Duracion", required: true, description: "Usa formato HH:MM.", example: "01:30", placeholder: "01:00", width: 14 },
-  { key: "tipo", label: "Tipo", required: true, description: "Tipo de registro del catalogo.", example: "study", inputType: "select", options: [{ label: "Estudio", value: "study" }, { label: "Paquete", value: "package" }, { label: "Otro", value: "other" }], width: 14 },
-  { key: "precioNormal", label: "Precio normal", required: true, description: "Precio publico.", example: "350.00", inputType: "number", width: 16 },
+  { key: "clave", label: "Clave", required: true, description: "Clave interna única del catálogo.", example: "BH-001", width: 18 },
+  { key: "descripcion", label: "Descripción", required: true, description: "Texto descriptivo para el estudio.", example: "Análisis sanguíneo completo", width: 34 },
+  { key: "duracion", label: "Duración", required: true, description: "Usa formato HH:MM.", example: "01:30", placeholder: "01:00", width: 14 },
+  { key: "tipo", label: "Tipo", required: true, description: "Tipo de registro del catálogo.", example: "study", inputType: "select", options: [{ label: "Estudio", value: "study" }, { label: "Paquete", value: "package" }, { label: "Otro", value: "other" }], width: 14 },
+  { key: "precioNormal", label: "Precio normal", required: true, description: "Precio público.", example: "350.00", inputType: "number", width: 16 },
   { key: "precioDif", label: "Precio DIF", description: "Precio para DIF.", example: "300.00", inputType: "number", width: 16 },
   { key: "precioEspecial", label: "Precio especial", description: "Precio especial autorizado.", example: "280.00", inputType: "number", width: 18 },
   { key: "precioHospital", label: "Precio hospital", description: "Precio hospitalario.", example: "260.00", inputType: "number", width: 18 },
   { key: "otros", label: "Otros", description: "Otro precio relacionado.", example: "0.00", inputType: "number", width: 14 },
   { key: "descuento", label: "Descuento", description: "Porcentaje base de descuento.", example: "0.00", inputType: "number", width: 14 },
-  { key: "metodo", label: "Metodo", description: "Aplica sobre todo para estudios.", example: "QUIMICA SECA", width: 24 },
+  { key: "metodo", label: "Método", description: "Aplica sobre todo para estudios.", example: "QUIMICA SECA", width: 24 },
   { key: "indicador", label: "Indicador", description: "Indicador o referencia clave.", example: "mg/dL", width: 20 },
   { key: "estatus", label: "Estatus", description: "Estado inicial del registro.", example: "active", inputType: "select", options: [{ label: "Activo", value: "active" }, { label: "Suspendido", value: "suspended" }], width: 14 },
 ];
@@ -108,18 +111,13 @@ function matchesStudySearch(study: Study, searchTerm: string) {
   ].some((value) => value.toLowerCase().includes(normalized));
 }
 
-function normalizeFilterValue(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function matchesTextColumn(values: string[], filterValue: string) {
-  const normalizedFilter = normalizeFilterValue(filterValue);
-  if (!normalizedFilter) return true;
-
-  return values.some((value) =>
-    value.toLowerCase().includes(normalizedFilter),
-  );
-}
+type StudySortKey =
+  | "study"
+  | "code"
+  | "type"
+  | "duration"
+  | "price"
+  | "status";
 
 async function loadStudiesCatalog(): Promise<StudiesState> {
   const response = await getStudies({ limit: 1000 });
@@ -146,13 +144,12 @@ export default function StudiesPageClient() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<StudyStatusFilter>("all");
   const [typeFilter, setTypeFilter] = useState<StudyTypeFilter>("all");
-  const [columnFilters, setColumnFilters] = useState({
-    study: "",
-    code: "",
-    type: "all",
-    duration: "",
-    price: "",
-    status: "all",
+  const [sortState, setSortState] = useState<{
+    key: StudySortKey;
+    direction: SortDirection;
+  }>({
+    key: "study",
+    direction: "asc",
   });
   const [showFilters, setShowFilters] = useState(false);
   const [openAddModal, setOpenAddModal] = useState(false);
@@ -185,48 +182,59 @@ export default function StudiesPageClient() {
   }, []);
 
   const allStudies = useMemo(
-    () =>
-      catalogStudies.filter(
-        (study) =>
-          matchesStudySearch(study, searchTerm) &&
-          matchesTextColumn(
-            [study.name, study.description ?? "", study.method ?? "", study.indicator ?? ""],
-            columnFilters.study,
-          ) &&
-          matchesTextColumn([study.code], columnFilters.code) &&
-          matchesTextColumn(
-            [formatStudyDuration(study.durationMinutes)],
-            columnFilters.duration,
-          ) &&
-          matchesTextColumn(
-            [
-              Number(study.normalPrice).toFixed(2),
-              Number(study.difPrice).toFixed(2),
-              Number(study.specialPrice).toFixed(2),
-            ],
-            columnFilters.price,
-          ),
-      ),
-    [catalogStudies, columnFilters, searchTerm],
+    () => catalogStudies.filter((study) => matchesStudySearch(study, searchTerm)),
+    [catalogStudies, searchTerm],
   );
 
   const studies = useMemo(
     () =>
       allStudies.filter((study) => {
         const matchesStatus =
-          (statusFilter === "all" ? true : study.status === statusFilter) &&
-          (columnFilters.status === "all"
-            ? true
-            : study.status === columnFilters.status);
+          statusFilter === "all" ? true : study.status === statusFilter;
         const matchesType =
-          (typeFilter === "all" ? true : study.type === typeFilter) &&
-          (columnFilters.type === "all"
-            ? true
-            : study.type === columnFilters.type);
+          typeFilter === "all" ? true : study.type === typeFilter;
         return matchesStatus && matchesType;
       }),
-    [allStudies, columnFilters.status, columnFilters.type, statusFilter, typeFilter],
+    [allStudies, statusFilter, typeFilter],
   );
+
+  const sortedStudies = useMemo(() => {
+    const items = [...studies];
+
+    items.sort((left, right) => {
+      const comparison = (() => {
+        switch (sortState.key) {
+          case "study":
+            return compareText(left.name, right.name);
+          case "code":
+            return compareText(left.code, right.code);
+          case "type":
+            return compareText(
+              getStudyTypeLabel(left.type),
+              getStudyTypeLabel(right.type),
+            );
+          case "duration":
+            return compareNumber(left.durationMinutes, right.durationMinutes);
+          case "price":
+            return compareNumber(
+              Number(left.normalPrice),
+              Number(right.normalPrice),
+            );
+          case "status":
+            return compareText(
+              getStudyStatusLabel(left.status),
+              getStudyStatusLabel(right.status),
+            );
+          default:
+            return 0;
+        }
+      })();
+
+      return applySortDirection(comparison, sortState.direction);
+    });
+
+    return items;
+  }, [sortState, studies]);
 
   const activos = useMemo(
     () => allStudies.filter((study) => study.status === "active").length,
@@ -246,9 +254,9 @@ export default function StudiesPageClient() {
 
   useEffect(() => {
     setPage(1);
-  }, [columnFilters, searchTerm, statusFilter, typeFilter]);
+  }, [searchTerm, sortState, statusFilter, typeFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(studies.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(sortedStudies.length / pageSize));
 
   useEffect(() => {
     if (page > totalPages) {
@@ -258,8 +266,22 @@ export default function StudiesPageClient() {
 
   const paginatedStudies = useMemo(() => {
     const start = (page - 1) * pageSize;
-    return studies.slice(start, start + pageSize);
-  }, [page, pageSize, studies]);
+    return sortedStudies.slice(start, start + pageSize);
+  }, [page, pageSize, sortedStudies]);
+
+  const toggleSort = (key: StudySortKey) => {
+    setSortState((current) => ({
+      key,
+      direction:
+        current.key === key
+          ? current.direction === "asc"
+            ? "desc"
+            : "asc"
+          : key === "price" || key === "duration"
+            ? "desc"
+            : "asc",
+    }));
+  };
 
   const refreshStudies = async () => {
     setIsRefreshing(true);
@@ -308,7 +330,7 @@ export default function StudiesPageClient() {
   const handleDelete = async (study: Study) => {
     const confirmed = await confirm({
       title: "Eliminar estudio",
-      message: `Se eliminara el estudio "${study.name}" del catalogo. Esta accion ocultara el registro y dejara de estar disponible para operar.`,
+      message: `Se eliminará el estudio "${study.name}" del catálogo. Esta acción ocultará el registro y dejará de estar disponible para operar.`,
       confirmLabel: "Eliminar estudio",
       tone: "danger",
     });
@@ -324,7 +346,7 @@ export default function StudiesPageClient() {
       return;
     }
 
-    toast.success("Estudio eliminado del catalogo.");
+    toast.success("Estudio eliminado del catálogo.");
     await refreshStudies();
   };
 
@@ -338,26 +360,26 @@ export default function StudiesPageClient() {
         <div>
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
             <span className="h-2 w-2 rounded-full bg-red-500" />
-            Catalogo de estudios
+            Catálogo de estudios
           </div>
           <h1 className="text-3xl font-bold text-gray-900">Estudios</h1>
           <p className="mt-2 max-w-2xl text-gray-600">
-            Administra el catalogo de analisis, paquetes y su configuracion de
+            Administra el catálogo de análisis, paquetes y su configuración de
             resultados.
           </p>
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row">
           <CatalogExcelModal
-            title="Importacion y exportacion de estudios"
-            subtitle="Gestiona cargas masivas y descargas del catalogo desde una ventana separada para mantener esta vista enfocada en la operacion diaria."
+            title="Importación y exportación de estudios"
+            subtitle="Gestiona cargas masivas y descargas del catálogo desde una ventana separada para mantener esta vista enfocada en la operación diaria."
             trigger={
               <button
                 type="button"
                 className="app-action-button inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-sm font-semibold text-amber-700 shadow-sm transition-all hover:bg-amber-100"
               >
                 <FileSpreadsheet size={20} />
-                Importacion/Exportacion
+                Importación/Exportación
               </button>
             }
           >
@@ -433,7 +455,7 @@ export default function StudiesPageClient() {
               <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Buscar por nombre, clave, descripcion, metodo o indicador..."
+                placeholder="Buscar por nombre, clave, descripción, método o indicador..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full rounded-2xl border border-gray-200 bg-white px-12 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
@@ -576,94 +598,65 @@ export default function StudiesPageClient() {
       ) : (
         <>
           <div className="hidden overflow-visible rounded-[2rem] border border-gray-200 bg-white shadow-sm 2xl:block">
-            <div className="grid grid-cols-12 gap-4 border-b border-gray-200 bg-gray-50 px-6 py-4 text-sm font-semibold text-gray-700">
-              <div className="col-span-4">Estudio</div>
-              <div className="col-span-1">Clave</div>
-              <div className="col-span-1">Tipo</div>
-              <div className="col-span-1">Duracion</div>
-              <div className="col-span-2">Precio normal</div>
-              <div className="col-span-2">Estatus</div>
-              <div className="col-span-1">Acciones</div>
-            </div>
-
-            <div className="grid grid-cols-12 gap-4 border-b border-gray-200 bg-white px-6 py-4">
-              <div className="col-span-4">
-                <TableColumnFilterInput
-                  value={columnFilters.study}
-                  onChange={(value) =>
-                    setColumnFilters((current) => ({ ...current, study: value }))
-                  }
-                  placeholder="Filtrar estudio..."
-                  ariaLabel="Filtrar columna estudio"
-                />
-              </div>
-              <div className="col-span-1">
-                <TableColumnFilterInput
-                  value={columnFilters.code}
-                  onChange={(value) =>
-                    setColumnFilters((current) => ({ ...current, code: value }))
-                  }
-                  placeholder="Clave..."
-                  ariaLabel="Filtrar columna clave"
-                />
-              </div>
-              <div className="col-span-1">
-                <TableColumnFilterSelect
-                  value={columnFilters.type}
-                  onChange={(value) =>
-                    setColumnFilters((current) => ({ ...current, type: value }))
-                  }
-                  options={[
-                    { value: "study", label: "Estudio" },
-                    { value: "package", label: "Paquete" },
-                    { value: "other", label: "Otro" },
-                  ]}
-                  ariaLabel="Filtrar columna tipo"
-                />
-              </div>
-              <div className="col-span-1">
-                <TableColumnFilterInput
-                  value={columnFilters.duration}
-                  onChange={(value) =>
-                    setColumnFilters((current) => ({ ...current, duration: value }))
-                  }
-                  placeholder="00:00"
-                  ariaLabel="Filtrar columna duracion"
+            <div className="grid grid-cols-12 gap-3 border-b border-gray-200 bg-gray-50 px-6 py-4 text-sm font-semibold text-gray-700">
+              <div className="col-span-3">
+                <SortableTableHeader
+                  label="Estudio"
+                  active={sortState.key === "study"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("study")}
                 />
               </div>
               <div className="col-span-2">
-                <TableColumnFilterInput
-                  value={columnFilters.price}
-                  onChange={(value) =>
-                    setColumnFilters((current) => ({ ...current, price: value }))
-                  }
-                  placeholder="Precio..."
-                  ariaLabel="Filtrar columna precio"
+                <SortableTableHeader
+                  label="Clave"
+                  active={sortState.key === "code"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("code")}
+                />
+              </div>
+              <div className="col-span-1">
+                <SortableTableHeader
+                  label="Tipo"
+                  active={sortState.key === "type"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("type")}
+                />
+              </div>
+              <div className="col-span-1">
+                <SortableTableHeader
+                  label="Duracion"
+                  active={sortState.key === "duration"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("duration")}
                 />
               </div>
               <div className="col-span-2">
-                <TableColumnFilterSelect
-                  value={columnFilters.status}
-                  onChange={(value) =>
-                    setColumnFilters((current) => ({ ...current, status: value }))
-                  }
-                  options={[
-                    { value: "active", label: "Activo" },
-                    { value: "suspended", label: "Suspendido" },
-                  ]}
-                  ariaLabel="Filtrar columna estatus"
+                <SortableTableHeader
+                  label="Precio normal"
+                  active={sortState.key === "price"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("price")}
                 />
               </div>
-              <div className="col-span-1" />
+              <div className="col-span-1">
+                <SortableTableHeader
+                  label="Estatus"
+                  active={sortState.key === "status"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("status")}
+                />
+              </div>
+              <div className="col-span-2 text-right">Acciones</div>
             </div>
 
             <div className="divide-y divide-gray-200">
               {paginatedStudies.map((study) => (
                 <div
                   key={study.id}
-                  className="grid grid-cols-12 gap-4 px-6 py-5 transition-colors hover:bg-gray-50"
+                  className="grid grid-cols-12 gap-3 px-6 py-5 transition-colors hover:bg-gray-50"
                 >
-                  <div className="col-span-4">
+                  <div className="col-span-3 min-w-0">
                     <h3 className="text-sm font-semibold text-gray-900">
                       {study.name}
                     </h3>
@@ -673,7 +666,7 @@ export default function StudiesPageClient() {
                     <div className="mt-2 flex flex-wrap gap-2">
                       {study.type !== "package" && study.method ? (
                         <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
-                          Metodo: {study.method}
+                          Método: {study.method}
                         </span>
                       ) : null}
                       {study.type !== "package" && study.indicator ? (
@@ -684,13 +677,13 @@ export default function StudiesPageClient() {
                     </div>
                   </div>
 
-                  <div className="col-span-1">
+                  <div className="col-span-2 min-w-0">
                     <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">
                       {study.code}
                     </span>
                   </div>
 
-                  <div className="col-span-1">
+                  <div className="col-span-1 min-w-0">
                     <span
                       className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getStudyTypeColor(study.type)}`}
                     >
@@ -698,13 +691,13 @@ export default function StudiesPageClient() {
                     </span>
                   </div>
 
-                  <div className="col-span-1">
+                  <div className="col-span-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-900">
                       {formatStudyDuration(study.durationMinutes)}
                     </p>
                   </div>
 
-                  <div className="col-span-2">
+                  <div className="col-span-2 min-w-0">
                     <p className="text-sm font-semibold text-gray-900">
                       ${Number(study.normalPrice).toFixed(2)}
                     </p>
@@ -714,7 +707,7 @@ export default function StudiesPageClient() {
                     </p>
                   </div>
 
-                  <div className="col-span-2">
+                  <div className="col-span-1 min-w-0">
                     <span
                       className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getStudyStatusColor(study.status)}`}
                     >
@@ -722,7 +715,7 @@ export default function StudiesPageClient() {
                     </span>
                   </div>
 
-                  <div className="col-span-1 flex justify-end">
+                  <div className="col-span-2 flex justify-end">
                     <EntityActionsMenu
                       buttonLabel="Acciones"
                       items={[
@@ -790,7 +783,7 @@ export default function StudiesPageClient() {
             <TablePagination
               page={page}
               pageSize={pageSize}
-              totalItems={studies.length}
+              totalItems={sortedStudies.length}
               itemLabel="registros"
               onPageChange={setPage}
               onPageSizeChange={setPageSize}
@@ -852,7 +845,7 @@ export default function StudiesPageClient() {
                   <div className="text-xs text-gray-500">
                     {study.type === "package"
                       ? "Paquete listo para agrupar estudios"
-                      : `Metodo: ${study.method || "Sin metodo"}`}
+                      : `Método: ${study.method || "Sin método"}`}
                   </div>
                   <EntityActionsMenu
                     buttonLabel="Acciones"
@@ -922,7 +915,7 @@ export default function StudiesPageClient() {
             <TablePagination
               page={page}
               pageSize={pageSize}
-              totalItems={studies.length}
+              totalItems={sortedStudies.length}
               itemLabel="registros"
               onPageChange={setPage}
               onPageSizeChange={setPageSize}

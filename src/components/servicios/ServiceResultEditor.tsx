@@ -216,7 +216,7 @@ export default function ServiceResultEditor({
       onSaved(nextResult);
       toast.success(
         mode === "final"
-          ? "Resultado guardado localmente y pendiente de sincronizacion."
+          ? "Resultado guardado localmente y pendiente de sincronización."
           : "Borrador guardado localmente.",
       );
       setSavingMode(null);
@@ -234,7 +234,7 @@ export default function ServiceResultEditor({
     setResult(response.data.data);
     onSaved(response.data.data);
     toast.success(
-      mode === "final" ? "Resultado cerrado con exito." : "Borrador guardado.",
+      mode === "final" ? "Resultado cerrado con éxito." : "Borrador guardado.",
     );
     setSavingMode(null);
   };
@@ -332,7 +332,7 @@ export default function ServiceResultEditor({
           </div>
           <p className="mt-2 text-sm text-gray-500">
             Captura los valores del estudio, ajusta unidades y define que
-            parametros saldran en el PDF.
+            parámetros saldrán en el PDF.
           </p>
         </div>
 
@@ -391,13 +391,13 @@ export default function ServiceResultEditor({
 
               <div>
                 <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Metodo
+                  Método
                 </label>
                 <input
                   value={method}
                   onChange={(e) => setMethod(e.target.value)}
                   className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
-                  placeholder="Metodo o tecnica utilizada"
+                  placeholder="Método o técnica utilizada"
                 />
               </div>
 
@@ -418,7 +418,7 @@ export default function ServiceResultEditor({
             <p className="text-sm font-semibold">Estado actual</p>
             <div className="mt-3 space-y-2 text-sm text-slate-200">
               <div className="flex items-center justify-between">
-                <span>Ultima captura</span>
+                <span>Última captura</span>
                 <span>{formatDateTime(result.updatedAt)}</span>
               </div>
               <div className="flex items-center justify-between">
@@ -452,7 +452,7 @@ export default function ServiceResultEditor({
           {groupedRows.uncategorized.length > 0 ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
               <p className="mb-3 text-sm font-semibold text-amber-900">
-                Parametros sin categoria
+                Parámetros sin categoría
               </p>
               <div className="space-y-3">
                 {renderRows(groupedRows.uncategorized)}

@@ -197,7 +197,7 @@ function buildExecutiveSummaryRows(
         : "Sin movimientos",
     },
     {
-      Concepto: "Estudio mas solicitado",
+      Concepto: "Estudio más solicitado",
       Valor: strongestStudy
         ? `${strongestStudy.studyName} (${strongestStudy.times} solicitudes)`
         : "Sin datos",
@@ -248,7 +248,7 @@ function buildDailyCutWorkbook(cut: DailyCutRecord) {
       rows: cut.servicesSnapshot.map((service) => ({
         Folio: service.folio,
         Paciente: service.patientName,
-        Telefono: service.patientPhone ?? "N/D",
+        Teléfono: service.patientPhone ?? "N/D",
         Medico: service.doctorName ?? "Sin medico",
         "Cantidad estudios":
           service.studiesCount ??
@@ -257,8 +257,8 @@ function buildDailyCutWorkbook(cut: DailyCutRecord) {
         Sucursal: service.branchName,
         "Fecha muestra": formatExcelDateTime(service.sampleAt),
         "Fecha entrega": formatExcelDateTime(service.deliveryAt),
-        "Fecha conclusion": formatExcelDateTime(service.completedAt),
-        "Fecha creacion": formatExcelDateTime(service.createdAt),
+        "Fecha conclusión": formatExcelDateTime(service.completedAt),
+        "Fecha creación": formatExcelDateTime(service.createdAt),
         Subtotal: money(service.subtotalAmount),
         Descuento: money(service.discountAmount),
         Total: money(service.totalAmount),
@@ -832,7 +832,7 @@ export default function CortesPage() {
           overviewDataSource === "snapshot" || detailDataSource === "snapshot"
         }
         snapshotMessage="Mostrando informacion guardada localmente."
-        emptySnapshotMessage="No hay conexion con el backend y aun no existe una copia local para este corte o periodo."
+        emptySnapshotMessage="No hay conexión con el backend y aún no existe una copia local para este corte o periodo."
         snapshotUpdatedAt={activeSnapshotUpdatedAt}
         pendingCount={pendingCount}
       />
@@ -898,7 +898,7 @@ export default function CortesPage() {
               onClick={() => handleApplyPreset("last7")}
               className="rounded-full border border-sky-200 bg-white px-3 py-1 text-xs font-semibold text-sky-700 transition-colors hover:bg-sky-100"
             >
-              Ultimos 7 dias
+              Últimos 7 días
             </button>
             <button
               type="button"
@@ -913,16 +913,16 @@ export default function CortesPage() {
 
       <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <SummaryCard
-          label="Dias visibles"
+          label="Días visibles"
           value={String(overview?.totalDays ?? 0)}
-          hint="Dias con corte o movimiento en el periodo"
+          hint="Días con corte o movimiento en el periodo"
           tone="bg-blue-100 text-blue-700"
           icon={<CalendarDays className="h-5 w-5" />}
         />
         <SummaryCard
           label="Cortes guardados"
           value={String(overview?.savedDaysCount ?? 0)}
-          hint="Dias que ya cuentan con snapshot guardado"
+          hint="Días que ya cuentan con snapshot guardado"
           tone="bg-emerald-100 text-emerald-700"
           icon={<FileSpreadsheet className="h-5 w-5" />}
         />
@@ -936,7 +936,7 @@ export default function CortesPage() {
         <SummaryCard
           label="Ingreso del rango"
           value={money(overview?.totals.totalAmount ?? 0)}
-          hint="Total sumado a partir de los dias consultados"
+          hint="Total sumado a partir de los días consultados"
           tone="bg-violet-100 text-violet-700"
           icon={<Wallet className="h-5 w-5" />}
         />
@@ -1066,7 +1066,7 @@ export default function CortesPage() {
             </div>
           ) : (
             <div className="p-8 text-center text-sm text-gray-500">
-              No hay dias con movimientos ni cortes guardados en este periodo.
+              No hay días con movimientos ni cortes guardados en este periodo.
             </div>
           )}
         </div>

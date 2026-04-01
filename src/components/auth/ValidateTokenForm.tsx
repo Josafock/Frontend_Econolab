@@ -6,6 +6,7 @@ import { toast } from "react-toastify";
 import { Repeat, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { validatePasswordResetToken } from "@/features/auth/api/public-auth";
+import { getRuntimeConfig } from "@/lib/runtime/runtime-config";
 
 type ValidateTokenProps = {
   setIsValidToken: Dispatch<SetStateAction<boolean>>;
@@ -18,6 +19,7 @@ export default function ValidateTokenForm({
   token,
   setToken,
 }: ValidateTokenProps) {
+  const runtime = getRuntimeConfig();
   const [cooldown, setCooldown] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -96,9 +98,9 @@ export default function ValidateTokenForm({
                 <ShieldCheck className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-lg font-semibold text-gray-900">Verificacion de seguridad</h1>
+                <h1 className="text-lg font-semibold text-gray-900">Verificación de seguridad</h1>
                 <p className="text-xs text-gray-500">
-                  Introduce el codigo de 6 digitos que enviamos a tu correo
+                  Introduce el código de 6 dígitos que enviamos a tu correo
                 </p>
               </div>
             </div>
@@ -124,27 +126,42 @@ export default function ValidateTokenForm({
                     className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Repeat className="h-4 w-4" />
-                    {cooldown > 0 ? `Reenviar en ${cooldown}s` : "Reenviar codigo"}
+                    {cooldown > 0 ? `Reenviar en ${cooldown}s` : "Reenviar código"}
                   </button>
                 </div>
               </div>
 
               <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 sm:col-span-2">
-                <p className="mb-2 text-sm font-semibold text-gray-800">Consejos rapidos</p>
+                <p className="mb-2 text-sm font-semibold text-gray-800">Consejos rápidos</p>
                 <ul className="list-disc space-y-2 pl-5 text-xs text-gray-600">
                   <li>Revisa Spam o Promociones.</li>
                   <li>Evita pegar con espacios ocultos.</li>
-                  <li>El codigo expira por seguridad. Si caduca, solicita uno nuevo.</li>
+                  <li>El código expira por seguridad. Si caduca, solicita uno nuevo.</li>
                 </ul>
                 <p className="mt-3 text-xs text-gray-600">
-                  Si no tienes acceso al correo, vuelve a{" "}
-                  <Link
-                    href="/auth/register"
-                    className="text-red-600 underline underline-offset-2 hover:text-red-700"
-                  >
-                    registro
-                  </Link>
-                  .
+                  {runtime.isDesktop ? (
+                    <>
+                      Si no puedes recuperar el acceso, vuelve a{" "}
+                      <Link
+                        href="/auth/login"
+                        className="text-red-600 underline underline-offset-2 hover:text-red-700"
+                      >
+                        inicio de sesión
+                      </Link>
+                      .
+                    </>
+                  ) : (
+                    <>
+                      Si no tienes acceso al correo, vuelve a{" "}
+                      <Link
+                        href="/auth/register"
+                        className="text-red-600 underline underline-offset-2 hover:text-red-700"
+                      >
+                        registro
+                      </Link>
+                      .
+                    </>
+                  )}
                 </p>
               </div>
             </div>
@@ -152,11 +169,11 @@ export default function ValidateTokenForm({
             <div className="border-t border-gray-100 px-8 py-5 text-center text-xs text-gray-600">
               Al continuar aceptas nuestros{" "}
               <Link href="/terms" className="text-red-600 hover:underline">
-                Terminos
+                Términos
               </Link>{" "}
               y{" "}
               <Link href="/privacy" className="text-red-600 hover:underline">
-                Politica de privacidad
+                Política de privacidad
               </Link>
               .
             </div>

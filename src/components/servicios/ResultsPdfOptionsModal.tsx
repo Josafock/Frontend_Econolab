@@ -115,7 +115,7 @@ export default function ResultsPdfOptionsModal({
               <div className="space-y-5">
                 <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 text-sm text-emerald-900">
                   Estas opciones aplican al PDF consolidado del servicio y te
-                  ayudan a separar mejor estudios o categorias sin saturar la
+                  ayudan a separar mejor estudios o categorías sin saturar la
                   pantalla principal.
                 </div>
 
@@ -144,7 +144,7 @@ export default function ResultsPdfOptionsModal({
 
                   <label className="rounded-2xl border border-gray-200 bg-gray-50 p-4 shadow-sm">
                     <span className="block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      Categorias
+                      Categorías
                     </span>
                     <select
                       value={printOptions.categoryLayout}
@@ -158,7 +158,7 @@ export default function ResultsPdfOptionsModal({
                     >
                       <option value="continuous">Todas seguidas</option>
                       <option value="page-per-category">
-                        Una categoria por hoja
+                        Una categoría por hoja
                       </option>
                     </select>
                     <span className="mt-2 block text-xs text-gray-500">

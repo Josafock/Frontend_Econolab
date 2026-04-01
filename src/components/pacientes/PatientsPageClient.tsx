@@ -37,13 +37,16 @@ import {
 import CatalogExcelModal from "@/components/ui/CatalogExcelModal";
 import { CollectionContentSkeleton } from "@/components/ui/PageSkeletons";
 import EntityActionsMenu from "@/components/ui/EntityActionsMenu";
-import {
-  TableColumnFilterInput,
-  TableColumnFilterSelect,
-} from "@/components/ui/TableColumnFilters";
+import SortableTableHeader from "@/components/ui/SortableTableHeader";
 import TablePagination from "@/components/ui/TablePagination";
 import { formatDate } from "@/helpers/date";
 import type { ExcelColumn } from "@/helpers/excel";
+import {
+  applySortDirection,
+  compareDate,
+  compareText,
+  type SortDirection,
+} from "@/lib/table/sort";
 
 const AddPatientModal = dynamic(
   () => import("@/components/pacientes/AddPatientModal"),
@@ -112,7 +115,7 @@ const patientExcelColumns: ExcelColumn<PatientFormValues>[] = [
   },
   {
     key: "telefono",
-    label: "Telefono",
+    label: "Teléfono",
     description: "Solo numeros entre 7 y 15 digitos.",
     example: "5512345678",
     width: 18,
@@ -120,7 +123,7 @@ const patientExcelColumns: ExcelColumn<PatientFormValues>[] = [
   {
     key: "email",
     label: "Email",
-    description: "Correo electronico del paciente.",
+    description: "Correo electrónico del paciente.",
     example: "correo@dominio.com",
     inputType: "email",
     width: 28,
@@ -213,23 +216,13 @@ function matchesPatientSearch(patient: UiPatient, searchTerm: string) {
   ].some((value) => value.toLowerCase().includes(normalizedSearch));
 }
 
-function normalizeFilterValue(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function matchesTextColumn(values: string[], filterValue: string) {
-  const normalizedFilter = normalizeFilterValue(filterValue);
-  if (!normalizedFilter) return true;
-
-  return values.some((value) =>
-    value.toLowerCase().includes(normalizedFilter),
-  );
-}
-
-function matchesDateColumn(value: string, filterValue: string) {
-  if (!filterValue) return true;
-  return value.slice(0, 10) === filterValue;
-}
+type PatientSortKey =
+  | "patient"
+  | "document"
+  | "contact"
+  | "location"
+  | "status"
+  | "registeredAt";
 
 async function loadPatientsCatalog(): Promise<PatientsState> {
   const response = await getPatients({ limit: 1000, status: "all" });
@@ -254,13 +247,12 @@ export default function PatientsPageClient() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<PatientStatusFilter>("all");
-  const [columnFilters, setColumnFilters] = useState({
-    patient: "",
-    document: "",
-    contact: "",
-    location: "",
-    status: "all",
-    registeredAt: "",
+  const [sortState, setSortState] = useState<{
+    key: PatientSortKey;
+    direction: SortDirection;
+  }>({
+    key: "registeredAt",
+    direction: "desc",
   });
   const [showFilters, setShowFilters] = useState(false);
   const [openAddModal, setOpenAddModal] = useState(false);
@@ -293,43 +285,53 @@ export default function PatientsPageClient() {
   const allPatients = useMemo(
     () =>
       catalogPatients.filter((patient) =>
-        matchesPatientSearch(patient, searchTerm) &&
-        matchesTextColumn(
-          [patient.nombreCompleto, patient.nombre, patient.apellidoPaterno, patient.apellidoMaterno],
-          columnFilters.patient,
-        ) &&
-        matchesTextColumn([patient.documento], columnFilters.document) &&
-        matchesTextColumn([patient.telefono, patient.email], columnFilters.contact) &&
-        matchesTextColumn(
-          [
-            patient.direccion,
-            patient.entreCalles,
-            patient.ciudad,
-            patient.estado,
-            patient.codigoPostal,
-          ],
-          columnFilters.location,
-        ) &&
-        matchesDateColumn(patient.fechaRegistro, columnFilters.registeredAt),
+        matchesPatientSearch(patient, searchTerm),
       ),
-    [catalogPatients, columnFilters, searchTerm],
+    [catalogPatients, searchTerm],
   );
 
   const patients = useMemo(() => {
-    const statusMatches = (patient: UiPatient) =>
-      (statusFilter === "all"
-        ? true
-        : statusFilter === "active"
-          ? patient.isActive
-          : !patient.isActive) &&
-      (columnFilters.status === "all"
-        ? true
-        : columnFilters.status === "Activo"
-          ? patient.isActive
-          : !patient.isActive);
+    if (statusFilter === "all") return allPatients;
 
-    return allPatients.filter(statusMatches);
-  }, [allPatients, columnFilters.status, statusFilter]);
+    return allPatients.filter((patient) =>
+      statusFilter === "active" ? patient.isActive : !patient.isActive,
+    );
+  }, [allPatients, statusFilter]);
+
+  const sortedPatients = useMemo(() => {
+    const items = [...patients];
+
+    items.sort((left, right) => {
+      const comparison = (() => {
+        switch (sortState.key) {
+          case "patient":
+            return compareText(left.nombreCompleto, right.nombreCompleto);
+          case "document":
+            return compareText(left.documento, right.documento);
+          case "contact":
+            return compareText(
+              `${left.telefono} ${left.email}`,
+              `${right.telefono} ${right.email}`,
+            );
+          case "location":
+            return compareText(
+              `${left.direccion} ${left.ciudad} ${left.estado}`,
+              `${right.direccion} ${right.ciudad} ${right.estado}`,
+            );
+          case "status":
+            return compareText(left.estatus, right.estatus);
+          case "registeredAt":
+            return compareDate(left.fechaRegistro, right.fechaRegistro);
+          default:
+            return 0;
+        }
+      })();
+
+      return applySortDirection(comparison, sortState.direction);
+    });
+
+    return items;
+  }, [patients, sortState]);
 
   const promedioEdad = useMemo(() => {
     if (!patients.length) return 0;
@@ -351,9 +353,9 @@ export default function PatientsPageClient() {
 
   useEffect(() => {
     setPage(1);
-  }, [columnFilters, searchTerm, statusFilter]);
+  }, [searchTerm, sortState, statusFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(patients.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(sortedPatients.length / pageSize));
 
   useEffect(() => {
     if (page > totalPages) {
@@ -363,8 +365,22 @@ export default function PatientsPageClient() {
 
   const paginatedPatients = useMemo(() => {
     const start = (page - 1) * pageSize;
-    return patients.slice(start, start + pageSize);
-  }, [page, pageSize, patients]);
+    return sortedPatients.slice(start, start + pageSize);
+  }, [page, pageSize, sortedPatients]);
+
+  const toggleSort = (key: PatientSortKey) => {
+    setSortState((current) => ({
+      key,
+      direction:
+        current.key === key
+          ? current.direction === "asc"
+            ? "desc"
+            : "asc"
+          : key === "registeredAt"
+            ? "desc"
+            : "asc",
+    }));
+  };
 
   const refreshPatients = async () => {
     setIsRefreshing(true);
@@ -437,7 +453,7 @@ export default function PatientsPageClient() {
           </button>
 
           <CatalogExcelModal
-            title="Importacion y exportacion de pacientes"
+            title="Importación y exportación de pacientes"
             subtitle="Importa, exporta y valida pacientes desde un espacio separado para mantener esta pantalla limpia."
             trigger={
               <button
@@ -445,7 +461,7 @@ export default function PatientsPageClient() {
                 className="app-action-button inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-sm font-semibold text-amber-700 shadow-sm transition-all hover:bg-amber-100"
               >
                 <FileSpreadsheet size={20} />
-                Importacion/Exportacion
+                Importación/Exportación
               </button>
             }
           >
@@ -525,7 +541,7 @@ export default function PatientsPageClient() {
               <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Buscar por nombre, telefono, documento o direccion..."
+                placeholder="Buscar por nombre, teléfono, documento o dirección..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full rounded-2xl border border-gray-200 bg-white px-12 py-3 text-sm text-gray-900 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
@@ -640,80 +656,55 @@ export default function PatientsPageClient() {
         <>
           <div className="hidden overflow-visible rounded-[2rem] border border-gray-200 bg-white shadow-sm 2xl:block">
             <div className="grid grid-cols-12 gap-4 border-b border-gray-200 bg-gray-50 px-6 py-4 text-sm font-semibold text-gray-700">
-              <div className="col-span-3">Paciente</div>
-              <div className="col-span-2">Documento</div>
-              <div className="col-span-2">Contacto</div>
-              <div className="col-span-2">Direccion</div>
-              <div className="col-span-1">Estatus</div>
-              <div className="col-span-1">Registro</div>
-              <div className="col-span-1">Acciones</div>
-            </div>
-
-            <div className="grid grid-cols-12 gap-4 border-b border-gray-200 bg-white px-6 py-4">
               <div className="col-span-3">
-                <TableColumnFilterInput
-                  value={columnFilters.patient}
-                  onChange={(value) =>
-                    setColumnFilters((current) => ({ ...current, patient: value }))
-                  }
-                  placeholder="Filtrar paciente..."
-                  ariaLabel="Filtrar columna paciente"
+                <SortableTableHeader
+                  label="Paciente"
+                  active={sortState.key === "patient"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("patient")}
                 />
               </div>
               <div className="col-span-2">
-                <TableColumnFilterInput
-                  value={columnFilters.document}
-                  onChange={(value) =>
-                    setColumnFilters((current) => ({ ...current, document: value }))
-                  }
-                  placeholder="Documento..."
-                  ariaLabel="Filtrar columna documento"
+                <SortableTableHeader
+                  label="Documento"
+                  active={sortState.key === "document"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("document")}
                 />
               </div>
               <div className="col-span-2">
-                <TableColumnFilterInput
-                  value={columnFilters.contact}
-                  onChange={(value) =>
-                    setColumnFilters((current) => ({ ...current, contact: value }))
-                  }
-                  placeholder="Telefono o email..."
-                  ariaLabel="Filtrar columna contacto"
+                <SortableTableHeader
+                  label="Contacto"
+                  active={sortState.key === "contact"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("contact")}
                 />
               </div>
               <div className="col-span-2">
-                <TableColumnFilterInput
-                  value={columnFilters.location}
-                  onChange={(value) =>
-                    setColumnFilters((current) => ({ ...current, location: value }))
-                  }
-                  placeholder="Direccion o ciudad..."
-                  ariaLabel="Filtrar columna direccion"
+                <SortableTableHeader
+                  label="Direccion"
+                  active={sortState.key === "location"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("location")}
                 />
               </div>
               <div className="col-span-1">
-                <TableColumnFilterSelect
-                  value={columnFilters.status}
-                  onChange={(value) =>
-                    setColumnFilters((current) => ({ ...current, status: value }))
-                  }
-                  options={[
-                    { value: "Activo", label: "Activo" },
-                    { value: "Inactivo", label: "Inactivo" },
-                  ]}
-                  ariaLabel="Filtrar columna estatus"
+                <SortableTableHeader
+                  label="Estatus"
+                  active={sortState.key === "status"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("status")}
                 />
               </div>
               <div className="col-span-1">
-                <TableColumnFilterInput
-                  type="date"
-                  value={columnFilters.registeredAt}
-                  onChange={(value) =>
-                    setColumnFilters((current) => ({ ...current, registeredAt: value }))
-                  }
-                  ariaLabel="Filtrar columna registro"
+                <SortableTableHeader
+                  label="Registro"
+                  active={sortState.key === "registeredAt"}
+                  direction={sortState.direction}
+                  onToggle={() => toggleSort("registeredAt")}
                 />
               </div>
-              <div className="col-span-1" />
+              <div className="col-span-1">Acciones</div>
             </div>
 
             <div className="divide-y divide-gray-200">
@@ -831,7 +822,7 @@ export default function PatientsPageClient() {
             <TablePagination
               page={page}
               pageSize={pageSize}
-              totalItems={patients.length}
+              totalItems={sortedPatients.length}
               itemLabel="registros"
               onPageChange={setPage}
               onPageSizeChange={setPageSize}
@@ -947,7 +938,7 @@ export default function PatientsPageClient() {
             <TablePagination
               page={page}
               pageSize={pageSize}
-              totalItems={patients.length}
+              totalItems={sortedPatients.length}
               itemLabel="registros"
               onPageChange={setPage}
               onPageSizeChange={setPageSize}

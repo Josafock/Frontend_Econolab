@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import {
   ChevronRight,
   ClipboardList,
@@ -17,7 +18,7 @@ import {
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/use-auth';
-import { User as UserType } from '@/schemas';
+import type { SessionUser } from '@/lib/auth/auth-session';
 
 type MenuItem = {
   name: string;
@@ -25,7 +26,7 @@ type MenuItem = {
   path: string;
 };
 
-export function Sidebar(user: UserType) {
+export function Sidebar(user: SessionUser) {
   const [isOpen, setIsOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const pathname = usePathname();
@@ -45,7 +46,7 @@ export function Sidebar(user: UserType) {
     { name: 'Mi perfil', icon: UserRound, path: '/perfil' },
     { name: 'Estudios', icon: FlaskConical, path: '/estudios' },
     { name: 'Pacientes', icon: Users, path: '/pacientes' },
-    { name: 'Medicos', icon: Stethoscope, path: '/medicos' },
+    { name: 'Médicos', icon: Stethoscope, path: '/medicos' },
   ];
   const visibleMenuItems =
     user.rol === 'admin'
@@ -210,8 +211,19 @@ export function Sidebar(user: UserType) {
             <div className="border-t border-red-100 bg-white px-4 pb-4 pt-4">
               <div className="mb-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-red-100">
-                    <UserRound size={18} className="text-red-600" />
+                  <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-red-100">
+                    {user.profileImageUrl ? (
+                      <Image
+                        src={user.profileImageUrl}
+                        alt={`Foto de perfil de ${user.nombre}`}
+                        width={44}
+                        height={44}
+                        className="h-full w-full object-cover"
+                        unoptimized
+                      />
+                    ) : (
+                      <UserRound size={18} className="text-red-600" />
+                    )}
                   </div>
 
                   <div className="min-w-0">
@@ -230,7 +242,7 @@ export function Sidebar(user: UserType) {
                 className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700 transition-all duration-200 hover:-translate-y-0.5 hover:border-red-100 hover:bg-gray-50 hover:text-gray-900 hover:shadow-md hover:shadow-slate-200/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 focus-visible:ring-offset-2"
               >
                 <LogOut size={16} />
-                Cerrar sesion
+                Cerrar sesión
               </button>
             </div>
           </div>

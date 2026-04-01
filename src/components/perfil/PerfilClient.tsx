@@ -128,7 +128,8 @@ export default function PerfilClient() {
       : profile.rol === 'recepcionista'
         ? 'Recepcionista'
         : 'Sin rol';
-  const providerLabel = profile.authProvider === 'google' ? 'Google' : 'Correo y contrasena';
+  const providerLabel =
+    profile.authProvider === 'google' ? 'Cuenta protegida' : 'Correo y contraseña';
   const canEditEmail = profile.authProvider !== 'google';
 
   const initials = profile.nombre
@@ -147,7 +148,7 @@ export default function PerfilClient() {
       const response = await updateCurrentProfile(profileForm);
 
       if (!response.ok) {
-        toast.error(response.errors[0] ?? 'No se pudo actualizar la informacion del perfil.');
+        toast.error(response.errors[0] ?? 'No se pudo actualizar la información del perfil.');
         return;
       }
 
@@ -166,7 +167,7 @@ export default function PerfilClient() {
       const response = await updateCurrentPassword(passwordData);
 
       if (!response.ok) {
-        toast.error(response.errors[0] ?? 'No se pudo actualizar la contrasena.');
+        toast.error(response.errors[0] ?? 'No se pudo actualizar la contraseña.');
         return;
       }
 
@@ -175,7 +176,7 @@ export default function PerfilClient() {
         newPassword: '',
         confirmPassword: '',
       });
-      toast.success(response.data.message ?? 'Contrasena actualizada.');
+      toast.success(response.data.message ?? 'Contraseña actualizada.');
     });
   };
 
@@ -254,9 +255,7 @@ export default function PerfilClient() {
               </h1>
               <p className="mt-1 truncate text-sm text-gray-500">{profile.email}</p>
               <p className="mt-2 text-xs text-gray-500">
-                {profile.authProvider === 'google'
-                  ? 'Tu cuenta puede usar la foto de Google o la imagen que subas aqui.'
-                  : 'Puedes subir una foto JPG, PNG o WEBP de hasta 2 MB.'}
+                Puedes subir una foto JPG, PNG o WEBP de hasta 2 MB.
               </p>
             </div>
           </div>
@@ -307,7 +306,7 @@ export default function PerfilClient() {
                 }`}
               >
                 <KeyRound className="h-5 w-5" />
-                Cambiar contrasena
+                Cambiar contraseña
               </button>
             </div>
           </div>
@@ -321,9 +320,9 @@ export default function PerfilClient() {
                 <div className="flex items-start gap-3">
                   <ShieldCheck className="mt-0.5 h-5 w-5 text-emerald-700" />
                   <div>
-                    <p className="text-sm font-semibold text-emerald-900">Sesion estable</p>
+                    <p className="text-sm font-semibold text-emerald-900">Sesión estable</p>
                     <p className="mt-1 text-sm text-emerald-800">
-                      Tu cuenta esta lista para usarse y puedes entrar a tus secciones con normalidad.
+                      Tu cuenta está lista para usarse y puedes entrar a tus secciones con normalidad.
                     </p>
                   </div>
                 </div>
@@ -345,7 +344,7 @@ export default function PerfilClient() {
                   <div>
                     <p className="text-sm font-semibold text-gray-900">Foto de perfil</p>
                     <p className="mt-1 text-sm text-gray-600">
-                      Puedes cambiarla cuando lo necesites desde el boton de la imagen.
+                      Puedes cambiarla cuando lo necesites desde el botón de la imagen.
                     </p>
                   </div>
                 </div>
@@ -358,9 +357,9 @@ export default function PerfilClient() {
           {activeTab === 'overview' ? (
             <div>
               <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Resumen</p>
-              <h2 className="mt-2 text-2xl font-semibold text-gray-900">Informacion principal</h2>
+              <h2 className="mt-2 text-2xl font-semibold text-gray-900">Información principal</h2>
               <p className="mt-2 text-sm text-gray-600">
-                Aqui puedes actualizar tu nombre, tu correo y revisar los datos principales de tu cuenta.
+                Aquí puedes actualizar tu nombre, tu correo y revisar los datos principales de tu cuenta.
               </p>
 
               <div className="mt-6 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
@@ -408,13 +407,13 @@ export default function PerfilClient() {
                       <p className="mt-1 text-sm leading-6 text-amber-800">
                         {canEditEmail
                           ? 'Los cambios de nombre y correo se aplican en cuanto guardas.'
-                          : 'En cuentas con Google el correo lo controla el proveedor, pero si puedes cambiar el nombre visible.'}
+                          : 'El correo de esta cuenta está protegido y solo puedes actualizar el nombre visible desde aquí.'}
                       </p>
                     </div>
 
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-sm text-gray-500">
-                        Tu sesion se actualiza automaticamente con los nuevos datos.
+                        Tu sesión se actualiza automáticamente con los nuevos datos.
                       </p>
 
                       <button
@@ -444,7 +443,7 @@ export default function PerfilClient() {
 
                   <div className="rounded-3xl border border-gray-200 bg-gray-50 p-5">
                     <p className="text-xs uppercase tracking-[0.2em] text-gray-500">
-                      Metodo de acceso
+                      Método de acceso
                     </p>
                     <p className="mt-3 text-lg font-semibold text-gray-900">{providerLabel}</p>
                   </div>
@@ -515,7 +514,7 @@ export default function PerfilClient() {
 
                 <div className="rounded-3xl border border-gray-200 bg-gray-50 p-5">
                   <p className="text-xs uppercase tracking-[0.2em] text-gray-500">
-                    Ultima actualizacion
+                    Última actualización
                   </p>
                   <p className="mt-3 text-sm font-semibold text-gray-900">
                     {formatDate(profile.updatedAt)}
@@ -526,14 +525,14 @@ export default function PerfilClient() {
           ) : (
             <div>
               <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Seguridad</p>
-              <h2 className="mt-2 text-2xl font-semibold text-gray-900">Actualiza tu contrasena</h2>
+              <h2 className="mt-2 text-2xl font-semibold text-gray-900">Actualiza tu contraseña</h2>
               <p className="mt-2 text-sm text-gray-600">
-                Cambia tu contrasena para mantener tu cuenta protegida.
+                Cambia tu contraseña para mantener tu cuenta protegida.
               </p>
 
               <div className="mt-6 grid gap-4">
                 <label className="grid gap-2">
-                  <span className="text-sm font-semibold text-gray-700">Contrasena actual</span>
+                  <span className="text-sm font-semibold text-gray-700">Contraseña actual</span>
                   <input
                     type="password"
                     value={passwordData.currentPassword}
@@ -544,14 +543,14 @@ export default function PerfilClient() {
                       }))
                     }
                     className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-                    placeholder="Escribe tu contrasena actual"
+                    placeholder="Escribe tu contraseña actual"
                   />
                 </label>
 
                 <div className="grid gap-4 lg:grid-cols-[1fr_0.9fr]">
                   <div className="grid gap-4">
                     <label className="grid gap-2">
-                      <span className="text-sm font-semibold text-gray-700">Nueva contrasena</span>
+                      <span className="text-sm font-semibold text-gray-700">Nueva contraseña</span>
                       <input
                         type="password"
                         value={passwordData.newPassword}
@@ -568,7 +567,7 @@ export default function PerfilClient() {
 
                     <label className="grid gap-2">
                       <span className="text-sm font-semibold text-gray-700">
-                        Confirmar contrasena
+                        Confirmar contraseña
                       </span>
                       <input
                         type="password"
@@ -580,7 +579,7 @@ export default function PerfilClient() {
                           }))
                         }
                         className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-                        placeholder="Repite la nueva contrasena"
+                        placeholder="Repite la nueva contraseña"
                       />
                     </label>
                   </div>
@@ -632,7 +631,7 @@ export default function PerfilClient() {
 
               <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-gray-500">
-                  Recomendacion: usa una contrasena unica y no la compartas.
+                  Recomendación: usa una contraseña única y no la compartas.
                 </p>
 
                 <button
@@ -646,7 +645,7 @@ export default function PerfilClient() {
                   ) : (
                     <KeyRound className="h-4 w-4" />
                   )}
-                  Actualizar contrasena
+                  Actualizar contraseña
                 </button>
               </div>
             </div>

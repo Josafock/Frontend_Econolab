@@ -84,14 +84,14 @@ export default function SyncQueuePanel() {
           icon: <Unplug className="h-4 w-4" />,
           label: isDesktop ? "Backend local activo" : "Internet inestable",
           detail: isDesktop
-            ? "Puedes seguir trabajando en local. La sincronizacion con el servidor central puede quedar pendiente."
-            : "La API sigue respondiendo, pero el equipo reporta conexion general sin internet.",
+            ? "Puedes seguir trabajando en local. La sincronización con el servidor central puede quedar pendiente."
+            : "La API sigue respondiendo, pero el equipo reporta conexión general sin internet.",
         }
     : {
         icon: <AlertTriangle className="h-4 w-4" />,
         label: "Backend no disponible",
         detail:
-          "La cola permanecera en espera hasta que la API vuelva a responder.",
+          "La cola permanecerá en espera hasta que la API vuelva a responder.",
       };
 
   const sortedItems = useMemo(
@@ -131,7 +131,7 @@ export default function SyncQueuePanel() {
         backendResult.errors[0] ?? "No se pudo sincronizar con el backend.",
       );
     } else {
-      toast.success("Sincronizacion ejecutada.");
+      toast.success("Sincronización ejecutada.");
     }
 
     refreshQueue();
@@ -154,7 +154,7 @@ export default function SyncQueuePanel() {
           typeof window === "undefined"
             ? true
             : window.confirm(
-                "Esto borrara los eventos fallidos del backend local. Si contenian cambios no sincronizados, se perderan. ¿Quieres continuar?",
+                "Esto borrará los eventos fallidos del backend local. Si contenían cambios no sincronizados, se perderán. ¿Quieres continuar?",
               );
 
         if (!confirmed) {
@@ -181,7 +181,7 @@ export default function SyncQueuePanel() {
       setIsProcessing(false);
 
       if (!clearedLocal && discardedBackend === 0) {
-        toast.info("No habia fallidos por borrar.");
+        toast.info("No había fallidos por borrar.");
         return;
       }
 
@@ -217,7 +217,7 @@ export default function SyncQueuePanel() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-gray-900">
-                  Cola de sincronizacion
+                  Cola de sincronización
                 </p>
                 <p className="mt-1 text-xs text-gray-500">
                   Pendientes: {pendingCount} · Local: {localPendingCount} ·
@@ -271,7 +271,7 @@ export default function SyncQueuePanel() {
           <div className="max-h-[24rem] space-y-3 overflow-y-auto p-4">
             {lastSyncError ? (
               <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-900">
-                <p className="font-semibold">Ultimo intento de sync fallido</p>
+                <p className="font-semibold">Último intento de sync fallido</p>
                 <p className="mt-1">{lastSyncError}</p>
               </div>
             ) : null}
@@ -296,7 +296,7 @@ export default function SyncQueuePanel() {
                     {backendSyncStatus?.running
                       ? "sincronizando"
                       : backendSyncStatus?.autoEnabled
-                        ? `automatico cada ${backendSyncStatus.autoIntervalSeconds}s`
+                        ? `automático cada ${backendSyncStatus.autoIntervalSeconds}s`
                         : "manual"}{" "}
                     · Remoto:{" "}
                     {backendSyncStatus?.remoteBaseUrlConfigured
@@ -305,7 +305,7 @@ export default function SyncQueuePanel() {
                   </div>
                   {lastRunAtLabel ? (
                     <div className="mt-1 text-xs text-gray-500">
-                      Ultimo intento: {lastRunAtLabel}
+                      Último intento: {lastRunAtLabel}
                     </div>
                   ) : null}
                 </div>

@@ -124,7 +124,7 @@ export default function AdminControlCenter({
                     Control de accesos y roles
                   </h2>
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">
-                    Aqui vive la parte administrativa para no mezclarla con el tablero operativo del laboratorio.
+                    Aquí vive la parte administrativa para no mezclarla con el tablero operativo del laboratorio.
                   </p>
                 </div>
 
@@ -214,7 +214,7 @@ export default function AdminControlCenter({
                   <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
                     <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
                       <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Salud del control</p>
-                      <h3 className="mt-2 text-2xl font-semibold text-gray-900">Resumen rapido</h3>
+                      <h3 className="mt-2 text-2xl font-semibold text-gray-900">Resumen rápido</h3>
 
                       <div className="mt-6 grid gap-3 sm:grid-cols-2">
                         <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
@@ -232,14 +232,14 @@ export default function AdminControlCenter({
                       </div>
 
                       <div className="mt-5 rounded-[1.75rem] bg-gradient-to-br from-slate-950 via-slate-900 to-red-900 p-5 text-white">
-                        <p className="text-sm text-red-100">Ultimo acceso registrado</p>
+                        <p className="text-sm text-red-100">Último acceso registrado</p>
                         <p className="mt-2 text-xl font-semibold">
                           {lastAccess?.userName ?? lastAccess?.email ?? 'Sin actividad reciente'}
                         </p>
                         <p className="mt-2 text-sm text-red-100">
                           {lastAccess
                             ? `${lastAccess.success ? 'Acceso exitoso' : 'Acceso fallido'} el ${formatDateTime(lastAccess.createdAt)}.`
-                            : 'Todavia no hay movimientos de acceso registrados.'}
+                            : 'Todavía no hay movimientos de acceso registrados.'}
                         </p>
                       </div>
 
@@ -252,9 +252,9 @@ export default function AdminControlCenter({
                     </div>
 
                     <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
-                      <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Atencion</p>
+                      <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Atención</p>
                       <h3 className="mt-2 text-2xl font-semibold text-gray-900">
-                        Donde poner ojo primero
+                        Dónde poner ojo primero
                       </h3>
 
                       {initialError ? (
@@ -301,9 +301,9 @@ export default function AdminControlCenter({
                     <div className="flex items-center gap-3">
                       <Fingerprint className="h-5 w-5 text-slate-700" />
                       <div>
-                        <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Accesos con mas ruido</p>
+                        <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Accesos con más ruido</p>
                         <h3 className="mt-1 text-2xl font-semibold text-gray-900">
-                          Usuarios con mas intentos fallidos
+                          Usuarios con más intentos fallidos
                         </h3>
                       </div>
                     </div>
@@ -420,11 +420,11 @@ export default function AdminControlCenter({
 
                             <div className="mt-3 flex flex-col gap-2 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between">
                               <span>
-                                Ultimo login:{' '}
+                                Último login:{' '}
                                 {account.lastLoginAt ? formatDateTime(account.lastLoginAt) : 'Sin login'}
                               </span>
                               <span>
-                                Ultimo intento:{' '}
+                                Último intento:{' '}
                                 {account.lastAttemptAt ? formatDateTime(account.lastAttemptAt) : 'Sin intentos'}
                               </span>
                             </div>
@@ -440,7 +440,7 @@ export default function AdminControlCenter({
                       <div>
                         <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Accesos recientes</p>
                         <h3 className="mt-1 text-2xl font-semibold text-gray-900">
-                          Ultimos movimientos de login
+                          Últimos movimientos de login
                         </h3>
                       </div>
                     </div>
