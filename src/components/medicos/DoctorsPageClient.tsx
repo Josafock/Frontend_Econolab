@@ -38,6 +38,10 @@ import {
 import CatalogExcelModal from "@/components/ui/CatalogExcelModal";
 import { useConfirmDialog } from "@/components/ui/ConfirmDialogProvider";
 import EntityActionsMenu from "@/components/ui/EntityActionsMenu";
+import {
+  TableColumnFilterInput,
+  TableColumnFilterSelect,
+} from "@/components/ui/TableColumnFilters";
 import TablePagination from "@/components/ui/TablePagination";
 import { formatDate } from "@/helpers/date";
 import type { ExcelColumn } from "@/helpers/excel";
@@ -97,6 +101,24 @@ function matchesDoctorSearch(doctor: UiDoctor, searchTerm: string) {
   ].some((value) => value.toLowerCase().includes(normalizedSearch));
 }
 
+function normalizeFilterValue(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function matchesTextColumn(values: string[], filterValue: string) {
+  const normalizedFilter = normalizeFilterValue(filterValue);
+  if (!normalizedFilter) return true;
+
+  return values.some((value) =>
+    value.toLowerCase().includes(normalizedFilter),
+  );
+}
+
+function matchesDateColumn(value: string, filterValue: string) {
+  if (!filterValue) return true;
+  return value.slice(0, 10) === filterValue;
+}
+
 type DoctorsState = {
   doctors: UiDoctor[];
   error: string | null;
@@ -124,6 +146,14 @@ export default function DoctorsPageClient() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<DoctorStatusFilter>("all");
+  const [columnFilters, setColumnFilters] = useState({
+    doctor: "",
+    specialty: "",
+    license: "",
+    contact: "",
+    status: "all",
+    registeredAt: "",
+  });
   const [showFilters, setShowFilters] = useState(false);
   const [openAddModal, setOpenAddModal] = useState(false);
   const [page, setPage] = useState(1);
@@ -162,16 +192,37 @@ export default function DoctorsPageClient() {
   };
 
   const allDoctors = useMemo(
-    () => catalogDoctors.filter((doctor) => matchesDoctorSearch(doctor, searchTerm)),
-    [catalogDoctors, searchTerm],
+    () =>
+      catalogDoctors.filter(
+        (doctor) =>
+          matchesDoctorSearch(doctor, searchTerm) &&
+          matchesTextColumn(
+            [doctor.nombreCompleto, doctor.nombre, doctor.apellidoPaterno, doctor.apellidoMaterno],
+            columnFilters.doctor,
+          ) &&
+          matchesTextColumn([doctor.especialidad], columnFilters.specialty) &&
+          matchesTextColumn([doctor.cedula], columnFilters.license) &&
+          matchesTextColumn([doctor.telefono, doctor.email], columnFilters.contact) &&
+          matchesDateColumn(doctor.fechaRegistro, columnFilters.registeredAt),
+      ),
+    [catalogDoctors, columnFilters, searchTerm],
   );
 
   const doctors = useMemo(() => {
-    if (statusFilter === "all") return allDoctors;
-    return allDoctors.filter((doctor) =>
-      statusFilter === "active" ? doctor.isActive : !doctor.isActive,
+    return allDoctors.filter(
+      (doctor) =>
+        (statusFilter === "all"
+          ? true
+          : statusFilter === "active"
+            ? doctor.isActive
+            : !doctor.isActive) &&
+        (columnFilters.status === "all"
+          ? true
+          : columnFilters.status === "Activo"
+            ? doctor.isActive
+            : !doctor.isActive),
     );
-  }, [allDoctors, statusFilter]);
+  }, [allDoctors, columnFilters.status, statusFilter]);
 
   const especialidadesUnicas = useMemo(
     () => new Set(allDoctors.map((doctor) => doctor.especialidad)).size,
@@ -182,7 +233,7 @@ export default function DoctorsPageClient() {
 
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, statusFilter]);
+  }, [columnFilters, searchTerm, statusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(doctors.length / pageSize));
 
@@ -463,6 +514,73 @@ export default function DoctorsPageClient() {
               <div className="col-span-1">Estatus</div>
               <div className="col-span-1">Registro</div>
               <div className="col-span-1">Acciones</div>
+            </div>
+
+            <div className="grid grid-cols-12 gap-4 border-b border-gray-200 bg-white px-6 py-4">
+              <div className="col-span-3">
+                <TableColumnFilterInput
+                  value={columnFilters.doctor}
+                  onChange={(value) =>
+                    setColumnFilters((current) => ({ ...current, doctor: value }))
+                  }
+                  placeholder="Filtrar medico..."
+                  ariaLabel="Filtrar columna medico"
+                />
+              </div>
+              <div className="col-span-2">
+                <TableColumnFilterInput
+                  value={columnFilters.specialty}
+                  onChange={(value) =>
+                    setColumnFilters((current) => ({ ...current, specialty: value }))
+                  }
+                  placeholder="Especialidad..."
+                  ariaLabel="Filtrar columna especialidad"
+                />
+              </div>
+              <div className="col-span-2">
+                <TableColumnFilterInput
+                  value={columnFilters.license}
+                  onChange={(value) =>
+                    setColumnFilters((current) => ({ ...current, license: value }))
+                  }
+                  placeholder="Cedula..."
+                  ariaLabel="Filtrar columna cedula"
+                />
+              </div>
+              <div className="col-span-2">
+                <TableColumnFilterInput
+                  value={columnFilters.contact}
+                  onChange={(value) =>
+                    setColumnFilters((current) => ({ ...current, contact: value }))
+                  }
+                  placeholder="Telefono o email..."
+                  ariaLabel="Filtrar columna contacto"
+                />
+              </div>
+              <div className="col-span-1">
+                <TableColumnFilterSelect
+                  value={columnFilters.status}
+                  onChange={(value) =>
+                    setColumnFilters((current) => ({ ...current, status: value }))
+                  }
+                  options={[
+                    { value: "Activo", label: "Activo" },
+                    { value: "Inactivo", label: "Inactivo" },
+                  ]}
+                  ariaLabel="Filtrar columna estatus"
+                />
+              </div>
+              <div className="col-span-1">
+                <TableColumnFilterInput
+                  type="date"
+                  value={columnFilters.registeredAt}
+                  onChange={(value) =>
+                    setColumnFilters((current) => ({ ...current, registeredAt: value }))
+                  }
+                  ariaLabel="Filtrar columna registro"
+                />
+              </div>
+              <div className="col-span-1" />
             </div>
 
             <div className="divide-y divide-gray-200">

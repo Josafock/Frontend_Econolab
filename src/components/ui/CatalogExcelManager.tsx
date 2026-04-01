@@ -130,6 +130,10 @@ export default function CatalogExcelManager<Row extends Record<string, string>>(
     validationErrors: validateRow(values),
   });
 
+  const getPreviewColumnStyle = (column?: ExcelColumn<Row>) => ({
+    minWidth: `${Math.max(column?.width ?? 18, 16) * 0.9}rem`,
+  });
+
   const updatePreviewRow = (rowId: string, updater: (row: PreviewRow<Row>) => PreviewRow<Row>) => {
     setPreviewRows((current) =>
       current.map((row) => (row.id === rowId ? updater(row) : row)),
@@ -569,25 +573,35 @@ export default function CatalogExcelManager<Row extends Record<string, string>>(
           </div>
         ) : (
           <div className="overflow-hidden rounded-[1.75rem] border border-gray-200">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
+            <div className="overflow-x-auto bg-white">
+              <table className="min-w-max divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <th
+                      className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"
+                      style={{ minWidth: "4rem" }}
+                    >
                       #
                     </th>
                     {columns.map((column) => (
                       <th
                         key={column.key}
                         className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"
+                        style={getPreviewColumnStyle(column)}
                       >
                         {column.label}
                       </th>
                     ))}
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <th
+                      className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"
+                      style={{ minWidth: "18rem" }}
+                    >
                       Estado
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <th
+                      className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500"
+                      style={{ minWidth: "9rem" }}
+                    >
                       Accion
                     </th>
                   </tr>
@@ -611,7 +625,11 @@ export default function CatalogExcelManager<Row extends Record<string, string>>(
                             : 'border-gray-200 focus:border-red-500 focus:ring-red-500/20';
 
                           return (
-                            <td key={column.key} className="px-4 py-4 align-top">
+                            <td
+                              key={column.key}
+                              className="px-4 py-4 align-top"
+                              style={getPreviewColumnStyle(column)}
+                            >
                               {column.inputType === 'select' ? (
                                 <select
                                   value={row.values[column.key]}
@@ -664,7 +682,10 @@ export default function CatalogExcelManager<Row extends Record<string, string>>(
                           );
                         })}
 
-                        <td className="px-4 py-4 align-top">
+                        <td
+                          className="px-4 py-4 align-top"
+                          style={{ minWidth: "18rem" }}
+                        >
                           {row.validationErrors.length > 0 ? (
                             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
                               <div className="mb-2 inline-flex items-center gap-2 font-semibold">
@@ -693,7 +714,10 @@ export default function CatalogExcelManager<Row extends Record<string, string>>(
                           )}
                         </td>
 
-                        <td className="px-4 py-4 text-right align-top">
+                        <td
+                          className="px-4 py-4 text-right align-top"
+                          style={{ minWidth: "9rem" }}
+                        >
                           <button
                             type="button"
                             onClick={() =>

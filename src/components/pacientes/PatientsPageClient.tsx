@@ -37,6 +37,10 @@ import {
 import CatalogExcelModal from "@/components/ui/CatalogExcelModal";
 import { CollectionContentSkeleton } from "@/components/ui/PageSkeletons";
 import EntityActionsMenu from "@/components/ui/EntityActionsMenu";
+import {
+  TableColumnFilterInput,
+  TableColumnFilterSelect,
+} from "@/components/ui/TableColumnFilters";
 import TablePagination from "@/components/ui/TablePagination";
 import { formatDate } from "@/helpers/date";
 import type { ExcelColumn } from "@/helpers/excel";
@@ -209,6 +213,24 @@ function matchesPatientSearch(patient: UiPatient, searchTerm: string) {
   ].some((value) => value.toLowerCase().includes(normalizedSearch));
 }
 
+function normalizeFilterValue(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function matchesTextColumn(values: string[], filterValue: string) {
+  const normalizedFilter = normalizeFilterValue(filterValue);
+  if (!normalizedFilter) return true;
+
+  return values.some((value) =>
+    value.toLowerCase().includes(normalizedFilter),
+  );
+}
+
+function matchesDateColumn(value: string, filterValue: string) {
+  if (!filterValue) return true;
+  return value.slice(0, 10) === filterValue;
+}
+
 async function loadPatientsCatalog(): Promise<PatientsState> {
   const response = await getPatients({ limit: 1000, status: "all" });
 
@@ -232,6 +254,14 @@ export default function PatientsPageClient() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<PatientStatusFilter>("all");
+  const [columnFilters, setColumnFilters] = useState({
+    patient: "",
+    document: "",
+    contact: "",
+    location: "",
+    status: "all",
+    registeredAt: "",
+  });
   const [showFilters, setShowFilters] = useState(false);
   const [openAddModal, setOpenAddModal] = useState(false);
   const [page, setPage] = useState(1);
@@ -263,18 +293,43 @@ export default function PatientsPageClient() {
   const allPatients = useMemo(
     () =>
       catalogPatients.filter((patient) =>
-        matchesPatientSearch(patient, searchTerm),
+        matchesPatientSearch(patient, searchTerm) &&
+        matchesTextColumn(
+          [patient.nombreCompleto, patient.nombre, patient.apellidoPaterno, patient.apellidoMaterno],
+          columnFilters.patient,
+        ) &&
+        matchesTextColumn([patient.documento], columnFilters.document) &&
+        matchesTextColumn([patient.telefono, patient.email], columnFilters.contact) &&
+        matchesTextColumn(
+          [
+            patient.direccion,
+            patient.entreCalles,
+            patient.ciudad,
+            patient.estado,
+            patient.codigoPostal,
+          ],
+          columnFilters.location,
+        ) &&
+        matchesDateColumn(patient.fechaRegistro, columnFilters.registeredAt),
       ),
-    [catalogPatients, searchTerm],
+    [catalogPatients, columnFilters, searchTerm],
   );
 
   const patients = useMemo(() => {
-    if (statusFilter === "all") return allPatients;
+    const statusMatches = (patient: UiPatient) =>
+      (statusFilter === "all"
+        ? true
+        : statusFilter === "active"
+          ? patient.isActive
+          : !patient.isActive) &&
+      (columnFilters.status === "all"
+        ? true
+        : columnFilters.status === "Activo"
+          ? patient.isActive
+          : !patient.isActive);
 
-    return allPatients.filter((patient) =>
-      statusFilter === "active" ? patient.isActive : !patient.isActive,
-    );
-  }, [allPatients, statusFilter]);
+    return allPatients.filter(statusMatches);
+  }, [allPatients, columnFilters.status, statusFilter]);
 
   const promedioEdad = useMemo(() => {
     if (!patients.length) return 0;
@@ -296,7 +351,7 @@ export default function PatientsPageClient() {
 
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, statusFilter]);
+  }, [columnFilters, searchTerm, statusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(patients.length / pageSize));
 
@@ -592,6 +647,73 @@ export default function PatientsPageClient() {
               <div className="col-span-1">Estatus</div>
               <div className="col-span-1">Registro</div>
               <div className="col-span-1">Acciones</div>
+            </div>
+
+            <div className="grid grid-cols-12 gap-4 border-b border-gray-200 bg-white px-6 py-4">
+              <div className="col-span-3">
+                <TableColumnFilterInput
+                  value={columnFilters.patient}
+                  onChange={(value) =>
+                    setColumnFilters((current) => ({ ...current, patient: value }))
+                  }
+                  placeholder="Filtrar paciente..."
+                  ariaLabel="Filtrar columna paciente"
+                />
+              </div>
+              <div className="col-span-2">
+                <TableColumnFilterInput
+                  value={columnFilters.document}
+                  onChange={(value) =>
+                    setColumnFilters((current) => ({ ...current, document: value }))
+                  }
+                  placeholder="Documento..."
+                  ariaLabel="Filtrar columna documento"
+                />
+              </div>
+              <div className="col-span-2">
+                <TableColumnFilterInput
+                  value={columnFilters.contact}
+                  onChange={(value) =>
+                    setColumnFilters((current) => ({ ...current, contact: value }))
+                  }
+                  placeholder="Telefono o email..."
+                  ariaLabel="Filtrar columna contacto"
+                />
+              </div>
+              <div className="col-span-2">
+                <TableColumnFilterInput
+                  value={columnFilters.location}
+                  onChange={(value) =>
+                    setColumnFilters((current) => ({ ...current, location: value }))
+                  }
+                  placeholder="Direccion o ciudad..."
+                  ariaLabel="Filtrar columna direccion"
+                />
+              </div>
+              <div className="col-span-1">
+                <TableColumnFilterSelect
+                  value={columnFilters.status}
+                  onChange={(value) =>
+                    setColumnFilters((current) => ({ ...current, status: value }))
+                  }
+                  options={[
+                    { value: "Activo", label: "Activo" },
+                    { value: "Inactivo", label: "Inactivo" },
+                  ]}
+                  ariaLabel="Filtrar columna estatus"
+                />
+              </div>
+              <div className="col-span-1">
+                <TableColumnFilterInput
+                  type="date"
+                  value={columnFilters.registeredAt}
+                  onChange={(value) =>
+                    setColumnFilters((current) => ({ ...current, registeredAt: value }))
+                  }
+                  ariaLabel="Filtrar columna registro"
+                />
+              </div>
+              <div className="col-span-1" />
             </div>
 
             <div className="divide-y divide-gray-200">

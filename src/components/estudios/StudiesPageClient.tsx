@@ -39,6 +39,10 @@ import CatalogExcelModal from "@/components/ui/CatalogExcelModal";
 import { useConfirmDialog } from "@/components/ui/ConfirmDialogProvider";
 import { CollectionContentSkeleton } from "@/components/ui/PageSkeletons";
 import EntityActionsMenu from "@/components/ui/EntityActionsMenu";
+import {
+  TableColumnFilterInput,
+  TableColumnFilterSelect,
+} from "@/components/ui/TableColumnFilters";
 import TablePagination from "@/components/ui/TablePagination";
 import type { ExcelColumn } from "@/helpers/excel";
 import {
@@ -104,6 +108,19 @@ function matchesStudySearch(study: Study, searchTerm: string) {
   ].some((value) => value.toLowerCase().includes(normalized));
 }
 
+function normalizeFilterValue(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function matchesTextColumn(values: string[], filterValue: string) {
+  const normalizedFilter = normalizeFilterValue(filterValue);
+  if (!normalizedFilter) return true;
+
+  return values.some((value) =>
+    value.toLowerCase().includes(normalizedFilter),
+  );
+}
+
 async function loadStudiesCatalog(): Promise<StudiesState> {
   const response = await getStudies({ limit: 1000 });
 
@@ -129,6 +146,14 @@ export default function StudiesPageClient() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<StudyStatusFilter>("all");
   const [typeFilter, setTypeFilter] = useState<StudyTypeFilter>("all");
+  const [columnFilters, setColumnFilters] = useState({
+    study: "",
+    code: "",
+    type: "all",
+    duration: "",
+    price: "",
+    status: "all",
+  });
   const [showFilters, setShowFilters] = useState(false);
   const [openAddModal, setOpenAddModal] = useState(false);
   const [createType, setCreateType] = useState<"study" | "package">("study");
@@ -160,20 +185,47 @@ export default function StudiesPageClient() {
   }, []);
 
   const allStudies = useMemo(
-    () => catalogStudies.filter((study) => matchesStudySearch(study, searchTerm)),
-    [catalogStudies, searchTerm],
+    () =>
+      catalogStudies.filter(
+        (study) =>
+          matchesStudySearch(study, searchTerm) &&
+          matchesTextColumn(
+            [study.name, study.description ?? "", study.method ?? "", study.indicator ?? ""],
+            columnFilters.study,
+          ) &&
+          matchesTextColumn([study.code], columnFilters.code) &&
+          matchesTextColumn(
+            [formatStudyDuration(study.durationMinutes)],
+            columnFilters.duration,
+          ) &&
+          matchesTextColumn(
+            [
+              Number(study.normalPrice).toFixed(2),
+              Number(study.difPrice).toFixed(2),
+              Number(study.specialPrice).toFixed(2),
+            ],
+            columnFilters.price,
+          ),
+      ),
+    [catalogStudies, columnFilters, searchTerm],
   );
 
   const studies = useMemo(
     () =>
       allStudies.filter((study) => {
         const matchesStatus =
-          statusFilter === "all" ? true : study.status === statusFilter;
+          (statusFilter === "all" ? true : study.status === statusFilter) &&
+          (columnFilters.status === "all"
+            ? true
+            : study.status === columnFilters.status);
         const matchesType =
-          typeFilter === "all" ? true : study.type === typeFilter;
+          (typeFilter === "all" ? true : study.type === typeFilter) &&
+          (columnFilters.type === "all"
+            ? true
+            : study.type === columnFilters.type);
         return matchesStatus && matchesType;
       }),
-    [allStudies, statusFilter, typeFilter],
+    [allStudies, columnFilters.status, columnFilters.type, statusFilter, typeFilter],
   );
 
   const activos = useMemo(
@@ -194,7 +246,7 @@ export default function StudiesPageClient() {
 
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, statusFilter, typeFilter]);
+  }, [columnFilters, searchTerm, statusFilter, typeFilter]);
 
   const totalPages = Math.max(1, Math.ceil(studies.length / pageSize));
 
@@ -532,6 +584,77 @@ export default function StudiesPageClient() {
               <div className="col-span-2">Precio normal</div>
               <div className="col-span-2">Estatus</div>
               <div className="col-span-1">Acciones</div>
+            </div>
+
+            <div className="grid grid-cols-12 gap-4 border-b border-gray-200 bg-white px-6 py-4">
+              <div className="col-span-4">
+                <TableColumnFilterInput
+                  value={columnFilters.study}
+                  onChange={(value) =>
+                    setColumnFilters((current) => ({ ...current, study: value }))
+                  }
+                  placeholder="Filtrar estudio..."
+                  ariaLabel="Filtrar columna estudio"
+                />
+              </div>
+              <div className="col-span-1">
+                <TableColumnFilterInput
+                  value={columnFilters.code}
+                  onChange={(value) =>
+                    setColumnFilters((current) => ({ ...current, code: value }))
+                  }
+                  placeholder="Clave..."
+                  ariaLabel="Filtrar columna clave"
+                />
+              </div>
+              <div className="col-span-1">
+                <TableColumnFilterSelect
+                  value={columnFilters.type}
+                  onChange={(value) =>
+                    setColumnFilters((current) => ({ ...current, type: value }))
+                  }
+                  options={[
+                    { value: "study", label: "Estudio" },
+                    { value: "package", label: "Paquete" },
+                    { value: "other", label: "Otro" },
+                  ]}
+                  ariaLabel="Filtrar columna tipo"
+                />
+              </div>
+              <div className="col-span-1">
+                <TableColumnFilterInput
+                  value={columnFilters.duration}
+                  onChange={(value) =>
+                    setColumnFilters((current) => ({ ...current, duration: value }))
+                  }
+                  placeholder="00:00"
+                  ariaLabel="Filtrar columna duracion"
+                />
+              </div>
+              <div className="col-span-2">
+                <TableColumnFilterInput
+                  value={columnFilters.price}
+                  onChange={(value) =>
+                    setColumnFilters((current) => ({ ...current, price: value }))
+                  }
+                  placeholder="Precio..."
+                  ariaLabel="Filtrar columna precio"
+                />
+              </div>
+              <div className="col-span-2">
+                <TableColumnFilterSelect
+                  value={columnFilters.status}
+                  onChange={(value) =>
+                    setColumnFilters((current) => ({ ...current, status: value }))
+                  }
+                  options={[
+                    { value: "active", label: "Activo" },
+                    { value: "suspended", label: "Suspendido" },
+                  ]}
+                  ariaLabel="Filtrar columna estatus"
+                />
+              </div>
+              <div className="col-span-1" />
             </div>
 
             <div className="divide-y divide-gray-200">

@@ -29,7 +29,7 @@ export default function CatalogExcelModal({
 
       {open ? (
         <AppModal>
-          <div className="mx-auto w-full max-w-7xl">
+          <div className="mx-auto w-full max-w-[96rem]">
             <div className="flex max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-[1.5rem] border border-gray-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:rounded-[2rem]">
               <div className="border-b border-gray-200 bg-gradient-to-r from-slate-900 via-slate-800 to-red-700 p-4 text-white sm:p-6">
                 <div className="flex items-start justify-between gap-4">
