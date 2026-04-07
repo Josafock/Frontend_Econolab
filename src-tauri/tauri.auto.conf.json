@@ -1,7 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Econolab",
-  "version": "0.1.0",
+  "mainBinaryName": "Econolab",
+  "version": "0.1.2",
   "identifier": "com.econolab.desktop",
   "build": {
     "frontendDist": "../out",
@@ -36,6 +37,14 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "headerImage": "icons/installer-header.bmp",
+        "sidebarImage": "icons/installer-sidebar.bmp",
+        "installerHooks": "nsis-hooks.nsh"
+      }
+    }
   }
 }

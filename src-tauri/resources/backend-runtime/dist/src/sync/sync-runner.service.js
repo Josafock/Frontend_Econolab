@@ -32,6 +32,8 @@ let SyncRunnerService = SyncRunnerService_1 = class SyncRunnerService {
     logger = new common_1.Logger(SyncRunnerService_1.name);
     autoInterval = null;
     startupTimer = null;
+    startupSyncPromise = null;
+    attemptedEmptyBootstrapResources = new Set();
     running = false;
     lastRunAt = null;
     lastRunResult = null;
@@ -52,16 +54,27 @@ let SyncRunnerService = SyncRunnerService_1 = class SyncRunnerService {
     get startupSyncEnabled() {
         return Boolean(this.runtimeConfig.remoteBaseUrl);
     }
+    startStartupSync() {
+        if (this.startupSyncPromise) {
+            return this.startupSyncPromise;
+        }
+        this.startupSyncPromise = this.runStartupSync()
+            .catch((error) => {
+            const message = error instanceof Error ? error.message : String(error);
+            this.logger.warn(`La sincronizacion inicial fallo: ${message}`);
+        })
+            .finally(() => {
+            this.startupSyncPromise = null;
+        });
+        return this.startupSyncPromise;
+    }
     onModuleInit() {
         if (!this.startupSyncEnabled) {
             return;
         }
         this.startupTimer = setTimeout(() => {
-            void this.runStartupSync().catch((error) => {
-                const message = error instanceof Error ? error.message : String(error);
-                this.logger.warn(`La sincronizacion inicial fallo: ${message}`);
-            });
-        }, 1500);
+            void this.startStartupSync();
+        }, 250);
         if (!this.autoSyncEnabled) {
             return;
         }
@@ -110,14 +123,8 @@ let SyncRunnerService = SyncRunnerService_1 = class SyncRunnerService {
     }
     async resolveBootstrapResourceTypes() {
         const counts = await this.getLocalResourceCounts();
-        const totalTrackedRecords = Object.values(counts).reduce((accumulator, value) => accumulator + value, 0);
-        if (totalTrackedRecords === 0) {
-            return [...sync_resource_util_1.SUPPORTED_INBOUND_SYNC_RESOURCES];
-        }
-        if (counts.users === 0) {
-            return ['users'];
-        }
-        return [];
+        return sync_resource_util_1.SUPPORTED_INBOUND_SYNC_RESOURCES.filter((resourceType) => counts[resourceType] === 0 &&
+            !this.attemptedEmptyBootstrapResources.has(resourceType));
     }
     async runStartupSync() {
         const bootstrapResourceTypes = await this.resolveBootstrapResourceTypes();
@@ -172,6 +179,26 @@ let SyncRunnerService = SyncRunnerService_1 = class SyncRunnerService {
         this.lastRunResult = result;
         return result;
     }
+    getSyncFailureMessage(result) {
+        const message = typeof result?.message === 'string'
+            ? result.message
+            : null;
+        if (message) {
+            return message;
+        }
+        const pullError = typeof result?.pull?.error ===
+            'string'
+            ? (result.pull?.error ?? null)
+            : null;
+        if (pullError) {
+            return pullError;
+        }
+        const pushError = typeof result?.push?.error ===
+            'string'
+            ? (result.push?.error ?? null)
+            : null;
+        return pushError;
+    }
     async bootstrapFromRemote(options) {
         if (!this.runtimeConfig.remoteBaseUrl) {
             throw new Error('SYNC_REMOTE_BASE_URL no esta configurado. No se puede hacer bootstrap remoto.');
@@ -216,6 +243,9 @@ let SyncRunnerService = SyncRunnerService_1 = class SyncRunnerService {
                 pages,
             });
         }
+        resourceTypes.forEach((resourceType) => {
+            this.attemptedEmptyBootstrapResources.add(resourceType);
+        });
         return {
             remoteBaseUrl: this.runtimeConfig.remoteBaseUrl,
             resources: summary,
@@ -226,6 +256,44 @@ let SyncRunnerService = SyncRunnerService_1 = class SyncRunnerService {
                 deferred: summary.reduce((acc, item) => acc + item.deferred, 0),
                 failed: summary.reduce((acc, item) => acc + item.failed, 0),
             },
+        };
+    }
+    async ensureDesktopDataReady() {
+        if (!this.runtimeConfig.remoteBaseUrl) {
+            return {
+                status: 'skipped_not_configured',
+                resourceTypes: [],
+                sync: null,
+            };
+        }
+        if (this.startupTimer) {
+            clearTimeout(this.startupTimer);
+            this.startupTimer = null;
+        }
+        if (this.startupSyncPromise) {
+            await this.startupSyncPromise;
+        }
+        const bootstrapResourceTypes = await this.resolveBootstrapResourceTypes();
+        const bootstrap = bootstrapResourceTypes.length > 0
+            ? await this.bootstrapFromRemote({
+                resourceTypes: bootstrapResourceTypes,
+                includeDeleted: true,
+            })
+            : null;
+        const sync = await this.runOnce({
+            reason: 'login',
+        });
+        if (bootstrapResourceTypes.length > 0 && sync.status !== 'completed') {
+            throw new Error(this.getSyncFailureMessage(sync) ??
+                'No se pudo completar la sincronizacion inicial del escritorio.');
+        }
+        return {
+            status: bootstrapResourceTypes.length > 0
+                ? 'completed'
+                : 'up_to_date',
+            resourceTypes: bootstrapResourceTypes,
+            bootstrap,
+            sync,
         };
     }
     async runOnce(options) {

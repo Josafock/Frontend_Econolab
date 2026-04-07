@@ -117,17 +117,16 @@ export function Sidebar(user: SessionUser) {
       >
         <div className="flex h-full flex-col">
           <div className="border-b border-red-100 px-6 py-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-red-600 shadow-lg shadow-red-600/20">
-                <Stethoscope size={26} className="text-white" />
-              </div>
-
-              <div className="min-w-0">
-                <h1 className="text-2xl font-bold text-gray-900">
-                  <span className="text-red-600">ECONO</span>LAB
-                </h1>
-                <p className="text-xs text-gray-500">Sistema de laboratorios</p>
-              </div>
+            <div className="space-y-3">
+              <Image
+                src="/econolab-brand.png"
+                alt="Econolab"
+                width={240}
+                height={76}
+                className="h-auto w-full max-w-[220px] object-contain"
+                priority
+              />
+              <p className="pl-1 text-xs text-gray-500">Sistema de laboratorios</p>
             </div>
           </div>
 
@@ -141,9 +140,6 @@ export function Sidebar(user: SessionUser) {
                   <button
                     key={item.path}
                     onClick={() => handleNavigation(item.path)}
-                    onMouseEnter={() => {
-                      void router.prefetch(item.path);
-                    }}
                     aria-current={isActive ? 'page' : undefined}
                     className={`group relative flex w-full cursor-pointer items-center gap-3 overflow-hidden rounded-2xl border px-4 py-3 text-left text-sm font-medium transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 focus-visible:ring-offset-2 ${
                       isActive

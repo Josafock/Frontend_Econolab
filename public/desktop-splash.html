@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1"
+    />
+    <title>Econolab</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --splash-bg: #f5efee;
+        --splash-card: rgba(255, 255, 255, 0.78);
+        --splash-border: rgba(255, 255, 255, 0.88);
+        --splash-red: #f40d1f;
+        --splash-red-dark: #d9041a;
+        --splash-ink: #172033;
+        --splash-muted: #6f778a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.92), transparent 34%),
+          radial-gradient(circle at 80% 12%, rgba(244, 13, 31, 0.18), transparent 28%),
+          radial-gradient(circle at 50% 82%, rgba(244, 13, 31, 0.12), transparent 36%),
+          linear-gradient(135deg, #f6f0ef 0%, #f2eceb 45%, #ebe4e3 100%);
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      }
+
+      body {
+        position: relative;
+        display: grid;
+        place-items: center;
+        padding: 28px;
+      }
+
+      body::before,
+      body::after {
+        content: "";
+        position: absolute;
+        border-radius: 999px;
+        filter: blur(18px);
+        opacity: 0.7;
+      }
+
+      body::before {
+        inset: auto auto 48px 64px;
+        width: 260px;
+        height: 260px;
+        background: rgba(244, 13, 31, 0.14);
+      }
+
+      body::after {
+        inset: 42px 56px auto auto;
+        width: 180px;
+        height: 180px;
+        background: rgba(23, 32, 51, 0.08);
+      }
+
+      .shell {
+        position: relative;
+        width: min(100%, 880px);
+        border: 1px solid var(--splash-border);
+        border-radius: 34px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), var(--splash-card));
+        box-shadow:
+          0 24px 80px rgba(23, 32, 51, 0.14),
+          0 6px 24px rgba(244, 13, 31, 0.12);
+        backdrop-filter: blur(22px);
+        overflow: hidden;
+      }
+
+      .shell::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(120deg, rgba(244, 13, 31, 0.06), transparent 30%, rgba(23, 32, 51, 0.04)),
+          radial-gradient(circle at 14% 84%, rgba(244, 13, 31, 0.1), transparent 24%);
+        pointer-events: none;
+      }
+
+      .content {
+        position: relative;
+        display: grid;
+        gap: 28px;
+        grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+        align-items: center;
+        min-height: 520px;
+        padding: 44px 48px;
+      }
+
+      .brand-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 16px;
+        border-radius: 999px;
+        border: 1px solid rgba(244, 13, 31, 0.14);
+        background: rgba(255, 255, 255, 0.82);
+        color: var(--splash-muted);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+      }
+
+      .brand-tag span {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, #ff3246, var(--splash-red-dark));
+        box-shadow: 0 0 0 8px rgba(244, 13, 31, 0.08);
+      }
+
+      h1 {
+        margin: 18px 0 0;
+        color: var(--splash-ink);
+        font-size: clamp(2.4rem, 4vw, 3.9rem);
+        line-height: 0.95;
+        letter-spacing: -0.05em;
+      }
+
+      h1 em {
+        font-style: normal;
+        color: var(--splash-red);
+      }
+
+      .brand-image {
+        display: block;
+        width: min(100%, 360px);
+        height: auto;
+        margin-top: 18px;
+        filter: drop-shadow(0 14px 28px rgba(244, 13, 31, 0.14));
+      }
+
+      .lead {
+        max-width: 34rem;
+        margin: 18px 0 0;
+        color: #495063;
+        font-size: 1.04rem;
+        line-height: 1.75;
+      }
+
+      .signals {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 28px;
+      }
+
+      .signal {
+        border-radius: 22px;
+        border: 1px solid rgba(23, 32, 51, 0.08);
+        background: rgba(255, 255, 255, 0.84);
+        padding: 18px 16px;
+      }
+
+      .signal-label {
+        color: var(--splash-muted);
+        font-size: 0.74rem;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      .signal-value {
+        margin-top: 10px;
+        color: var(--splash-ink);
+        font-size: 0.98rem;
+        font-weight: 700;
+      }
+
+      .progress-card {
+        position: relative;
+        border-radius: 30px;
+        background: linear-gradient(180deg, rgba(23, 32, 51, 0.96), rgba(35, 43, 60, 0.92));
+        color: white;
+        padding: 30px 28px;
+        overflow: hidden;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      }
+
+      .progress-card::before {
+        content: "";
+        position: absolute;
+        inset: auto -28% -30% auto;
+        width: 220px;
+        height: 220px;
+        border-radius: 999px;
+        background: rgba(244, 13, 31, 0.18);
+        filter: blur(18px);
+      }
+
+      .logo-wrap {
+        position: relative;
+        display: grid;
+        place-items: center;
+        min-height: 268px;
+      }
+
+      .logo-wrap::before {
+        content: "";
+        position: absolute;
+        width: 270px;
+        height: 270px;
+        border-radius: 999px;
+        background: radial-gradient(circle, rgba(244, 13, 31, 0.3) 0%, rgba(244, 13, 31, 0.08) 45%, transparent 72%);
+        filter: blur(8px);
+        animation: pulse 2.6s ease-in-out infinite;
+      }
+
+      .logo {
+        width: min(100%, 240px);
+        height: auto;
+        filter: drop-shadow(0 22px 48px rgba(244, 13, 31, 0.26));
+        animation: float 3.1s ease-in-out infinite;
+      }
+
+      .loader {
+        position: relative;
+        height: 10px;
+        margin-top: 24px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.12);
+        overflow: hidden;
+      }
+
+      .loader::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        width: 42%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #ff9ba5 0%, #ff4458 45%, #ffffff 100%);
+        box-shadow: 0 0 24px rgba(255, 90, 106, 0.45);
+        animation: progress 1.65s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      }
+
+      .status {
+        margin-top: 18px;
+        color: rgba(255, 255, 255, 0.86);
+        font-size: 0.95rem;
+        line-height: 1.7;
+      }
+
+      .status strong {
+        color: white;
+      }
+
+      .footnote {
+        margin-top: 14px;
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 0.78rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      @keyframes float {
+        0%,
+        100% {
+          transform: translateY(0px);
+        }
+        50% {
+          transform: translateY(-10px);
+        }
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          transform: scale(0.94);
+          opacity: 0.72;
+        }
+        50% {
+          transform: scale(1.04);
+          opacity: 0.96;
+        }
+      }
+
+      @keyframes progress {
+        0% {
+          transform: translateX(-140%);
+        }
+        50% {
+          transform: translateX(88%);
+        }
+        100% {
+          transform: translateX(220%);
+        }
+      }
+
+      @media (max-width: 900px) {
+        body {
+          padding: 18px;
+        }
+
+        .content {
+          grid-template-columns: 1fr;
+          min-height: auto;
+          padding: 30px 24px 24px;
+        }
+
+        .signals {
+          grid-template-columns: 1fr;
+        }
+
+        .logo-wrap {
+          min-height: 210px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell" aria-live="polite">
+      <section class="content">
+        <div>
+          <div class="brand-tag"><span></span> Preparando escritorio</div>
+          <img class="brand-image" src="/econolab-brand.png" alt="Econolab" />
+          <h1>Escritorio listo para empezar</h1>
+          <p class="lead">
+            Estamos levantando el backend local, cargando tu configuracion y conectando la experiencia
+            de escritorio para que entres con todo listo.
+          </p>
+
+          <div class="signals">
+            <div class="signal">
+              <div class="signal-label">Backend</div>
+              <div class="signal-value">Inicializando motor local</div>
+            </div>
+            <div class="signal">
+              <div class="signal-label">Datos</div>
+              <div class="signal-value">Validando catalogos y cache</div>
+            </div>
+            <div class="signal">
+              <div class="signal-label">Desktop</div>
+              <div class="signal-value">Abriendo interfaz segura</div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="progress-card">
+          <div class="logo-wrap">
+            <img class="logo" src="/econolab-logo.png" alt="Logo de Econolab" />
+          </div>
+
+          <div class="loader" aria-hidden="true"></div>
+          <p class="status">
+            <strong>Econolab</strong> se esta iniciando. Esto solo toma unos segundos y evita que el
+            usuario vea una ventana vacia mientras carga la app.
+          </p>
+          <p class="footnote">Sistema de laboratorios</p>
+        </aside>
+      </section>
+    </main>
+  </body>
+</html>

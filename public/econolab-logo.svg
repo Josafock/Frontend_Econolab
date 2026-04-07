@@ -1,0 +1,70 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="econolab-red" x1="220" y1="220" x2="816" y2="816" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF1830" />
+      <stop offset="1" stop-color="#E10318" />
+    </linearGradient>
+    <linearGradient id="econolab-liquid" x1="318" y1="620" x2="690" y2="715" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C50018" />
+      <stop offset="1" stop-color="#A20015" />
+    </linearGradient>
+    <filter id="econolab-glow" x="120" y="90" width="784" height="844" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="32" result="blur" />
+      <feColorMatrix
+        in="blur"
+        type="matrix"
+        values="1 0 0 0 0
+                0 0 0 0 0
+                0 0 0 0 0
+                0 0 0 0.34 0"
+      />
+    </filter>
+  </defs>
+
+  <g filter="url(#econolab-glow)">
+    <circle cx="512" cy="594" r="272" fill="#FF1130" />
+  </g>
+
+  <circle cx="512" cy="594" r="272" fill="url(#econolab-red)" />
+  <circle cx="430" cy="298" r="52" fill="url(#econolab-red)" />
+  <circle cx="582" cy="232" r="48" fill="url(#econolab-red)" />
+  <circle cx="550" cy="390" r="42" fill="url(#econolab-red)" />
+
+  <ellipse cx="412" cy="278" rx="17" ry="25" transform="rotate(46 412 278)" fill="white" />
+  <ellipse cx="563" cy="214" rx="15" ry="22" transform="rotate(46 563 214)" fill="white" />
+  <ellipse cx="532" cy="375" rx="13" ry="19" transform="rotate(46 532 375)" fill="white" />
+
+  <path d="M444 344H580V382H554V464.5C616.64 482.342 661 539.962 661 608C661 690.843 593.843 758 511 758C428.157 758 361 690.843 361 608C361 539.962 405.36 482.342 468 464.5V382H444V344Z" fill="white" />
+  <path d="M386 545C421.803 509.197 469.017 489.5 518.5 489.5C568.19 489.5 615.492 509.361 651 545V608C651 685.32 588.32 748 511 748C433.68 748 371 685.32 371 608V574.5C387.653 554.675 407.759 541.335 430.5 536.5C473.35 527.385 505.992 550.847 539.804 563.058C580.091 577.606 619.542 575.311 651 561.5V608C651 685.32 588.32 748 511 748C433.68 748 371 685.32 371 608V574.5C387.653 554.675 407.759 541.335 430.5 536.5C473.35 527.385 505.992 550.847 539.804 563.058C580.091 577.606 619.542 575.311 651 561.5" fill="url(#econolab-liquid)" />
+  <path d="M399 552C423.318 521.58 462.083 503 503.5 503H517C533.856 503 549.631 507.176 564.224 513.751C587.959 524.444 612.572 532 638 532C642.047 532 646.073 531.808 650.074 531.432C651.016 540.119 651 548.962 651 558V608C651 685.32 588.32 748 511 748C433.68 748 371 685.32 371 608V593C382.263 579.656 391.598 566.271 399 552Z" fill="url(#econolab-liquid)" />
+
+  <path
+    d="M444 344H580V382H554V464.5C616.64 482.342 661 539.962 661 608C661 690.843 593.843 758 511 758C428.157 758 361 690.843 361 608C361 539.962 405.36 482.342 468 464.5V382H444V344Z"
+    stroke="white"
+    stroke-width="22"
+    stroke-linejoin="round"
+  />
+
+  <path
+    d="M390 565C399.5 554.5 411 546 424.5 540.5C466 523.5 502.5 553.5 540 565C580.57 577.45 617.613 575.497 648 562"
+    stroke="white"
+    stroke-width="18"
+    stroke-linecap="round"
+  />
+
+  <path
+    d="M392 566C385.955 580.516 382 596.562 382 613.5C382 686.677 441.323 746 514.5 746"
+    stroke="#FF7C8A"
+    stroke-width="12"
+    stroke-linecap="round"
+    opacity="0.72"
+  />
+
+  <path
+    d="M389 489C404.708 472.75 424.715 460.666 446.75 454"
+    stroke="white"
+    stroke-width="17"
+    stroke-linecap="round"
+    opacity="0.95"
+  />
+</svg>

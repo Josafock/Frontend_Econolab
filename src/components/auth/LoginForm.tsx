@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import Image from 'next/image';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Lock, User } from 'lucide-react';
@@ -14,8 +15,24 @@ export default function LoginForm() {
   const runtime = getRuntimeConfig();
   const [pending, setPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [slowLoginHint, setSlowLoginHint] = useState(false);
 
   const triangles = Array.from({ length: 120 });
+
+  useEffect(() => {
+    if (!pending) {
+      setSlowLoginHint(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setSlowLoginHint(true);
+    }, 1800);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [pending]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -74,12 +91,24 @@ export default function LoginForm() {
         <div className="mx-auto w-full max-w-xl">
           <div className="rounded-2xl border border-gray-200 bg-white shadow-lg">
             <div className="flex flex-col items-center justify-center gap-4 border-b border-gray-100 px-8 py-8">
-              <h1 className="text-4xl font-bold text-black">
-                <span className="text-red-600">ECONO</span>LAB
-              </h1>
+              <Image
+                src="/econolab-brand.png"
+                alt="Econolab"
+                width={320}
+                height={98}
+                className="h-auto w-full max-w-[280px] object-contain"
+                priority
+              />
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-red-200 bg-red-50">
-                  <Lock className="h-6 w-6 text-red-600" />
+                <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl border border-red-200 bg-white shadow-sm shadow-red-100/80">
+                  <Image
+                    src="/econolab-logo.png"
+                    alt="Logo de Econolab"
+                    width={48}
+                    height={48}
+                    className="h-full w-full object-contain"
+                    priority
+                  />
                 </div>
                 <div className="text-left">
                   <h1 className="text-lg font-semibold text-gray-900">Iniciar sesión</h1>
@@ -156,12 +185,20 @@ export default function LoginForm() {
                   {pending ? (
                     <>
                       <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-red-500 border-t-transparent" />
-                      Iniciando sesión...
+                      {slowLoginHint
+                        ? 'Preparando datos iniciales...'
+                        : 'Iniciando sesión...'}
                     </>
                   ) : (
                     'Iniciar sesión'
                   )}
                 </button>
+
+                {pending && slowLoginHint ? (
+                  <p className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    Estamos sincronizando catalogos, servicios y datos base para que al entrar ya veas la informacion completa.
+                  </p>
+                ) : null}
 
                 {!runtime.isDesktop ? (
                   <p className="text-center text-sm text-gray-600">

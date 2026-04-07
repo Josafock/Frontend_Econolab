@@ -9,6 +9,27 @@ const backendPort = process.env.ECONOLAB_BACKEND_PORT || "3000";
 const frontendPort = process.env.PORT || "5173";
 const autoSyncPreset = process.argv.includes("--auto-sync");
 
+function defaultDesktopSqlitePath() {
+  if (process.env.DATABASE_SQLITE_PATH?.trim()) {
+    return process.env.DATABASE_SQLITE_PATH.trim();
+  }
+
+  if (process.platform === "win32") {
+    const localAppData = process.env.LOCALAPPDATA || process.env.APPDATA;
+
+    if (localAppData) {
+      return path.join(
+        localAppData,
+        "Econolab",
+        "backend",
+        "econolab-tauri-dev.sqlite",
+      );
+    }
+  }
+
+  return "data/econolab-tauri-dev.sqlite";
+}
+
 function npmCommand() {
   return process.platform === "win32" ? "npm.cmd" : "npm";
 }
@@ -153,6 +174,7 @@ function killProcessOnPort(port) {
 }
 
 async function main() {
+  const sqliteDatabasePath = defaultDesktopSqlitePath();
   const syncRemoteBaseUrl =
     process.env.SYNC_REMOTE_BASE_URL ||
     (autoSyncPreset ? "http://127.0.0.1:3001/api" : undefined);
@@ -168,8 +190,7 @@ async function main() {
     ...process.env,
     APP_RUNTIME_MODE: process.env.APP_RUNTIME_MODE || "desktop-offline",
     DATABASE_TYPE: process.env.DATABASE_TYPE || "sqlite",
-    DATABASE_SQLITE_PATH:
-      process.env.DATABASE_SQLITE_PATH || "data/econolab-tauri-dev.sqlite",
+    DATABASE_SQLITE_PATH: sqliteDatabasePath,
     DATABASE_SYNCHRONIZE: process.env.DATABASE_SYNCHRONIZE || "false",
     DATABASE_LOGGING: process.env.DATABASE_LOGGING || "false",
     PORT: backendPort,
@@ -194,7 +215,7 @@ async function main() {
   const backendAlreadyRunning = await isPortOpen(backendPort);
   const sqlitePath = path.resolve(
     backendDir,
-    backendEnv.DATABASE_SQLITE_PATH || "data/econolab-tauri-dev.sqlite",
+    backendEnv.DATABASE_SQLITE_PATH || sqliteDatabasePath,
   );
 
   if (backendAlreadyRunning && forceRestartBackend) {
@@ -269,12 +290,21 @@ async function main() {
     backendEnv.SYNC_MACHINE_TOKEN,
   );
 
-  const frontendProcess = spawn(npmCommand(), ["run", "dev"], {
-    cwd: frontendDir,
-    env: frontendEnv,
-    stdio: "inherit",
-    shell: process.platform === "win32",
-  });
+  const frontendAlreadyRunning = await isPortOpen(frontendPort);
+  let frontendProcess = null;
+
+  if (frontendAlreadyRunning) {
+    console.log(
+      `Frontend detectado en el puerto ${frontendPort}. Se reutilizara el servidor existente.`,
+    );
+  } else {
+    frontendProcess = spawn(npmCommand(), ["run", "dev"], {
+      cwd: frontendDir,
+      env: frontendEnv,
+      stdio: "inherit",
+      shell: process.platform === "win32",
+    });
+  }
 
   const shutdown = () => {
     killChild(frontendProcess);
@@ -285,10 +315,12 @@ async function main() {
   process.on("SIGTERM", shutdown);
   process.on("exit", shutdown);
 
-  frontendProcess.on("exit", (code) => {
-    shutdown();
-    process.exit(code ?? 0);
-  });
+  if (frontendProcess) {
+    frontendProcess.on("exit", (code) => {
+      shutdown();
+      process.exit(code ?? 0);
+    });
+  }
 
   if (backendProcess) {
     backendProcess.on("exit", (code) => {
@@ -296,6 +328,10 @@ async function main() {
         console.error(`Backend local finalizo con codigo ${code}.`);
       }
     });
+  }
+
+  if (!frontendProcess) {
+    setInterval(() => {}, 60_000);
   }
 }
 

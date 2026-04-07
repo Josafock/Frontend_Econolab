@@ -18,6 +18,7 @@ export declare class AuthService {
     constructor(users: UsersService, authEvents: AuthEventsService, configService: ConfigService, syncRunner: SyncRunnerService, sessionsRepo: Repository<UserSession>, usersRepo: Repository<User>);
     private get appRuntimeConfig();
     private tryHydrateUsersForDesktopLogin;
+    private ensureDesktopDataReadyForLogin;
     private registerFailedLogin;
     private resetLoginAttempts;
     private getSessionExpiresAt;

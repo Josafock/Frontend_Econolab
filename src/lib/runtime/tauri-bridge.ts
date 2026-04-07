@@ -84,3 +84,8 @@ export async function deleteDesktopStoredValue(key: string): Promise<boolean> {
   const result = await invokeTauri<boolean>("desktop_store_delete", { key });
   return Boolean(result);
 }
+
+export async function notifyDesktopAppReady(): Promise<boolean> {
+  const result = await invokeTauri<boolean>("desktop_notify_app_ready");
+  return Boolean(result);
+}

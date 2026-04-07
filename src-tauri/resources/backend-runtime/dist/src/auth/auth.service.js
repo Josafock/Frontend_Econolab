@@ -72,6 +72,23 @@ let AuthService = AuthService_1 = class AuthService {
             hydrationFailed: false,
         };
     }
+    async ensureDesktopDataReadyForLogin() {
+        const runtimeMode = this.appRuntimeConfig.runtimeMode;
+        if (runtimeMode === 'web-online') {
+            return;
+        }
+        if (!this.syncRunner.getStatus().remoteBaseUrlConfigured) {
+            return;
+        }
+        try {
+            await this.syncRunner.ensureDesktopDataReady();
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.logger.warn(`No se pudo preparar la data inicial para login desktop: ${message}`);
+            throw new common_1.ServiceUnavailableException('No fue posible preparar los catalogos iniciales del escritorio. Verifica la conexion con el servidor central e intentalo de nuevo.');
+        }
+    }
     async registerFailedLogin(user) {
         const MAX_ATTEMPTS = 3;
         const LOCK_MINUTES = 15;
@@ -156,6 +173,7 @@ let AuthService = AuthService_1 = class AuthService {
             throw new common_1.ForbiddenException('Rol pendiente de asignación');
         }
         await this.resetLoginAttempts(user);
+        await this.ensureDesktopDataReadyForLogin();
         return this.createAuthenticatedResponse(user, ip, userAgent, 'Autenticado...');
     }
     async loginWithOAuthUser(user, ip, userAgent) {

@@ -573,6 +573,22 @@ fn stop_packaged_backend(app: &AppHandle) {
   }
 }
 
+fn set_desktop_window_icons(app: &AppHandle) {
+  let icon = match tauri::image::Image::from_bytes(include_bytes!("../icons/128x128.png")) {
+    Ok(icon) => icon,
+    Err(error) => {
+      append_backend_log(app, &format!("set_desktop_window_icons error: {error}"));
+      return;
+    }
+  };
+
+  for label in ["main", "splash"] {
+    if let Some(window) = app.get_webview_window(label) {
+      let _ = window.set_icon(icon.clone());
+    }
+  }
+}
+
 #[tauri::command]
 fn desktop_store_get(app: AppHandle, key: String) -> Result<Option<String>, String> {
   let store = read_store(&app)?;
@@ -595,6 +611,23 @@ fn desktop_store_delete(app: AppHandle, key: String) -> Result<bool, String> {
   Ok(true)
 }
 
+#[tauri::command]
+fn desktop_notify_app_ready(app: AppHandle) -> Result<bool, String> {
+  if let Some(main_window) = app.get_webview_window("main") {
+    main_window
+      .show()
+      .map_err(|error| format!("No se pudo mostrar la ventana principal: {error}"))?;
+    let _ = main_window.set_focus();
+  }
+
+  if let Some(splash_window) = app.get_webview_window("splash") {
+    let _ = splash_window.close();
+  }
+
+  Ok(true)
+}
+
+#[allow(non_snake_case)]
 #[tauri::command]
 fn desktop_save_file(
   app: AppHandle,
@@ -626,6 +659,7 @@ pub fn run() {
   let app = tauri::Builder::default()
     .manage(BackendProcessState::default())
     .invoke_handler(tauri::generate_handler![
+      desktop_notify_app_ready,
       desktop_save_file,
       desktop_store_get,
       desktop_store_set,
@@ -643,6 +677,8 @@ pub fn run() {
       if let Err(error) = ensure_default_store(&app.handle()) {
         append_backend_log(&app.handle(), &format!("ensure_default_store error: {error}"));
       }
+
+      set_desktop_window_icons(&app.handle());
 
       if let Err(error) = start_packaged_backend(&app.handle()) {
         append_backend_log(&app.handle(), &format!("start_packaged_backend error: {error}"));

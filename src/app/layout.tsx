@@ -12,6 +12,11 @@ const questrial = Questrial({
 export const metadata: Metadata = {
   title: "Econolab",
   description: "Laboratorio de análisis clínicos",
+  icons: {
+    icon: "/econolab-logo.png",
+    shortcut: "/econolab-logo.png",
+    apple: "/econolab-logo.png",
+  },
 };
 
 export default function RootLayout({
